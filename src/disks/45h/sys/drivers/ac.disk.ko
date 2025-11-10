@@ -1,0 +1,40 @@
+local driver = {}
+
+driver.type = "fs"
+driver.name = "Advanced Computers disk driver"
+driver.version = "1.0.0"
+driver.apiVersion = 1
+driver.description = "Driver for Advanced Computers disks"
+driver.manifest = "ac.disk.ko"
+
+driver.api = function(component)
+    return {
+        readAllText = function(dir)
+            local drive = component:open(dir)
+            local file = drive.read()
+            drive = nil
+            return file
+        end,
+        writeAllText = function(dir, content)
+            local drive = component:open(dir)
+            drive.write(content)
+            drive = nil
+        end,
+        appendAllText = function(dir, content)
+            local drive = component:open(dir)
+            drive.append(content)
+            drive = nil
+        end,
+        list = function(dir)
+            return component:list(dir)
+        end,
+        mkFile = function(dir)
+            component:makeFile(dir)
+        end,
+        mkDir = function(dir)
+            component:makeDirectory(dir)
+        end
+    }
+end
+
+return driver

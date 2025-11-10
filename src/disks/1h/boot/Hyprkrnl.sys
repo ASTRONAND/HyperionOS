@@ -1,0 +1,228 @@
+local bootLoader={...}
+local MODE=bootLoader[1]
+local apis=bootLoader[2]
+local bootDisk=bootLoader[3]
+local term=bootLoader[4]
+local getFile=bootLoader[5]
+local bootData
+do
+    local tmp=load("return "..(getFile("/var/log/kernel/bootData").readAllText() or "{}"))
+    if not tmp then error("Bootdata failed to load") end
+    bootData=tmp()
+end
+local list=bootLoader[6]
+local computer=bootLoader[7]
+local startup=true
+local osleep=sleep
+_G._SYSDEBUG=bootData.debug
+local drivers={}
+local eventCache={}
+
+while true do
+    local event={computer.getMachineEvent()}
+    if event[1]==nil then break end
+    eventCache[#eventCache+1] = event
+end
+
+term.clear()
+term.print("Welcome to Hyperion OS")
+term.print("Creating logger")
+osleep(1)
+local log=load(getFile("/sys/util/logger.lua").readAllText())(computer)
+term.clear()
+local logHook=log.setHook(term.print)
+log.api.log("Created logger")
+local function saveLog()
+    local logNum=bootData.logNum
+    getFile("/var/log/kernel/"..tostring(logNum)..".log").writeAllText(log.api.get())
+    getFile("/var/log/kernel/latest.log").writeAllText(log.api.get())
+    if bootData.logNum==10 then
+        bootData.logNum=0
+    else
+        bootData.logNum=bootData.logNum+1
+    end
+end
+if bootData.debug then _G.saveLog=saveLog end
+
+local function t2t(table)
+    local output = "{"
+    for i,v in pairs(table) do
+        local coma=true
+        if type(i) == "string" then
+            output=output.."[\""..i.."\"]="
+        end
+        if type(v) == "table" then
+            if v == table then
+                output=string.sub(output,1,#output-(#i+1))
+                coma=false
+            else
+                output=output..t2t(v)
+            end
+        elseif type(v) == "string" then
+            output=output.."[=["..v.."]=]"
+        elseif type(v) == "number" then
+            output=output..tostring(v)
+        elseif type(v) == "boolean" then
+            if v == true then
+                output=output.."true"
+            else
+                output=output.."false"
+            end
+        elseif type(v) == "function" then
+            output=output.."function()"
+        else
+            error("serialization of type \""..type(v).."\" is not supported")
+        end
+        if coma then
+            output=output..","
+        end
+    end
+    if #table>0 or string.sub(output,#output,#output) == "," then
+        output=string.sub(output,1,#output-1)
+    end
+    output=output.."}"
+    return output
+end
+
+-- Make PANIC
+local function PANIC(err)
+    term.clear()
+    term.print(log.api.get())
+    saveLog()
+    if err==bootData.prevError then
+        bootData.errorCount=bootData.errorCount+1
+    else
+        bootData.prevError=err
+        bootData.errorCount=0
+    end
+    getFile("/var/log/kernel/bootData").writeAllText(t2t(bootData))
+    term.print("KERNEL PANIC: "..err)
+    term.print("Log saved to /var/log/kernel/"..tostring(bootData.logNum)..".log\n")
+    term.print("Press enter to continue...")
+    while true do
+        local event = {computer.getMachineEvent()}
+        if event[1]~=nil then
+            term.print(table.concat(event, " "))
+        end
+        if event[1] == "keyTyped" then
+            if event[3] == "\n" then
+                break
+            end
+        end
+    end
+    computer.reboot()
+end
+
+local function runAsKernel(path, ...)
+    local func, err = load(getFile(path).readAllText(), path, "t", _G)
+    if not func then return false, "\t"..err end
+    local ret = {xpcall(func, debug.traceback, ...)}
+    if not ret[1] then
+        return false, ret[2]
+    end
+    return true, table.unpack(ret, 2)
+end
+
+log.api.log("Loading globals...")
+for i,v in ipairs(list("/sys/api/")) do
+    if bootData.debug then log.api.debug("Loading "..v) end
+    local ok, err = runAsKernel("/sys/api/"..v, getFile, log)
+    if not ok then log.api.warn(err) end
+end
+
+local driverutil={}
+function driverutil.getFirst(type)
+    if drivers[type] then
+        if drivers[type][1] then
+            return drivers[type][1]
+        end
+    end
+end
+
+function driverutil.list(type)
+    if not type then
+        local tmp={}
+        for i,v in ipairs(drivers.raw) do
+            tmp[#tmp+1] = {type=v.type, obj=v}
+        end
+        local i=0
+        return function()
+            i=i+1
+            if tmp[i]==nil then return end
+            return tmp[i].type, tmp[i].obj
+        end
+    else
+        local tmp={}
+        for i,v in ipairs(drivers[type]) do
+            tmp[#tmp+1] = {type=v.type, obj=v}
+        end
+        local i=0
+        return function()
+            i=i+1
+            if tmp[i]==nil then return end
+            return tmp[i].type, tmp[i].obj
+        end
+    end
+end
+
+log.api.log("Loading drivers...")
+for i,v in ipairs(list("/sys/modules/")) do
+    if bootData.debug then log.api.debug("Loading module "..v) end
+    local ok, err = runAsKernel("/sys/modules/"..v, apis, drivers, log, driverutil)
+    if not ok then log.api.warn("["..v.."] exited with ERR:\n"..err) end
+end
+
+log.api.log("Unloading non \""..MODE.."\" specific drivers...")
+do
+    local tmp={}
+    for i,v in ipairs(drivers) do
+        if type(v.arch)=="table" then
+            for i2,v2 in ipairs(v.arch) do
+                if v2==MODE or v2=="ANY" then
+                    tmp[#tmp+1] = v
+                end
+            end
+        else
+            if v.arch==MODE or v.arch=="ANY" then
+                tmp[#tmp+1] = v
+            end
+        end
+    end
+    drivers={}
+    drivers.raw=tmp
+end
+
+if bootData.debug then log.api.debug("Sorting drivers...") end
+for i,v in ipairs(drivers.raw) do
+    if not drivers[v.type] then drivers[v.type]={} end
+    drivers[v.type][#drivers[v.type]+1] = v
+end
+
+if bootData.debug then log.api.debug("Initializing drivers...") end
+for i,v in ipairs(drivers.raw) do
+    if v.init then
+        local ok, err = xpcall(v.init, debug.traceback)
+        if not ok then
+            log.api.warn("["..v.name.."]: Init function ERR:\n"..err)
+            if bootData.debug then log.api.debug("Removing driver ["..v.name.."]") end
+            table.remove(drivers.raw, i)
+        end
+    end
+end
+log.api.log("Loaded "..tostring(#drivers.raw).." drivers")
+
+log.api.log("Loading filesystem...")
+local ok, fs = runAsKernel("/sys/fs/init", drivers, log, bootDisk, driverutil)
+if not ok then PANIC(fs) end
+if not fs then PANIC("filesystem failed to load") end
+fs.delete("/tmp")
+fs.mkDir("/tmp")
+
+log.api.log("Loading system...")
+local ok, err = runAsKernel("/sys/Hyperion.sys", drivers, log)
+if not ok then PANIC(err) end
+local hyperion = err
+if type(hyperion)~="function" then PANIC("Hyperion failed to load:\nHyperion was: "..tostring(hyperion)) end
+hyperion(fs, log, drivers, PANIC, driverutil)
+
+PANIC("OS EXITED MAIN()")

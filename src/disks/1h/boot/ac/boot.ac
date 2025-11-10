@@ -1,0 +1,135 @@
+local biosData = ({...})[1]
+local apis = {}
+
+local lua = {
+    coroutine = true,
+    debug = true,
+    _HOST = true,
+    _VERSION = true,
+    assert = true,
+    collectgarbage = true,
+    error = true,
+    gcinfo = true,
+    getfenv = true,
+    getmetatable = true,
+    ipairs = true,
+    __inext = true,
+    load = true,
+    math = true,
+    next = true,
+    pairs = true,
+    pcall = true,
+    rawequal = true,
+    rawget = true,
+    rawlen = true,
+    rawset = true,
+    select = true,
+    setfenv = true,
+    setmetatable = true,
+    string = true,
+    table = true,
+    tonumber = true,
+    tostring = true,
+    type = true,
+    xpcall = true,
+    _G = true
+}
+
+local print=component.getFirst("screen").print
+local comp=component
+-- Sandbox globals
+local _REAL_G = _G
+local _PAIRS = pairs
+
+if type(_REAL_G) ~= "table" then
+    error("Global environment (_G) is not a table")
+end
+
+for i, v in _PAIRS(_REAL_G) do
+    if not lua[i] then
+        apis[i] = v
+        _REAL_G[i] = nil
+    end
+end
+apis.component=comp
+
+-- File abstraction compatible with open() -> {read,write,append}
+local function getFile(path)
+    return {
+        readAllText = function()
+            local handle = biosData.bootDrive:open(path)
+            if not handle or type(handle.read) ~= "function" then
+                error("Cannot open file for reading: " .. tostring(path))
+            end
+            return handle.read() or ""
+        end,
+        writeAllText = function(text)
+            if not biosData.bootDrive:fileExists(path) then
+                biosData.bootDrive:createFile(path)
+            end
+            local handle = biosData.bootDrive:open(path)
+            if not handle or type(handle.write) ~= "function" then
+                error("Cannot open file for writing: " .. tostring(path))
+            end
+            handle.write(text)
+        end,
+        appendText = function(text)
+            local handle = biosData.bootDrive:open(path)
+            if not handle or type(handle.append) ~= "function" then
+                error("Cannot open file for appending: " .. tostring(path))
+            end
+            handle.append(text)
+        end
+    }
+end
+
+local function list(path)
+    return biosData.bootDrive:list(path)
+end
+
+function coroutine.resumeWithTimeout(CORO, LINES, ...)
+    local ret = { coroutine.resume(CORO, ...) }
+    if math.random(0, 1) == 0 then
+        return false, table.unpack(ret)
+    else
+        return true, table.unpack(ret)
+    end
+end
+
+-- Safety: verify APIs exist
+if not apis.component then
+    error("Component API missing in environment")
+end
+if not biosData.bootDrive then
+    error("bootDrive missing from biosData")
+end
+
+local computer = apis.component.getFirst("computer")
+
+-- Read kernel file correctly
+local kernelSource = getFile("/boot/Hyprkrnl.sys").readAllText()
+if not kernelSource or kernelSource == "" then
+    error("Kernel file empty or unreadable")
+end
+
+local kernel, err = load(kernelSource, "@kernel", "t", _G)
+if not kernel then
+    error("Failed to load kernel: " .. tostring(err))
+end
+
+-- Run kernel safely
+local ok, perr = xpcall(function()
+    kernel(
+        "ac",
+        apis,
+        biosData.bootDrive.id,
+        apis.component.getFirst("screen"),
+        getFile,
+        list,
+        apis.component.getFirst("computer")
+    )
+end, debug.traceback)
+
+if not ok then
+    error("Kernel execution failed: " .. tostring(perr))
+end

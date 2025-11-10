@@ -1,0 +1,22 @@
+local args={...}
+local fs=args[1]
+local log=args[2]
+local drivers=args[3]
+local PANIC=args[4]
+local driverutil=args[5]
+local sys={}
+local task={}
+
+sys._VERSION = "HyperionOS V1.0.4"
+
+local function run(file, args)
+    local func, err=fs.loadAsFunc(file)
+    if not file then return 8, err end
+    local ret={xpcall(func, debug.traceback, table.unpack(args))}
+    if not ret[1] then return 1, ret[2] end
+    return 0, table.unpack(ret, 2)
+end
+
+local exitcode, req=run("/sys/system/require", {sys})
+if exitcode~=0 then PANIC(req) end
+_G.require=req

@@ -1,0 +1,2 @@
+local computer=component.getFirst("computer")
+computer.beep(800, 0.2, 1)

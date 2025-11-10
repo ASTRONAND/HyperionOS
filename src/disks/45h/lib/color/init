@@ -1,0 +1,16 @@
+function color.screen8(r, g, b)
+    -- Ensure input is within valid 0-255 range
+    r = math.max(0, math.min(255, r))
+    g = math.max(0, math.min(255, g))
+    b = math.max(0, math.min(255, b))
+
+    -- Convert 8-bit to reduced bit depth
+    local r3 = math.floor(r / 32)     -- 8-bit to 3-bit
+    local g3 = math.floor(g / 32)     -- 8-bit to 3-bit
+    local b2 = math.floor(b / 64)     -- 8-bit to 2-bit
+
+    -- Pack into a single 8-bit value: RRR GGG BB
+    local rgb332 = (r3 << 5) | (g3 << 2) | b2
+
+    return rgb332
+end

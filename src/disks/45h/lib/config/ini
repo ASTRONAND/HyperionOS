@@ -1,0 +1,111 @@
+-- Copyright (C) 2025 ASTRONAND
+local ini = {}
+local fs=require("filesystem")
+
+local function trim(s)
+    local i, j = 1, #s
+    while i <= j and (s:sub(i,i) == " " or s:sub(i,i) == "\t") do
+        i = i + 1
+    end
+    while j >= i and (s:sub(j,j) == " " or s:sub(j,j) == "\t") do
+        j = j - 1
+    end
+    return s:sub(i, j)
+end
+
+local function parse(list)
+    local lines=function ()
+        local i=0
+        return function()
+            i=i+1
+            return list[i]
+        end
+    end
+    local data = {}
+    local section = data
+    for line in lines() do
+        line = trim(line)
+
+        if line ~= "" and line:sub(1,1) ~= ";" and line:sub(1,1) ~= "#" then
+            if line:sub(1,1) == "[" and line:sub(-1) == "]" then
+                local secName = trim(line:sub(2, -2))
+                if secName ~= "" then
+                    data[secName] = data[secName] or {}
+                    section = data[secName]
+                end
+            else
+                local eq
+                for i = 1, #line do
+                    if line:sub(i,i) == "=" then
+                        eq = i
+                        break
+                    end
+                end
+                if eq then
+                    local key = trim(line:sub(1, eq-1))
+                    local value = trim(line:sub(eq+1))
+
+                    local lower = value:lower()
+                    if tonumber(value) then
+                        value = tonumber(value)
+                    elseif lower == "true" then
+                        value = true
+                    elseif lower == "false" then
+                        value = false
+                    end
+                    section[key] = value
+                end
+            end
+        end
+    end
+
+    return data
+end
+
+function ini.read(path)
+    local file, err = fs.open(path, "r")
+    if not file then return nil, err end
+    local list={}
+    for i in file.lines() do
+        list[#list+1] = i
+    end
+    file.close()
+    return parse(list)
+end
+
+function ini.get(text)
+    return parse(string.split(text, "\n"))
+end
+
+local function write(data)
+    local text=""
+    for k,v in pairs(data) do
+        if type(v) ~= "table" then
+            text=text..k .. " = " .. tostring(v) .. "\n"
+        end
+    end
+
+    for sec, tbl in pairs(data) do
+        if type(tbl) == "table" then
+            text=text.."\n[" .. sec .. "]\n"
+            for k,v in pairs(tbl) do
+                text=text..k .. " = " .. tostring(v) .. "\n"
+            end
+        end
+    end
+
+    return text
+end
+
+function ini.write(path, data)
+    local file=fs.open(path, "w")
+    file.write(write(data))
+    file.close()
+    return true
+end
+
+function ini.make(data)
+    return write(data)
+end
+
+return ini

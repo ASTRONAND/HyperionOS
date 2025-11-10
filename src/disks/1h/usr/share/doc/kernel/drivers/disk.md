@@ -1,0 +1,6 @@
+### API:
+---
+```
+getDisks():id, obj
+    
+```

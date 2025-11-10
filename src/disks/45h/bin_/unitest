@@ -1,0 +1,19 @@
+local errors={}
+local function tables_equal(t1, t2)
+  if #t1 ~= #t2 then return false end
+  for i = 1, #t1 do
+    if t1[i] ~= t2[i] then return false end
+  end
+  return true
+end
+
+local function run_test(name, test_func)
+  local status, err = pcall(test_func)
+  if status then
+    print("[PASS] " .. name)
+  else
+    print("[FAIL] " .. name .. ": " .. err)
+    errors[name]=err
+  end
+end
+

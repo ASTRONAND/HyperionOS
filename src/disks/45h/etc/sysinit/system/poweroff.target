@@ -1,0 +1,5 @@
+[Unit]
+Description=Shutdown of system
+Conflicts=reboot.target halt.target
+
+[Service]

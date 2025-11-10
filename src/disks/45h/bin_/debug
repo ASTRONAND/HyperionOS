@@ -1,0 +1,17 @@
+local args={...}
+local term=component.getFirst("screen")
+local hpv=require("hypervisor")
+local fs=require("filesystem")
+if not (fs.exists("/bin/"..args[1]) and (not fs.isDir("/bin/"..args[1]))) then error("not a file") end
+local handle = hpv.createProcessFromFile("/bin/"..args[1], args[1], table.unpack(args, 2))
+local pid=handle.getID()
+local debugger=hpv.attachDebugger(handle)
+debugger.addEvent("threadReturn", function(...)
+    term.print("threadReturn", ...)
+end)
+debugger.addEvent("threadError", function(...)
+    term.print("threadError", ...)
+end)
+while hpv.isrunning(pid) do
+    sleep(0.5)
+end

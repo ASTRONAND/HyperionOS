@@ -1,0 +1,52 @@
+local stringBuffer=""
+local hpv = require("hypervisor")
+local fs = require("filesystem")
+local term=component.getFirst("screen")
+local captureInput=true
+local exit=false
+local function printPrefix()
+    term.printInline("root@testharness:/& ")
+end
+
+local function tokenize(str)
+    return string.split(str, " ")
+end
+
+hpv.addEvent("keyTyped",function(...)
+    if not captureInput then return end
+    local char=({...})[1]
+    if char == "\n" then
+        captureInput=false
+        term.print("")
+    elseif char == "\b" then
+        if #stringBuffer > 0 then
+            stringBuffer=stringBuffer:sub(1,#stringBuffer-1)
+            term.printInline(char)
+        end
+    else
+        stringBuffer=stringBuffer..char
+        term.printInline(char)
+    end
+end)
+
+printPrefix()
+while not exit do
+    while captureInput do
+        sleep(1)
+    end
+    local token = tokenize(stringBuffer)
+    if token[1] == "exit" then
+        exit=true
+    elseif fs.exists("/bin/"..token[1]) and (not fs.isDir("/bin/"..token[1])) then
+        local handle = hpv.createProcessFromFile("/bin/"..token[1], token[1], table.unpack(token, 2))
+        local pid=handle.getID()
+        while hpv.isrunning(pid) do
+            sleep(0.5)
+        end
+    else
+        term.print("Command not recognized")
+    end
+    stringBuffer=""
+    printPrefix()
+    captureInput=true
+end

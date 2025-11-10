@@ -1,0 +1,75 @@
+local kernelArgs={...}
+local apis=kernelArgs[1]
+local drivers=kernelArgs[2]
+local log=kernelArgs[3]
+local driver={}
+local disks = {}
+
+driver.type = "disk"
+driver.name = "AC:Disk"
+driver.version = "1.0.0"
+driver.apiVersion = 1
+driver.description = "Driver for AC disks"
+driver.arch = "ac"
+driver.api = {}
+
+local function refreshDisks()
+    local tmp={}
+    for i,v in apis.component.list() do
+        if i=="disk" then
+            tmp[v.id]={
+                readAllText=function(path)
+                    return v:open(path).read()
+                end,
+                writeAllText=function(path, content)
+                    return v:open(path).write(content)
+                end,
+                list=function(path)
+                    return v:list(path)
+                end,
+                delete=function(path)
+                    return v:delete(path)
+                end,
+                makeDirectory=function(path)
+                    return v:makeDirectory(path)
+                end,
+                makeFile=function(path)
+                    return v:makeFile(path)
+                end,
+                directoryExists=function(path)
+                    return v:directoryExists(path)
+                end,
+                fileExists=function(path)
+                    return v:fileExists(path)
+                end
+            }
+        end
+    end
+    disks=tmp
+end
+
+function driver.init()
+    refreshDisks()
+end
+
+function driver.api.list()
+    local tmp={}
+    for i,v in pairs(disks) do
+        tmp[#tmp+1]={id=i, obj=v}
+    end
+    local i=0
+    return function()
+        i=i+1
+        if tmp[i]==nil then return end
+        return tmp.id, tmp.obj
+    end
+end
+
+function driver.main()
+    while true do
+        refreshDisks()
+        sleep(5)
+    end
+end
+
+drivers[#drivers+1]=driver

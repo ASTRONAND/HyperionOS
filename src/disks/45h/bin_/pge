@@ -1,0 +1,13 @@
+local function func(tble,space)
+    space=space or ""
+    for i,v in pairs(tble) do
+        print(space..tostring(i).." | "..tostring(v))
+        if type(v) == "table" then
+            if i=="_G" then else
+                func(v,space.."   ")
+            end
+        end
+    end
+end
+
+func(_G)

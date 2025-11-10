@@ -1,0 +1,152 @@
+-- Copyright (C) 2025 ASTRONAND
+local args=({...})[1]
+local fs=require("filesystem")
+--local sfs=fs.getSudo(args.masterKey)
+local auth=require("auth")
+local system={}
+local uuid=-1
+local computer=component.getFirst("computer")
+local time=computer.time()
+local tasks={}
+local currentTask={}
+
+system.version="1.0.0"
+system.name="HyperionOS"
+-- Task status
+-- "R" | Runnable/Running
+-- "S" | Sleeping/Waiting
+-- "P" | Stopped/Paused
+-- "Z" | Exited/Zombie
+-- "E" | Errored
+-- "T" | Terminate
+-- "X" | Marked for GC
+
+local function UUID()
+    uuid=uuid+1
+    return tostring(uuid)
+end
+
+function system.createTaskFromFunc(func, name, ...)
+    local id=UUID()
+    local fargs={...}
+    local task={}
+    local handle={}
+    task={
+        sleep=0,
+        state="N",
+        thread=coroutine.create(function()
+            local ret={pcall(func, table.unpack(fargs))}
+            local ok, tret = ret[1], {table.unpack(ret,2)}
+            if not ok then
+                task.state="E"
+                task.exit_state=tret[1]
+                task.exit_code=1
+            else
+                if #tret>0 then
+                    task.state="Z"
+                    task.exit_state=tret
+                    task.exit_code=0
+                else
+                    task.state="X"
+                end
+            end
+        end),
+        PID=id,
+        name=name,
+        comm=string.sub(name, 1, 32),
+        parent=currentTask,
+        chlidren={},
+        sibling=currentTask.chlidren,
+        files={},
+        nvcsw=0,
+        nivcsw=0,
+        handle=handle,
+        start_time=computer.time()
+    }
+    tasks[id]=task
+    local close=false
+    function handle.exists()
+        return not close
+    end
+    function handle.kill()
+        close=true
+        task.state="T"
+    end
+    function handle.pause()
+        if close then return "Handle closed" end
+        if task.state=="R" then
+            task.state="P"
+            return true
+        else
+            return false
+        end
+    end
+    function handle.resume()
+        if close then return "Handle closed" end
+        if task.state=="P" then
+            task.state="R"
+            return true
+        else
+            return false
+        end
+    end
+    function handle.getPID()
+        if close then return "Handle closed" end
+        return task.PID
+    end
+    function handle.getParent()
+        if close then return "Handle closed" end
+        return task.parent.PID
+    end
+    function handle.getChildren()
+        if close then return "Handle closed" end
+        local ret = {}
+        for i,v in pairs(task.chlidren) do
+            ret[#ret+1] = v.PID
+        end
+        return ret
+    end
+    function handle.getState()
+        if close then return "Handle closed" end
+        return task.state
+    end
+    return handle
+end
+
+function system.createTaskFromFile(path, name, ...)
+    local file = fs.open(path, "x")
+    return system.createTaskFromFunc(file, name, ...)
+end
+
+function system.getTaskInfo(pid)
+    local task = tasks[pid]
+    if task == nil then return "No task with id "..pid end
+    return {
+        PID=task.PID,
+        parent=task.parent.PID,
+        sibling=(function()
+            local ret = {}
+            for i,v in pairs(task.sibling) do
+                ret[#ret+1] = i
+            end
+        return ret
+        end)(),
+        chlidren=(function()
+            local ret = {}
+            for i,v in pairs(task.chlidren) do
+                ret[#ret+1] = i
+            end
+        return ret
+        end)(),
+        name=task.name,
+        state=task.state,
+        nvcsw=task.nvcsw,
+        nivcsw=task.nivcsw,
+        start_time=task.start_time
+    }
+end
+
+function system.getCurrentTask()
+    return system.getTaskInfo(currentTask.PID)
+end
+
