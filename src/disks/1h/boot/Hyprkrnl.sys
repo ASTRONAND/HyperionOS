@@ -1,4 +1,5 @@
-local bootLoader={...}
+local args={...}
+local bootLoader=args[1]
 local MODE=bootLoader[1]
 local apis=bootLoader[2]
 local bootDisk=bootLoader[3]
@@ -14,8 +15,8 @@ local list=bootLoader[6]
 local computer=bootLoader[7]
 local startup=true
 local osleep=sleep
-_G._SYSDEBUG=args[8]
-bootData.debug=args[8]
+_G._SYSDEBUG=args[2]
+bootData.debug=args[2]
 local drivers={}
 local eventCache={}
 

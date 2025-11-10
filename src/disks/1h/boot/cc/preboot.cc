@@ -163,9 +163,9 @@ function coroutine.resumeWithTimeout(CORO, LINES, ...)
     if ret[2]==yeildKey then return false else return true, table.unpack(ret, 2) end
 end
 
-local kernel = load(getFile("/boot/Hyprkrnl.sys").readAllText(), "@kernel", "t", _G)
+local kernel = load(getFile("/boot/HBoot.sys").readAllText(), "@kernel", "t", _G)
 if not kernel then
-    catErr("KERNEL COMPILE ERR")
+    catErr("BOOT COMPILE ERR")
 end
 local kernel_coro = coroutine.create(function()
     local ok,err = pcall(function()
