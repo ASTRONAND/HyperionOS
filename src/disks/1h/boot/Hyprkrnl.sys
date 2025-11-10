@@ -14,7 +14,8 @@ local list=bootLoader[6]
 local computer=bootLoader[7]
 local startup=true
 local osleep=sleep
-_G._SYSDEBUG=bootData.debug
+_G._SYSDEBUG=args[8]
+bootData.debug=args[8]
 local drivers={}
 local eventCache={}
 

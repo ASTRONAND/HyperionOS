@@ -1,0 +1,55 @@
+local args={...}
+local term=args[4]
+local getfile=args[5]
+local computer=args[7]
+local timeout = 5
+local time = 0
+
+term.print("HBoot V1.0.0 //\n")
+local w,h = term.getSize()
+local kernel = load(getfile("/boot/Hyprkrnl.sys").readAllText())
+local recovery = load(getfile("/boot/util/shell").readAllText())
+local entries = {
+    ["HyperionOS"]=function() kernel(args) end,
+    ["HyperionOS (Debug options)"]={
+        ["Boot HyperionOS in debug mode"]=function() kernel(args, true) end,
+        ["Boot as shell"]=function() kernel(args, true, true) end,
+        ["Boot in recovery"]=function() recovery(args) end
+    }
+}
+
+local function render(table, select)
+    term.clear()
+    term.print("HBoot V1.0.0 //\n")
+    local idx=0
+    for i,_ in pairs(table) do
+        idx=idx+1
+        if select=idx then
+            term.print("- "..i)
+        else
+            term.print("  "..i)
+        end
+    end
+end
+
+render(entries, 1)
+local exit=false
+while not exit do
+    local ret={computer.getMachineEvent()}
+    if ret[1]=="keyPressed" then
+        timeout=math.huge
+        break
+    end
+end
+
+if exit then
+    while true do
+        local ret={computer.getMachineEvent()}
+        if ret[1]="keyPressed" then
+        elseif ret[1]="keyTyped" then
+            if ret[3]=="\n" then
+                
+        end
+else
+    kernel(args)
+end
