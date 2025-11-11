@@ -11,34 +11,35 @@ local w, h = term.getSize()
 local kernel = load(getfile("/boot/Hyprkrnl.sys").readAllText())
 local recovery = load(getfile("/boot/util/shell").readAllText())
 
+-- Predeclare dbg so entries can reference it
 local dbg = {}
 local entries = {
-    {"HyperionOS", function() kernel(args) end},
+    {"HyperionOS", function() kernel(args, nil, "/sbin/init") end},
     {"HyperionOS (Debug options)", dbg}
 }
 
-dbg = {
-    {"Back", entries},
-    {"Boot HyperionOS in debug mode", function() kernel(args, true) end},
-    {"Boot as shell", function() kernel(args, true, true) end},
-    {"Boot in recovery", function() recovery(args) end}
-}
+dbg[1] = {"Back", "BACK"}
+dbg[2] = {"Boot HyperionOS in debug mode", function() kernel(args, true) end}
+dbg[3] = {"Boot as shell", function() kernel(args, true, "/bin/bash") end}
+dbg[4] = {"Boot in recovery", function() recovery(args) end}
 
 local function render(tbl, selected)
     term.clear()
-    term.print("HBoot V1.0.0 //\n")
+    term.print("HBoot V1.0.0 //\n\n")
     for i, v in ipairs(tbl) do
         if selected == i then
-            term.print("- " .. v[1] .. "\n")
+            term.print("> " .. v[1] .. "\n")
         else
             term.print("  " .. v[1] .. "\n")
         end
     end
 end
 
+-- Initial render
 render(entries, 1)
-local exit = false
 
+-- Wait for keypress or timeout
+local exit = false
 while not exit do
     local ret = {computer.getMachineEvent()}
     if ret[1] == "keyPressed" then
@@ -51,30 +52,45 @@ while not exit do
     end
 end
 
-local cerent = entries
-local cersel = 1
-
+-- Menu handling
 if not exit then
+    local menuStack = {}
+    local currentMenu = entries
+    local selected = 1
+    render(currentMenu, selected)
+
     while true do
         local ret = {computer.getMachineEvent()}
         if ret[1] == "keyTyped" then
             if ret[3] == "\n" then
-                if type(cerent[cersel][2]) == "function" then
-                    cerent[cersel][2]()
-                elseif type(cerent[cersel][2]) == "table" then
-                    cerent = cerent[cersel][2]
-                    cersel = 1
+                local entry = currentMenu[selected]
+                if entry then
+                    if type(entry[2]) == "function" then
+                        entry[2]()
+                    elseif type(entry[2]) == "table" then
+                        table.insert(menuStack, {currentMenu, selected})
+                        currentMenu = entry[2]
+                        selected = 1
+                        render(currentMenu, selected)
+                    elseif entry[2] == "BACK" then
+                        if #menuStack > 0 then
+                            local prev = table.remove(menuStack)
+                            currentMenu, selected = prev[1], prev[2]
+                            render(currentMenu, selected)
+                        end
+                    end
                 end
-            elseif ret[3] == "\x1b[A" then
-                if cersel > 1 then
-                    cersel = cersel - 1
+            elseif ret[3] == "\x1b[A" then -- Up arrow
+                if selected > 1 then
+                    selected = selected - 1
+                    render(currentMenu, selected)
                 end
-            elseif ret[3] == "\x1b[B" then
-                if cersel < #cerent then
-                    cersel = cersel + 1
+            elseif ret[3] == "\x1b[B" then -- Down arrow
+                if selected < #currentMenu then
+                    selected = selected + 1
+                    render(currentMenu, selected)
                 end
             end
-            render(cerent, cersel)
         end
     end
 else
