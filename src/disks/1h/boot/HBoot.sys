@@ -1,33 +1,35 @@
 local args={...}
+local apis=args[2]
 local term=args[4]
 local getfile=args[5]
 local computer=args[7]
-local timeout = 5
-local time = 0
+local timeout = computer.time()+5000
 
 term.print("HBoot V1.0.0 //\n")
 local w,h = term.getSize()
 local kernel = load(getfile("/boot/Hyprkrnl.sys").readAllText())
 local recovery = load(getfile("/boot/util/shell").readAllText())
+local dbg = {}
 local entries = {
-    ["HyperionOS"]=function() kernel(args) end,
-    ["HyperionOS (Debug options)"]={
-        ["Boot HyperionOS in debug mode"]=function() kernel(args, true) end,
-        ["Boot as shell"]=function() kernel(args, true, true) end,
-        ["Boot in recovery"]=function() recovery(args) end
-    }
+    {"HyperionOS",function() kernel(args) end},
+    {"HyperionOS (Debug options)",dbg}
+}
+
+dbg = {
+    {"Back",entries},
+    {"Boot HyperionOS in debug mode",function() kernel(args, true) end},
+    {"Boot as shell",function() kernel(args, true, true) end},
+    {"Boot in recovery",function() recovery(args) end}
 }
 
 local function render(table, select)
     term.clear()
     term.print("HBoot V1.0.0 //\n")
-    local idx=0
-    for i,_ in pairs(table) do
-        idx=idx+1
-        if select=idx then
-            term.print("- "..i)
+    for i,v in pairs(table) do
+        if select=i then
+            term.print("- "..v[1])
         else
-            term.print("  "..i)
+            term.print("  "..v[1])
         end
     end
 end
@@ -40,16 +42,36 @@ while not exit do
         timeout=math.huge
         break
     end
+    if timeout<=computer.time() then
+        exit=true
+        break
+    end
 end
 
-if exit then
+local cerent=entries
+local cersel=1
+if not exit then
     while true do
         local ret={computer.getMachineEvent()}
-        if ret[1]="keyPressed" then
-        elseif ret[1]="keyTyped" then
+        if ret[1]="keyTyped" then
             if ret[3]=="\n" then
-                
+                if type(cerent[cersel][2])=="function" then
+                    cerent[cersel][2]()
+                elseif type(cerent[cersel][2])=="table" then
+                    cerent=cerent[cersel][2]
+                    cersel=1
+                end
+            elseif ret[3]=="\x1b[A" then
+                if cersel>1 then
+                    cersel=cersel-1
+                end
+            elseif ret[3]=="\x1b[B" then
+                if cersel<#cerent then
+                    cersel=cersel+1
+                end
+            end
         end
+    end
 else
     kernel(args)
 end

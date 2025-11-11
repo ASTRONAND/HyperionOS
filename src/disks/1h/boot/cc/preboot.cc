@@ -133,6 +133,10 @@ local lkeys={}
 lkeys[apis.keys.enter]="\n"
 lkeys[apis.keys.backspace]="\b"
 lkeys[apis.keys.tab]="\t"
+lkeys[apis.keys.up]="\x1b[A"
+lkeys[apis.keys.down]="\x1b[B"
+lkeys[apis.keys.right]="\x1b[C"
+lkeys[apis.keys.left]="\x1b[D"
 
 local computer={}
 computer.beep=function() end
