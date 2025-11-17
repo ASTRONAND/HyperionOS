@@ -1,2 +1,13 @@
-{["debug"]=true,["errorCount"]=1,["logNum"]=1,["prevError"]=[=[Hyperion failed to load:
-Hyperion was: nil]=]}
+{["debug"]=true,["prevError"]=[=[[string "/sys/Hyperion.s..."]:13: attempt to call field 'loadAsFunc' (a nil value)
+stack traceback:
+	[string "/sys/Hyperion.s..."]:13: in function 'run'
+	[string "/sys/Hyperion.s..."]:20: in main chunk
+	[C]: in function 'xpcall'
+	[string "local args={......"]:121: in function 'runAsKernel'
+	[string "local args={......"]:224: in function 'kernel'
+	kernel:22: in function '?'
+	kernel:69: in main chunk
+	[C]: in function 'xpcall'
+	preboot.cc:176: in function <preboot.cc:175>
+	[C]: in function 'pcall'
+	preboot.cc:175: in function <preboot.cc:174>]=],["logNum"]=4,["errorCount"]=0}

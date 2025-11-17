@@ -20,3 +20,8 @@ end
 local exitcode, req=run("/sys/system/require", {sys})
 if exitcode~=0 then PANIC(req) end
 _G.require=req
+
+local exitcode, hypervisor=run("/sys/system/hypervisor/init", {sys})
+if exitcode~=0 then PANIC(hypervisor) end
+_G.require=hypervisor
+
