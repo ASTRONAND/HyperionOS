@@ -1,0 +1,14 @@
+{
+    "Name": "HyperionOS",
+    "Version": "0.1.0",
+    "Publishers": ["HyperionOS Dev Team"],
+    "Description": "A sample package for HyperionOS project.",
+    "Dependencies": [
+        "https://git.astronand.dev/Hyperion/HyperionOS/archive/Hyperion-core-v0.1.0.pkg",
+        "https://git.astronand.dev/Hyperion/HyperionOS/archive/Hyperion-kernel-v0.1.0.pkg",
+        "https://git.astronand.dev/Hyperion/HyperionOS/archive/Hyperion-ui-v0.1.0.pkg",
+        "https://git.astronand.dev/Hyperion/HyperionOS/archive/Hyperion-network-v0.1.0.pkg",
+        "https://git.astronand.dev/Hyperion/HyperionOS/archive/Hyperion-security-v0.1.0.pkg",
+        "https://git.astronand.dev/Hyperion/HyperionOS/archive/Hyperion-filesystem-v0.1.0.pkg"
+    ]
+}

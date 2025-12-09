@@ -1,0 +1,8 @@
+local args={...}
+local kernel=args[1]
+
+kernel.panic("text")
+
+for i,v in ipairs(kernel.fs.list("/dev")) do
+    kernl.log(v)
+end

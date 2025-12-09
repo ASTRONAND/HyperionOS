@@ -1,0 +1,1 @@
+dofile("/$/boot/cct/eeprom")

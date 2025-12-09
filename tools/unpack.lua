@@ -1,0 +1,186 @@
+-- unpack_tar.lua
+-- Fully working TAR unpacker for ComputerCraft
+-- Handles Windows Explorer TAR bug (duplicated path segments)
+
+local function octal_to_number(str)
+    str = str:gsub("%z", ""):match("^%s*(.-)%s*$")
+    return tonumber(str, 8) or 0
+end
+
+---------------------------------------------------------------------
+-- Fix Windows Explorer TAR bug: repeated prefix segments in name
+---------------------------------------------------------------------
+local function dedupe_path(path)
+    -- Example:
+    -- Build/boot/Build/boot/cct/kernel.lua
+    -- -> Build/boot/cct/kernel.lua
+
+    local parts = {}
+    for p in path:gmatch("[^/]+") do table.insert(parts, p) end
+
+    -- Try all possible prefix lengths
+    for prefix_len = 1, math.floor(#parts / 2) do
+        local ok = true
+        for i = 1, prefix_len do
+            if parts[i] ~= parts[i + prefix_len] then
+                ok = false
+                break
+            end
+        end
+        if ok then
+            -- Remove one repeated prefix
+            local cleaned = {}
+            for i = 1, #parts - prefix_len do
+                cleaned[#cleaned + 1] = parts[i + prefix_len]
+            end
+            return table.concat(cleaned, "/")
+        end
+    end
+
+    return path
+end
+
+---------------------------------------------------------------------
+-- Directory tree helpers
+---------------------------------------------------------------------
+
+local function make_dirs(root, path)
+    local cur = root
+    for part in path:gmatch("([^/]+)/") do
+        if not cur[part] then
+            cur[part] = { __type = "dir", __entries = {} }
+        end
+        cur = cur[part].__entries
+    end
+    return cur
+end
+
+local function flatten(node, prefix)
+    local out = {}
+    prefix = prefix or ""
+
+    for name, obj in pairs(node) do
+        local full = prefix .. name
+        if obj.__type == "file" then
+            out[#out+1] = {
+                name = full,
+                type = "file",
+                contents = obj.__contents
+            }
+        elseif obj.__type == "dir" then
+            out[#out+1] = {
+                name = full .. "/",
+                type = "dir",
+                contents = flatten(obj.__entries, full .. "/")
+            }
+        end
+    end
+
+    return out
+end
+
+---------------------------------------------------------------------
+-- TAR Unpacker
+---------------------------------------------------------------------
+local function unpack_tar(tarstr)
+    local i = 1
+    local len = #tarstr
+    local root = {}
+
+    while i + 512 <= len do
+        local header = tarstr:sub(i, i + 511)
+
+        -- End of archive (null block)
+        if header:match("^\0+$") then break end
+
+        -- Read name + ustar prefix
+        local name_raw   = header:sub(1, 100):gsub("%z.*", "")
+        local prefix_raw = header:sub(346, 500):gsub("%z.*", "")
+
+        local name
+        if prefix_raw ~= "" then
+            name = prefix_raw .. "/" .. name_raw
+        else
+            name = name_raw
+        end
+
+        -- Normalize path
+        name = name:gsub("^%./", ""):gsub("/+", "/")
+
+        -- Fix Windows Explorer TAR bug
+        name = dedupe_path(name)
+
+        local size = octal_to_number(header:sub(125,136))
+        local typeflag = header:sub(157,157)
+
+        i = i + 512
+
+        local contents = tarstr:sub(i, i + size - 1)
+        local pad = (512 - (size % 512)) % 512
+        i = i + size + pad
+
+        if name == "" then goto continue end
+
+        -- Determine if it’s a directory
+        local is_dir = typeflag == "5" or name:sub(-1) == "/"
+
+        -- Remove trailing slash for hierarchical processing
+        local clean_name = name:gsub("/$", "")
+        if clean_name == "" then goto continue end
+
+        local parent_path = clean_name:match("(.+)/")
+        local fname = clean_name:match("([^/]+)$")
+        if not fname then goto continue end
+
+        local parent = root
+        if parent_path then
+            parent = make_dirs(root, parent_path .. "/")
+        end
+
+        if is_dir then
+            parent[fname] = parent[fname] or { __type = "dir", __entries = {} }
+        else
+            parent[fname] = { __type = "file", __contents = contents }
+        end
+
+        ::continue::
+    end
+
+    return flatten(root)
+end
+
+---------------------------------------------------------------------
+-- FS output (ComputerCraft)
+---------------------------------------------------------------------
+local function write_directory(prefix, items)
+    for _, v in ipairs(items) do
+        if v.type == "dir" then
+            fs.makeDir(prefix..v.name)
+            write_directory(prefix, v.contents)
+        elseif v.type == "file" then
+            local file = fs.open(prefix..v.name, "w")
+            file.write(v.contents)
+            file.close()
+        end
+    end
+end
+
+---------------------------------------------------------------------
+-- Entry point
+---------------------------------------------------------------------
+local in_tar  = ({...})[1]
+local out_dir = ({...})[2]
+
+if not in_tar or not out_dir then
+    print("Usage: unpack_tar <tarfile> <output_dir>")
+    return
+end
+
+local f = fs.open(in_tar, "r")
+local tarstr = f.readAll()
+f.close()
+
+local list = unpack_tar(tarstr)
+write_directory(out_dir, list)
+
+print("TAR extracted into: " .. out_dir)

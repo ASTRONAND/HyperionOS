@@ -1,0 +1,167 @@
+local args={...}
+local kernel = args[1]
+local tasks={}
+local currentTask={}
+local signals={}
+local tid=1
+local gid=1
+local sys={}
+
+function sys.hookSig(sig, func)
+    if not signals[tostring(currentTask.pid)][sig] then
+        signals[tostring(currentTask.pid)][sig]={}
+    end
+    signals[tostring(currentTask.pid)][sig][#signals[tostring(currentTask.pid)][sig]+1]=func
+end
+
+function sys.clearSigHooks(typ)
+    if not typ or typ == "all" then
+        signals[tostring(currentTask.pid)]={}
+        currentTask.signal=signals[tostring(currentTask.pid)]
+    else
+        if currentTask.signal[typ] then
+            currentTask.signal[typ]={}
+        end
+    end
+end
+
+function sys.sendSig(pid, signal, ...)
+    if pid=="all" then
+        for i,v in pairs(tasks) do
+            v.sigQ[#v.sigQ+1]={signal, ...}
+        end
+        return
+    end
+    if not tasks[tostring(pid)] then return false end
+    tasks[tostring(pid)].sigQ[#tasks[tostring(pid)].sigQ+1]={signal, ...}
+    return true
+end
+
+function sys.flushSigs()
+    local ret = {}
+    for i=1, #currentTask.sigQ do
+        if currentTask.signal[currentTask.sigQ[i][1]] then
+            for _,v in ipairs(currentTask.signal[currentTask.sigQ[1][1]]) do
+                coroutine.resumeWithTimeout(coroutine.create(function()
+                    local ok, err = xpcall(v, debug.traceback, table.unpack(table.remove(currentTask.sigQ, 1)))
+                    if not ok then
+                        table.insert(ret, err)
+                    end
+                end), 10)
+            end
+        else
+            for _,v in ipairs(currentTask.signal["unhandledEvent"]) do
+                coroutine.resumeWithTimeout(coroutine.create(function()
+                    local ok, err = xpcall(v, debug.traceback, table.unpack(table.remove(currentTask.sigQ, 1)))
+                    if not ok then
+                        table.insert(ret, err)
+                    end
+                end), 10)
+            end
+        end
+    end
+end
+
+function sys.spawn(func, name, evars, args)
+    local id=tid
+    tid=tid+1
+    name=name or tostring(id)
+
+    signals[tostring(id)]={}
+    tasks[tostring(id)]={
+        coro=coroutine.create(function()
+            local ret = {xpcall(func, debug.traceback, table.unpack(args))}
+            if not ret[1] then
+                sys.sendSig(currentTask.ppid, "ChildTaskError", id, err)
+            else
+                sys.sendSig(currentTask.ppid, "ChildTaskExit", id, table.unpack(ret, 2))
+            end
+            currentTask.status="Z"
+        end),
+        name=name,
+        pid=id,
+        ppid=currentTask.pid,
+        tgid=currentTask.tgid,
+        user=kernel.user,
+        uid=kernel.uid,
+        evars=evars,
+        args=args,
+        vy=0,
+        ivy=0,
+        status="R",
+        signal=signals[tostring(id)],
+        parent=currentTask,
+        children={},
+        sibling=currentTask.children,
+        sigQ={}
+    }
+end
+
+local function collectZombieProc()
+    local ret = {}
+    for _,v in pairs(tasks) do
+        if v.status=="Z" then
+            local pid = v.pid
+            for _,c in ipairs(v.children) do
+                c.parent=tasks["1"]
+                c.sibling=tasks["1"].children
+                c.ppid=1
+                c.tgid=1
+            end
+            signals[tostring(pid)]=nil
+            tasks[tostring(pid)]=nil
+            table.insert(ret, pid)
+        end
+    end
+    return ret
+end
+
+signals["1"]={}
+tasks["1"]={
+    coro=coroutine.create(function()
+        local ret = {xpcall(kernel.fs.load(kernel.initPath), debug.traceback)}
+        if not ok then
+            kernel.panic(err)
+        else
+            kernel.panic("Attempted to kill init!")
+        end
+    end),
+    name="SysInit",
+    pid=1,
+    ppid=0,
+    tgid=1,
+    user=kernel.user,
+    uid=kernel.uid,
+    evars={},
+    args={kernel},
+    vy=0,
+    ivy=0,
+    status="R",
+    signal=signals["1"],
+    parent={name="Hyprkrnl",pid=0},
+    children={},
+    sibling={},
+    sigQ={}
+}
+kernel.chache.preload.sys=sys
+kernel.chache.preload.system=sys
+kernel.hpv=sys
+
+kernel.saveLog()
+while true do
+    for _,v in pairs(tasks) do
+        currentTask=v
+        kernel.user=currentTask.user
+        kernel.uid=currentTask.uid
+        sys.flushSigs()
+        local status = coroutine.resumeWithTimeout(currentTask.coro, 50)
+        if status then
+            currentTask.vy=currentTask.vy+1
+        else
+            currentTask.ivy=currentTask.ivy+1
+        end
+    end
+    collectZombieProc()
+end
+
+kernel.panic("Exited pid 0")

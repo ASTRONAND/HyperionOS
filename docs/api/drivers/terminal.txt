@@ -1,8 +1,0 @@
-print(text) Returns nil
-    Prints text to the terminal with a trailing \n
-
-printInline(text) Returns nil
-    Same as print without the trailing \n
-
-clear() Returns nil
-    Clears screen

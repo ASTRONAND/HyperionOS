@@ -1,0 +1,19 @@
+local args={...}
+local kernel=args[2]
+
+for _,subf in ipairs(kernel.fs.list("/lib/modules/")) do
+    if subf~="Hyperion" then
+        for _,driver in ipairs(kernel.fs.list("/lib/modules/"..subf)) do
+            local code = kernel.fs.readAllText("/lib/modules/"..subf.."/"..driver)
+            local func, err = load(code, "@"..driver)
+            if not func then
+                kernel.log("DriverLoadErr: "..tostring(err), "ERROR")
+            else
+                local ok, err = xpcall(func, debug.traceback)
+                if not ok then
+                    kernel.log("DriverLoadErr: "..tostring(err), "ERROR")
+                end
+            end
+        end
+    end
+end

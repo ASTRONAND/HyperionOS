@@ -1,0 +1,11 @@
+local args={...}
+local kernel=args[1]
+
+for _,l in ipairs(kernel.drivers.prior) do
+    for _,d in ipairs(l) do
+        if d.init then
+            local ok,err = xpcall(d.init, debug.traceback)
+            if not ok then kernel.log("DriverInitErr: "..tostring(err)) end
+        end
+    end
+end

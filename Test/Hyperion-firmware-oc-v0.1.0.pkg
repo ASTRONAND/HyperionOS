@@ -1,0 +1,11 @@
+{
+    "Name": "Hyperion OC Firmware",
+    "Version": "0.1.0",
+    "Publishers": ["HyperionOS Dev Team"],
+    "Description": "The OpenComputers firmware package for HyperionOS.",
+    "Dependencies": [
+        "https://git.astronand.dev/Hyperion/HyperionOS/archive/Hyperion-kernel-v0.1.0.pkg"
+    ],
+    "Tar": "https://git.astronand.dev/Hyperion/HyperionOS/archive/Hyperion-firmware-oc-v0.1.0.tar",
+    "BuildCommand": "cp boot/oc/eeprom /dev/eeprom"
+}

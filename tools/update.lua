@@ -1,0 +1,5 @@
+shell.run("unpack Build.tar /")
+shell.run("rm $")
+shell.run("cp Build $")
+shell.run("rm Build")
+shell.run("rm Build.tar")

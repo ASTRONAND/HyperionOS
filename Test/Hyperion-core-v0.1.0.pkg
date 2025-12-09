@@ -1,0 +1,10 @@
+{
+    "Name": "Hyperion core",
+    "Version": "0.1.0",
+    "Publishers": ["HyperionOS Dev Team"],
+    "Description": "Core system files and librarys for HyperionOS",
+    "Dependencies": [
+        "https://git.astronand.dev/Hyperion/HyperionOS/archive/Hyperion-kernel-v0.1.0.pkg"
+    ],
+    "Tar": "https://git.astronand.dev/Hyperion/HyperionOS/archive/Hyperion-core-v0.1.0.tar"
+}

@@ -1,0 +1,182 @@
+local args={...}
+local kernel=args[1]
+
+function kernel.fs.mkvirtfs(address, readOnly, label, autoRegister)
+    if kernel.uid ~= 0 then error("Permission Denied") end
+    local disk = {}
+    disk.address = address
+    local isRO = readOnly or false
+
+    local backend = {
+        ["/"] = { __dir = true }
+    }
+
+    -----------------------------------------------------------------
+    -- Helpers
+    -----------------------------------------------------------------
+
+    local function norm(path)
+        if not path or path == "" then return "/" end
+        if path:sub(1,1) ~= "/" then path = "/" .. path end
+        path = path:gsub("/+", "/")
+        return path
+    end
+
+    local function split(path)
+        local parts = {}
+        for p in path:gmatch("[^/]+") do table.insert(parts, p) end
+        return parts
+    end
+
+    local function getNode(path)
+        path = norm(path)
+        if path == "/" then return backend["/"] end
+        local node = backend["/"]
+        for _, part in ipairs(split(path)) do
+            node = node[part]
+            if not node then return nil end
+        end
+        return node
+    end
+
+    local function getParent(path)
+        local parts = split(norm(path))
+        local name = table.remove(parts)
+        local parentPath = "/" .. table.concat(parts, "/")
+        return getNode(parentPath), name
+    end
+
+    local function ensureWrite()
+        if isRO then return false, "read-only" end
+        return true
+    end
+
+    -----------------------------------------------------------------
+    -- File IO (supports string or file-object with read/write funcs)
+    -----------------------------------------------------------------
+
+    local function fileRead(node)
+        if type(node) == "string" then
+            return node
+        elseif type(node) == "table" and node.__file and node.read then
+            return node.read()
+        end
+        return nil
+    end
+
+    local function fileWrite(parent, name, text)
+        local node = parent[name]
+        if type(node) == "string" then
+            parent[name] = text
+            return true
+        elseif type(node) == "table" and node.__file and node.write then
+            return node.write(text)
+        end
+        parent[name] = text
+        return true
+    end
+
+    local function fileAppend(parent, name, text)
+        local node = parent[name]
+        if type(node) == "string" then
+            parent[name] = node .. text
+            return true
+        elseif type(node) == "table" and node.__file and node.write then
+            return node.write((node.read() or "") .. text)
+        end
+        parent[name] = text
+        return true
+    end
+
+    -----------------------------------------------------------------
+    -- API
+    -----------------------------------------------------------------
+
+    function disk:isReadOnly() return isRO end
+    function disk:spaceUsed() return 0 end
+    function disk:spaceTotal() return 0 end
+
+    function disk:readAllText(path)
+        local node = getNode(path)
+        if not node then return nil, "file not found" end
+        return fileRead(node)
+    end
+
+    function disk:writeAllText(path, text)
+        local ok, err = ensureWrite(); if not ok then return false, err end
+
+        local parent, name = getParent(path)
+        if not parent or not parent.__dir then return false, "invalid directory" end
+        return fileWrite(parent, name, tostring(text))
+    end
+
+    function disk:appendAllText(path, text)
+        local ok, err = ensureWrite(); if not ok then return false, err end
+
+        local parent, name = getParent(path)
+        if not parent or not parent.__dir then return false, "invalid directory" end
+        return fileAppend(parent, name, tostring(text))
+    end
+
+    function disk:list(path)
+        local node = getNode(path)
+        if not node or not node.__dir then return nil, "not a directory" end
+        local out = {}
+        for k, _ in pairs(node) do if k ~= "__dir" then table.insert(out, k) end end
+        return out
+    end
+
+    function disk:fileExists(path)
+        local node = getNode(path)
+        return type(node) == "string" or (type(node) == "table" and node.__file)
+    end
+
+    function disk:directoryExists(path)
+        local node = getNode(path)
+        return node and type(node) == "table" and node.__dir or false
+    end
+
+    function disk:makeDirectory(path)
+        local ok, err = ensureWrite(); if not ok then return false, err end
+        local parent, name = getParent(path)
+        if not parent or not parent.__dir then return false, "invalid parent directory" end
+        parent[name] = { __dir = true }
+        return true
+    end
+
+    function disk:remove(path)
+        local ok, err = ensureWrite(); if not ok then return false, err end
+        local parent, name = getParent(path)
+        if not parent or not parent[name] then return false, "not found" end
+        parent[name] = nil
+        return true
+    end
+
+    function disk:setLabel(new)
+        local ok, err = ensureWrite(); if not ok then return false, err end
+        label = tostring(new)
+    end
+
+    function disk:getLabel()
+        return label
+    end
+
+    function disk:size(path)
+        local node = getNode(path)
+        if type(node) == "string" then return #node end
+        if type(node) == "table" and node.__file and node.read then
+            local v = node.read()
+            return v and #v or 0
+        end
+        return 0
+    end
+
+    -----------------------------------------------------------------
+    -- Auto-register with kernel and return backend
+    -----------------------------------------------------------------
+    if kernel and kernel.fs and kernel.fs.virtDisk and autoRegister then
+        kernel.fs.virtDisk(disk)
+    end
+
+    return backend, disk
+end
