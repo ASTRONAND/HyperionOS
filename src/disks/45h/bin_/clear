@@ -1,2 +1,0 @@
-local term=component.getFirst("screen")
-term.clear()

@@ -1,0 +1,18 @@
+local args = {...}
+local kernel = args[1]
+local data = kernel.fs.mkvirtfs("sysfs0000", true, "sysfs", true)
+if not kernel.fs.isDir("/sys") then kernel.fs.makeDir("/sys") end
+
+data["/"]["OSVERSION"]="Hyperion 1.0.0"
+data["/"]["eeprom"]={
+    __file=true,
+    read=function()
+        return kernel.computer:getEEPROM()
+    end,
+    write=function(text)
+        if kernel.uid ~= 0 then error("Permission Denied") end
+        kernel.computer:setEEPROM(text)
+    end
+}
+
+kernel.log("Created sysfs")

@@ -1,6 +1,0 @@
--- Copyright (C) 2025 ASTRONAND
-local pipes={}
-local ports={}
-local sharedObjects={}
-local net=require("net")
-

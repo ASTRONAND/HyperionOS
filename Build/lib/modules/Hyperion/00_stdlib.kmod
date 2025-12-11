@@ -1,3 +1,5 @@
+local args={...}
+local kernel=args[1]
 function string.hasSuffix(str, suffix)
     return string.sub(str, #suffix+1) == suffix
 end
@@ -94,6 +96,62 @@ function table.hasVal(tabl, query)
     return false
 end
 
+function table.proxy(tbl)
+    local proxies = setmetatable({}, {__mode = "k"}) -- Weak table to avoid cycles
+
+    local function createProxy(t)
+        if type(t) ~= "table" then return t end
+        if proxies[t] then return proxies[t] end -- reuse proxy for the same table (handle cycles)
+
+        local proxy = {}
+        proxies[t] = proxy
+
+        local mt
+        mt = {
+            __index = function(_, k)
+                local value = t[k]
+                if type(value) == "table" then
+                    return createProxy(value) -- recursively proxy subtables
+                else
+                    return value
+                end
+            end,
+            __newindex = function()
+                error("Attempt to modify read-only table", 2)
+            end,
+            __pairs = function()
+                return function(_, k)
+                    local nextKey, nextValue = next(t, k)
+                    if type(nextValue) == "table" then
+                        nextValue = createProxy(nextValue)
+                    end
+                    return nextKey, nextValue
+                end, nil, nil
+            end,
+            __ipairs = function()
+                local i = 0
+                local n = #t
+                return function()
+                    i = i + 1
+                    if i <= n then
+                        local v = t[i]
+                        if type(v) == "table" then
+                            v = createProxy(v)
+                        end
+                        return i, v
+                    end
+                end
+            end,
+            __metatable = false
+        }
+
+        setmetatable(proxy, mt)
+        return proxy
+    end
+
+    return createProxy(tbl)
+end
+
 local function serialize(table)
     local output = "{"
     for i,v in pairs(table) do
@@ -119,7 +177,7 @@ local function serialize(table)
                 output=output.."false"
             end
         elseif type(v) == "function" then
-            output=output.."function() end"
+            output=output..tostring(v)
         else
             error("serialization of type \""..type(v).."\" is not supported")
         end
@@ -135,3 +193,4 @@ local function serialize(table)
 end
 
 table.serialize=serialize
+kernel.log("Loaded stdlib")

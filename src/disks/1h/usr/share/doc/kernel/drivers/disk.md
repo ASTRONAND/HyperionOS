@@ -1,6 +1,0 @@
-### API:
----
-```
-getDisks():id, obj
-    
-```

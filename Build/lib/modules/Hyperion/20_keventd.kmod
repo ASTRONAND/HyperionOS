@@ -1,5 +1,5 @@
-local args={...}
-local kernel=args[1]
+local args = {...}
+local kernel = args[1]
 kernel.drivers.processes[#kernel.drivers.processes+1]=function()
     while true do
         local event={kernel.computer:getMachineEvent()}
@@ -10,3 +10,4 @@ kernel.drivers.processes[#kernel.drivers.processes+1]=function()
         coroutine.yield()
     end
 end
+kernel.log("Created keventd daemon")

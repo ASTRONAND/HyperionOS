@@ -1,11 +1,14 @@
-local args={...}
-local kernel=args[1]
-
-for _,l in ipairs(kernel.drivers.prior) do
-    for _,d in ipairs(l) do
-        if d.init then
-            local ok,err = xpcall(d.init, debug.traceback)
-            if not ok then kernel.log("DriverInitErr: "..tostring(err)) end
+local args = {...}
+local kernel = args[1]
+kernel.log("initializing third party drivers")
+for _,v in ipairs(kernel.drivers.raw) do
+    if v.arch==kernel.arch then
+        if v.load then
+            kernel.log("Loading "..v.name)
+            local ok,err = xpcall(v.load, debug.traceback)
+            if not ok then
+                kernel.log("DriverLoadErr: "..tostring(err))
+            end
         end
     end
 end

@@ -1,17 +1,25 @@
-local args={...}
+local args = {...}
 local kernel = args[1]
 local tasks={}
 local currentTask={}
 local signals={}
-local tid=1
-local gid=1
+local tid=2
+local gid=2
+local hookuuid=0
 local sys={}
 
 function sys.hookSig(sig, func)
-    if not signals[tostring(currentTask.pid)][sig] then
-        signals[tostring(currentTask.pid)][sig]={}
+    if not currentTask.signal[sig] then
+        currentTask.signal[sig]={}
     end
-    signals[tostring(currentTask.pid)][sig][#signals[tostring(currentTask.pid)][sig]+1]=func
+    hookuuid=hookuuid+1
+    currentTask.signal[sig][tostring(hookuuid)]=func
+    callbackid=tostring(hookuuid)
+    return {
+        remove=function()
+            currentTask.signal[sig][callbackid]=nil
+        end
+    }
 end
 
 function sys.clearSigHooks(typ)
@@ -27,7 +35,7 @@ end
 
 function sys.sendSig(pid, signal, ...)
     if pid=="all" then
-        for i,v in pairs(tasks) do
+        for i,v in pairs(tasks) do+
             v.sigQ[#v.sigQ+1]={signal, ...}
         end
         return
@@ -38,31 +46,35 @@ function sys.sendSig(pid, signal, ...)
 end
 
 function sys.flushSigs()
-    local ret = {}
-    for i=1, #currentTask.sigQ do
-        if currentTask.signal[currentTask.sigQ[i][1]] then
-            for _,v in ipairs(currentTask.signal[currentTask.sigQ[1][1]]) do
+    local sigs = {}
+    for i,v in ipairs(currentTask.sigQ) do
+        sigs[i]=v
+    end
+    for i=1, #sigs do
+        local sig = sigs[i]
+        if currentTask.signal[sig[1]] then
+            for k,v in pairs(currentTask.signal[sig[1]]) do
                 coroutine.resumeWithTimeout(coroutine.create(function()
-                    local ok, err = xpcall(v, debug.traceback, table.unpack(table.remove(currentTask.sigQ, 1)))
-                    if not ok then
-                        table.insert(ret, err)
+                    local ok,err = xpcall(v,debug.traceback,table.unpack(sig))
+                    if not ok and sig[1]~="callbackErr" then
+                        sys.sendSig(currentTask.pid, "callbackErr", sig[1], k, err)
                     end
-                end), 10)
+                end),10)
             end
         else
-            for _,v in ipairs(currentTask.signal["unhandledEvent"]) do
+            for k,v in pairs(currentTask.signal["unhandledSignal"]) do
                 coroutine.resumeWithTimeout(coroutine.create(function()
-                    local ok, err = xpcall(v, debug.traceback, table.unpack(table.remove(currentTask.sigQ, 1)))
-                    if not ok then
-                        table.insert(ret, err)
+                    local ok,err = xpcall(v,debug.traceback,table.unpack(sig))
+                    if not ok and sig[1]~="callbackErr" then
+                        sys.sendSig(currentTask.pid, "callbackErr", sig[1], k, err)
                     end
-                end), 10)
+                end),10)
             end
         end
     end
 end
 
-function sys.spawn(func, name, evars, args)
+function sys.spawn(func, name, evars, args, stdin, stdout, stderr)
     local id=tid
     tid=tid+1
     name=name or tostring(id)
@@ -89,12 +101,19 @@ function sys.spawn(func, name, evars, args)
         vy=0,
         ivy=0,
         status="R",
+        sleep=0,
         signal=signals[tostring(id)],
         parent=currentTask,
         children={},
         sibling=currentTask.children,
         sigQ={}
     }
+end
+
+function sys.exit(...)
+    sys.sendSig(currentTask.ppid, "ChildTaskExit", currentTask.pid, ...)
+    currentTask.status="Z"
+    coroutine.yield()
 end
 
 local function collectZombieProc()
@@ -116,13 +135,23 @@ local function collectZombieProc()
     return ret
 end
 
+kernel.log("initPath is: " .. tostring(kernel.initPath))
 signals["1"]={}
 tasks["1"]={
     coro=coroutine.create(function()
-        local ret = {xpcall(kernel.fs.load(kernel.initPath), debug.traceback)}
+        local ok, code_or_err = xpcall(function() return kernel.fs.readAllText(kernel.initPath) end, debug.traceback)
+        if not ok then currentTask.status="Z"; kernel.panic(code_or_err) end
+        local code = code_or_err
+
+        local func, err = load(code, "@SysInit", nil, kernel._U)
+        if not func then currentTask.status="Z"; kernel.panic(err) end
+
+        local ok, err = xpcall(func, debug.traceback, kernel)
         if not ok then
+            currentTask.status="Z"
             kernel.panic(err)
         else
+            currentTask.status="Z"
             kernel.panic("Attempted to kill init!")
         end
     end),
@@ -130,27 +159,38 @@ tasks["1"]={
     pid=1,
     ppid=0,
     tgid=1,
-    user=kernel.user,
-    uid=kernel.uid,
+    user="root",
+    uid=0,
     evars={},
     args={kernel},
     vy=0,
     ivy=0,
     status="R",
+    sleep=0,
     signal=signals["1"],
     parent={name="Hyprkrnl",pid=0},
     children={},
     sibling={},
     sigQ={}
 }
-kernel.chache.preload.sys=sys
-kernel.chache.preload.system=sys
+tasks["1"].sibling={tasks["1"]}
+
+kernel.log("Created pid 1")
+kernel.cache.preload.sys=table.proxy(sys)
+kernel.cache.preload.system=kernel.cache.preload.sys
+kernel.cache.preload.os=kernel.cache.preload.sys
 kernel.hpv=sys
+kernel.tasks=tasks
+kernel.signals=signals
+kernel.currentTask=currentTask
 
 kernel.saveLog()
-while true do
-    for _,v in pairs(tasks) do
+kernel.status="running"
+while kernel.status~="Panic" do
+    for k,v in pairs(tasks) do
         currentTask=v
+        kernel.currentTask=v
+        kernel.process=currentTask.name
         kernel.user=currentTask.user
         kernel.uid=currentTask.uid
         sys.flushSigs()
@@ -164,4 +204,7 @@ while true do
     collectZombieProc()
 end
 
-kernel.panic("Exited pid 0")
+kernel.process="Kernel"
+kernel.user="root"
+kernel.uid=0
+kernel.panic(kernel.reason or "Exited pid 0")

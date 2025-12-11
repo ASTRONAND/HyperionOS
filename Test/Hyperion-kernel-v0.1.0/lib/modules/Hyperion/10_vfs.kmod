@@ -1,217 +1,321 @@
 local args = {...}
 local kernel = args[1]
 local fs = {}
-local disks = {}
-local mounts = {["/"]="$"}
 
--- path normaliing
-local function normalizePath(path)
-    if not path or path == "" then return "/" end
-    if path:sub(1,1) ~= "/" then path = "/" .. path end
-    local parts = {}
-    for part in path:gmatch("[^/]+") do
-        if part == ".." then
-            if #parts > 0 then table.remove(parts) end
-        elseif part ~= "." and part ~= "" then
-            parts[#parts+1] = part
-        end
-    end
-    return "/" .. table.concat(parts, "/")
-end
+-- =====================================================================
+-- INTERNAL STATE
+-- =====================================================================
 
--- disk resolution
-local function resolvePath(path)
-    local abs = normalizePath(path)
-    local best = "/"
-    for mount, diskAddr in pairs(mounts) do
-        if abs:sub(1, #mount) == mount and #mount > #best then
-            best = mount
-        end
-    end
-    local newPath = abs:sub(#best + 1)
-    if newPath == "" then newPath = "/" end
-    return disks[mounts[best]], newPath
-end
+local disks = {}         -- address → disk object
+local mounts = {["/"] = "$"}   -- mountpoint → disk address (root = boot disk)
 
--- Symlinks
--- Format: #!@SYMLINK[target]
 local SYMLINK_PREFIX = "#!@SYMLINK["
 local SYMLINK_SUFFIX = "]"
 local SYMLINK_MAX_DEPTH = 64
 
-local function isSymlink(disk, path)
-    if not disk:fileExists(path) then return false end
-    local text = disk:readAllText(path)
-    if not text then return false end
-    return text:sub(1, #SYMLINK_PREFIX) == SYMLINK_PREFIX
-end
 
-local function readSymlink(disk, path)
-    local text = disk:readAllText(path)
-    if not text then return nil end
-    if text:sub(1, #SYMLINK_PREFIX) ~= SYMLINK_PREFIX then return nil end
-    local target = text:sub(#SYMLINK_PREFIX + 1)
-    if target:sub(-1) == SYMLINK_SUFFIX then
-        target = target:sub(1, -2)
-    end
-    return target
-end
+-- =====================================================================
+-- PATH NORMALIZATION
+-- =====================================================================
 
-
--- Path resolution
 local function splitPath(p)
-    local parts = {}
-    for part in p:gmatch("[^/]+") do parts[#parts+1] = part end
-    return parts
+    local t = {}
+    for part in p:gmatch("[^/]+") do t[#t+1] = part end
+    return t
 end
 
-local function resolveSymlink(path)
-    path = normalizePath(path)
-    local symlinkDepth = 0
-    local parts = splitPath(path)
-    local resolved = {}
-    local i = 1
+local function normalizePath(path)
+    if not path or path == "" then return "/" end
 
-    while i <= #parts do
-        local comp = parts[i]
-        if comp == "." then
-        elseif comp == ".." then
-            if #resolved > 0 then table.remove(resolved) end
-        else
-            local currentPath = "/" .. table.concat(resolved, "/")
-            local disk, p = resolvePath(currentPath .. "/" .. comp)
-            if isSymlink(disk, p) then
-                symlinkDepth = symlinkDepth + 1
-                if symlinkDepth > SYMLINK_MAX_DEPTH then
-                    error("Too many levels of symbolic links: " .. path)
-                end
-                local target = readSymlink(disk, p)
-                if not target then
-                    resolved[#resolved+1] = comp
-                else
-                    if target:sub(1,1) == "/" then
-                        resolved = splitPath(normalizePath(target))
-                    else
-                        local base = resolved
-                        resolved = {}
-                        for _, seg in ipairs(base) do resolved[#resolved+1]=seg end
-                        for seg in target:gmatch("[^/]+") do
-                            if seg == ".." then
-                                if #resolved>0 then table.remove(resolved) end
-                            elseif seg ~= "." then
-                                resolved[#resolved+1]=seg
-                            end
-                        end
-                    end
-                    local remaining = {}
-                    for j=i+1,#parts do remaining[#remaining+1]=parts[j] end
-                    parts = remaining
-                    i = 0
-                end
-            else
-                resolved[#resolved+1]=comp
+    -- ensure absolute
+    if path:sub(1,1) ~= "/" then
+        path = "/" .. path
+    end
+
+    local parts = splitPath(path)
+    local out = {}
+
+    for _,part in ipairs(parts) do
+        if part == ".." then
+            if #out > 0 then table.remove(out) end
+        elseif part ~= "." and part ~= "" then
+            out[#out+1] = part
+        end
+    end
+
+    return "/" .. table.concat(out, "/")
+end
+
+
+-- =====================================================================
+-- DISK & MOUNT RESOLUTION
+-- =====================================================================
+
+-- Finds which disk owns an absolute path
+local function resolveMount(abs)
+    local best = "/"
+
+    for mount, addr in pairs(mounts) do
+        if abs:sub(1, #mount) == mount then
+            if #mount > #best then
+                best = mount
             end
         end
-        i=i+1
     end
 
-    local finalPath="/"..table.concat(resolved,"/")
-    local disk,diskPath=resolvePath(finalPath)
-    return disk,diskPath
+    local disk = disks[mounts[best]]
+    if not disk then
+        error("No disk registered for mount: " .. best)
+    end
+
+    local sub = abs:sub(#best + 1)
+    if sub == "" then sub = "/" end
+    return disk, sub
 end
 
--- PUBLIC API: MOUNTING
-function fs.mount(disk, mountPoint)
-    if kernel.uid ~= 0 then error("Permission Denied") end
-    mounts[mountPoint]=disk
+
+
+-- =====================================================================
+-- SYMLINK HANDLING
+-- =====================================================================
+
+local function isSymlinkRaw(disk, p)
+    if not disk:fileExists(p) then return false end
+    local text = disk:readAllText(p)
+    return text and text:sub(1, #SYMLINK_PREFIX) == SYMLINK_PREFIX
 end
-function fs.unmount(mountPoint)
-    if kernel.uid ~= 0 then error("Permission Denied") end
-    mounts[mountPoint]=nil
+
+local function readSymlinkRaw(disk, p)
+    local text = disk:readAllText(p)
+    if not text then return nil end
+    if text:sub(1, #SYMLINK_PREFIX) ~= SYMLINK_PREFIX then return nil end
+
+    local t = text:sub(#SYMLINK_PREFIX + 1)
+    if t:sub(-1) == SYMLINK_SUFFIX then
+        t = t:sub(1, -2)
+    end
+    return t
 end
+
+
+-- =====================================================================
+-- FULL PATH RESOLUTION (FOLLOWS SYMLINKS)
+-- =====================================================================
+
+local function resolveSymlink(path)
+    local abs = normalizePath(path)
+    local parts = splitPath(abs)
+    local out = {}
+
+    local depth = 0
+    local idx = 1
+
+    while idx <= #parts do
+        local comp = parts[idx]
+
+        if comp == "." then
+            -- nothing
+        elseif comp == ".." then
+            if #out > 0 then table.remove(out) end
+        else
+            local curAbs = "/" .. table.concat(out, "/")
+            if curAbs ~= "/" then curAbs = curAbs .. "/" end
+            curAbs = curAbs .. comp
+
+            local disk, dpath = resolveMount(curAbs)
+
+            if isSymlinkRaw(disk, dpath) then
+                depth = depth + 1
+                if depth > SYMLINK_MAX_DEPTH then
+                    error("Too many symlink levels: " .. path)
+                end
+
+                local target = readSymlinkRaw(disk, dpath)
+                if target then
+                    local newAbs
+
+                    if target:sub(1,1) == "/" then
+                        -- absolute target
+                        newAbs = normalizePath(target)
+                    else
+                        -- relative to current out[]
+                        local tmp = "/" .. table.concat(out, "/")
+                        if tmp ~= "/" then tmp = tmp .. "/" end
+                        tmp = tmp .. target
+                        newAbs = normalizePath(tmp)
+                    end
+
+                    -- rebuild remaining parts
+                    local remaining = {}
+                    for j = idx + 1, #parts do
+                        remaining[#remaining+1] = parts[j]
+                    end
+
+                    -- restart symlink resolution with new path
+                    abs = newAbs
+                    parts = splitPath(abs)
+
+                    -- append remaining
+                    for _,x in ipairs(remaining) do parts[#parts+1] = x end
+
+                    out = {}
+                    idx = 0
+                else
+                    out[#out+1] = comp
+                end
+            else
+                out[#out+1] = comp
+            end
+        end
+
+        idx = idx + 1
+    end
+
+    local finalAbs = "/" .. table.concat(out, "/")
+    return resolveMount(finalAbs)
+end
+
+
+
+-- =====================================================================
+-- PUBLIC API
+-- =====================================================================
+
+-- MOUNT OPERATIONS -----------------------------------------------------
+
 function fs.virtDisk(diskObj)
     if kernel.uid ~= 0 then error("Permission Denied") end
-    if disks[diskObj.address] then error("Disk exists") end
-    disks[diskObj.address]=diskObj
+    if disks[diskObj.address] then
+        error("Disk exists: " .. diskObj.address)
+    end
+    disks[diskObj.address] = diskObj
 end
+
+function fs.mount(disk, mountPoint)
+    if kernel.uid ~= 0 then error("Permission Denied") end
+    mountPoint = normalizePath(mountPoint)
+    
+    local drive, path = resolveMount(normalizePath(mountPoint))
+    if not drive:directoryExists(path) then error("Must mount on folder") end
+
+    if mountPoint ~= "/" and mounts[mountPoint] then
+        error("Already mounted: " .. mountPoint)
+    end
+
+    mounts[mountPoint] = disk
+end
+
+function fs.unmount(mountPoint)
+    if kernel.uid ~= 0 then error("Permission Denied") end
+    mountPoint = normalizePath(mountPoint)
+
+    if mountPoint == "/" then error("Cannot unmount root") end
+    mounts[mountPoint] = nil
+end
+
 function fs.eject(addr)
     if kernel.uid ~= 0 then error("Permission Denied") end
-    disks[addr]=nil
+    disks[addr] = nil
 end
 
--- SYMLINK API
+function fs.isMount(path)
+    if mounts[normalizePath(path)] then return true, mounts[normalizePath(path)] end
+end
+
+-- SYMLINK API ----------------------------------------------------------
+
 function fs.symlink(target, linkPath)
-    local disk, p = resolvePath(linkPath)
-    return disk:writeAllText(p, SYMLINK_PREFIX..target..SYMLINK_SUFFIX)
+    kernel.log("WARNING: Symlinks are a untested feature if you find any bugs please report them to https://git.astronand.dev/Hyperion/HyperionOS","WARN")
+    local disk, p = resolveMount(normalizePath(linkPath))
+    return disk:writeAllText(p, SYMLINK_PREFIX .. target .. SYMLINK_SUFFIX)
 end
+
 function fs.isLink(path)
-    local disk, p = resolvePath(path)
-    return isSymlink(disk,p)
+    local disk, p = resolveMount(normalizePath(path))
+    return isSymlinkRaw(disk, p)
 end
+
 function fs.readLink(path)
-    local disk, p = resolvePath(path)
-    return readSymlink(disk,p)
+    local disk, p = resolveMount(normalizePath(path))
+    return readSymlinkRaw(disk, p)
 end
 
--- FILE OPERATIONS
-function fs.exists(path)
+
+-- FILE OPERATIONS ------------------------------------------------------
+
+function fs.exists(path, ...)
     local disk, p = resolveSymlink(path)
-    return disk:fileExists(p) or disk:directoryExists(p)
+    return disk:fileExists(p, ...) or disk:directoryExists(p, ...)
 end
 
-function fs.isFile(path)
+function fs.isFile(path, ...)
     local disk, p = resolveSymlink(path)
-    if isSymlink(disk, p) then return false end
-    return disk:fileExists(p)
+    return disk:fileExists(p, ...)
 end
 
-function fs.isDir(path)
+function fs.isDir(path, ...)
     local disk, p = resolveSymlink(path)
-    if isSymlink(disk, p) then return false end
-    return disk:directoryExists(p)
+    return disk:directoryExists(p, ...)
 end
 
-function fs.list(path)
+function fs.list(path, ...)
     local disk, p = resolveSymlink(path)
-    return disk:list(p)
+    return disk:list(p, ...)
 end
 
-function fs.makeDir(path)
+function fs.makeDir(path, ...)
     local disk, p = resolveSymlink(path)
-    return disk:makeDirectory(p)
+    return disk:makeDirectory(p, ...)
 end
 
-function fs.remove(path)
-    local disk, p = resolvePath(path)
-    if isSymlink(disk, p) then
-        return disk:remove(p)
-    end
-    local d2, p2 = resolveSymlink(path)
-    return d2:remove(p2)
+-- remove does NOT follow symlinks (UNIX semantics)
+function fs.remove(path, ...)
+    if fs.isMount(path) then return "Cannot delete mounted folder" end
+    local abs = normalizePath(path)
+    local disk, p = resolveMount(abs)
+    return disk:remove(p, ...)
 end
 
-function fs.readAllText(path)
+function fs.readAllText(path, ...)
     local disk, p = resolveSymlink(path)
-    return disk:readAllText(p)
+    return disk:readAllText(p, ...)
 end
 
-function fs.writeAllText(path, text)
+function fs.writeAllText(path, text, ...)
     local disk, p = resolveSymlink(path)
-    return disk:writeAllText(p, text)
+    return disk:writeAllText(p, text, ...)
 end
 
-function fs.appendAllText(path, text)
+function fs.appendAllText(path, text, ...)
     local disk, p = resolveSymlink(path)
-    return disk:appendAllText(p, text)
+    return disk:appendAllText(p, text, ...)
 end
 
-function fs.getSize(path)
+function fs.load(path, name, ...)
+    return load(fs.readAllText(path, ...), name or path, nil, kernel._U)
+end
+
+function fs.getSize(path, ...)
     local disk, p = resolveSymlink(path)
-    return disk:getSize(p)
+    return disk:getSize(p, ...)
 end
 
+
+
+-- =====================================================================
 -- INIT
-for _,v in kernel.initdisks.list() do fs.virtDisk(v) end
-kernel.fs=fs
-kernel.chache.preload.fs=fs
-kernel.chache.preload.filesystem=fs
+-- =====================================================================
+
+kernel.log("Loading disks for vfs")
+local ok,err = xpcall(function()
+    for _,v in kernel.initdisks.list() do
+        fs.virtDisk(v)
+    end
+end, debug.traceback)
+if not ok then kernel.panic(err) end
+
+kernel.disks=disks
+kernel.mounts=mounts
+kernel.fs = fs
+kernel.cache.preload.fs = table.proxy(kernel.fs)
+kernel.cache.preload.filesystem = kernel.cache.preload.fs
