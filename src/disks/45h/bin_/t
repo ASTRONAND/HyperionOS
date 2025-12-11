@@ -1,2 +1,0 @@
-local print=component.getFirst("screen").print
-print("test")

@@ -1,8 +1,0 @@
-local driver = {}
-
-driver.type = "wlan"
-driver.name = "Advanced Computers http driver"
-driver.version = "1.0.0"
-driver.apiVersion = 1
-driver.description = "Driver for Advanced Computers http"
-driver.manifest = "ac.wlan.ko"
