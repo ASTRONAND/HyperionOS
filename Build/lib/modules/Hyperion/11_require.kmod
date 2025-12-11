@@ -1,6 +1,5 @@
 local args = {...}
 local kernel = args[1]
-
 -- List of search paths
 local paths = {
     "/lib/?",
@@ -11,7 +10,7 @@ local paths = {
 -- Custom require implementation
 function require(module)
     -- Return cached module if it already exists
-    if kernel.cache.preload[module] then
+    if kernel.cache.preload[module]~=nil then
         return kernel.cache.preload[module]
     end
 
@@ -54,3 +53,4 @@ function require(module)
     -- If nothing worked, raise an error with all reasons
     error("Unable to require module '" .. module .. "':\n" .. table.concat(err, "\n"))
 end
+kernel.log("Created require")

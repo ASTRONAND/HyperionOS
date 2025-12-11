@@ -1,11 +1,11 @@
-local args={...}
-local kernel=args[1]
+local args = {...}
+local kernel = args[1]
 local ifs=kernel.ifs
-local initdisks=kernel.initdisks
 
+kernel.log("Mounting fstab")
 local fstab=ifs.readAllText("/etc/fstab")
-kernel.fs.update(initdisks)
-for i,v in ipairs(string.split(fstab,"\n")) do
+local entrys = string.split(fstab,"\n")
+for i,v in ipairs(entrys) do
     if v:sub(1,1)=="U" then
         local id=""
         for i=3,#v do
@@ -14,9 +14,13 @@ for i,v in ipairs(string.split(fstab,"\n")) do
                 id=v:sub(3,i-1)
             end
         end
-        local path=v:sub(#id+4)
+        local path=v:sub(#id+4,#v)
+        if i~=#entrys then
+            path=path:sub(1,#path-1)
+        end
         kernel.log("Mounted "..id.." to "..path)
         kernel.fs.mount(id,path)
         ::endline::
     end
 end
+kernel.log("Mounted all disks")
