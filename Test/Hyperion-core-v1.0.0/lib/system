@@ -1,0 +1,74 @@
+local sys = {}
+local fs = require("fs")
+
+function sys.spawn(func, name, envars, args)
+    return coroutine.yield(0x10, func, name, envars, args)
+end
+
+function sys.spawnFromFile(path, name, envars, args)
+    local data = fs.readAllText(path)
+    if not data then
+        error("File not found: "..path,2)
+    end
+    local func, err = load(data, "@"..path)
+    if not func then
+        error("Error loading file "..path..": "..tostring(err),2)
+    end
+    return coroutine.yield(0x10, func, name, envars, args)
+end
+
+function sys.spawnAndWait(func, name, envars, args)
+    local pid = coroutine.yield(0x10, func, name, envars, args)
+    local oldsignal = sys.getSignalHandler(17)
+    local exit = false
+    sys.setSignalHandler(17, function()
+        local tasks = sys.getChildrenTasks(pid)
+        if not tasks[pid] then
+            exit = true
+        end
+    end)
+    while not exit do
+        coroutine.yield()
+    end
+    sys.setSignalHandler(17, oldsignal)
+    return pid
+end
+
+function sys.spawnFromFileAndWait(path, name, envars, args)
+    local data = fs.readAllText(path)
+    if not data then
+        error("File not found: "..path,2)
+    end
+    local func, err = load(data, "@"..path)
+    if not func then
+        error("Error loading file "..path..": "..tostring(err),2)
+    end
+    return sys.spawnAndWait(func, name, envars, args)
+end
+
+function sys.exit(code)
+    return coroutine.yield(0x14, code)
+end
+
+function sys.setSignalHandler(signal, func)
+    return coroutine.yield(0x11, signal, func)
+end
+
+function sys.sendSignal(pid, signal)
+    return coroutine.yield(0x12, pid, signal)
+end
+
+function sys.getSignalHandler(signal)
+    return coroutine.yield(0x13, signal)
+end
+
+function sys.getChildrenTasks(PID)
+    PID = PID or sys.getCurrentTaskID()
+    return coroutine.yield(0x15, PID)
+end
+
+function sys.getCurrentTaskID()
+    return coroutine.yield(0x16)
+end
+
+return sys

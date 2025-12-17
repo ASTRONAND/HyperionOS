@@ -1,0 +1,185 @@
+local kernel = ...
+local openFiles = {}
+kernel.openFiles = openFiles
+local vfs = {}
+vfs.mounts = {}
+local disks = kernel.disks
+vfs.cwd = ""
+
+local function resolvePath(path)
+    local mountPoint = "/"
+    local mountId = "$"
+    if path:sub(1,1)~="/" then path=vfs.cwd..path end
+    for k,v in pairs(vfs.mounts) do
+        if path:sub(1,#v) == v and #v > #mountPoint then
+            mountPoint = v
+            mountId = k
+        end
+    end
+    local diskPath = path:sub(#mountPoint+1)
+    return disks[mountId], diskPath
+end
+
+function vfs.mount(diskId, path)
+    if kernel.uid ~= 0 then error("Permission denied") end
+    if not disks[diskId] then
+        error("Attempted to mount unknown disk '"..diskId.."'")
+        return false
+    end
+    if vfs.mounts[diskId] then
+        error("Disk '"..diskId.."' is already mounted")
+        return false
+    end
+    if path:sub(#path,#path)~="/" then path=path.."/" end
+    for i,v in pairs(vfs.mounts) do
+        if v == path then
+            error("Mount point '"..path.."' is already in use")
+            return false
+        end
+    end
+    vfs.mounts[diskId] = path
+end
+
+function vfs.unmount(path)
+    if kernel.uid ~= 0 then error("Permission denied") end
+    for k,v in pairs(vfs.mounts) do
+        if v == path then
+            vfs.mounts[k] = nil
+            return true
+        end
+    end
+    return false
+end
+
+function vfs.open(path, mode)
+    local disk, diskPath = resolvePath(path)
+    if not disk then
+        error("No disk mounted for path '"..path.."'")
+        return nil
+    end
+    local uuid = kernel.newUUID()
+    openFiles[uuid] = {disk=disk.address, path=path, mode=mode, handle=disk:open(diskPath, mode)}
+    return uuid
+end
+
+function vfs.close(fileId)
+    local file = openFiles[fileId]
+    if not file then
+        error("Invalid file handle")
+        return false
+    end
+    local disk = disks[file.disk]
+    disk:close(file.handle)
+    openFiles[fileId] = nil
+    return true
+end
+
+function vfs.read(fileId, count)
+    local file = openFiles[fileId]
+    if not file then
+        error("Invalid file handle")
+        return nil
+    end
+    if not file.mode:find("r") then
+        error("File not opened in read mode")
+        return nil
+    end
+    local disk = disks[file.disk]
+    return disk:read(file.handle, count)
+end
+
+function vfs.write(fileId, data)
+    local file = openFiles[fileId]
+    if not file then
+        error("Invalid file handle")
+        return false
+    end
+    if not file.mode:find("w") then
+        error("File not opened in write mode")
+        return false
+    end
+    local disk = disks[file.disk]
+    return disk:write(file.handle, data)
+end
+
+function vfs.mkdir(path)
+    local disk, diskPath = resolvePath(path)
+    if not disk then
+        error("No disk mounted for path '"..path.."'")
+        return false
+    end
+    return disk:mkdir(diskPath)
+end
+
+function vfs.remove(path)
+    local disk, diskPath = resolvePath(path)
+    if not disk then
+        error("No disk mounted for path '"..path.."'")
+        return false
+    end
+    return disk:remove(diskPath)
+end
+
+function vfs.atributes(path)
+    local disk, diskPath = resolvePath(path)
+    if not disk then
+        error("No disk mounted for path '"..path.."'")
+        return nil
+    end
+    return disk:attributes(diskPath)
+end
+
+function vfs.list(path)
+    local disk, diskPath = resolvePath(path)
+    if not disk then
+        error("No disk mounted for path '"..path.."'")
+        return nil
+    end
+    return disk:list(diskPath)
+end
+
+function vfs.exists(path)
+    local disk, diskPath = resolvePath(path)
+    if not disk then
+        error("No disk mounted for path '"..path.."'")
+        return false
+    end
+    return disk:directoryExists(diskPath) or disk:fileExists(diskPath)
+end
+
+function vfs.type(path)
+    local disk, diskPath = resolvePath(path)
+    if not disk then
+        error("No disk mounted for path '"..path.."'")
+        return nil
+    end
+    return disk:type(diskPath)
+end
+
+function vfs.getcwd()
+    return vfs.cwd
+end
+
+function vfs.setcwd(path)
+    if path:sub(#path,#path)~="/" then path=path.."/" end
+    if path:sub(1,1)~="/" then path="/"..path end
+    vfs.cwd=path
+end
+
+kernel.vfs = vfs
+kernel.registerSyscall(0x01, vfs.open)
+kernel.registerSyscall(0x02, vfs.read)
+kernel.registerSyscall(0x03, vfs.write)
+kernel.registerSyscall(0x04, vfs.close)
+kernel.registerSyscall(0x05, vfs.list)
+kernel.registerSyscall(0x06, vfs.type)
+kernel.registerSyscall(0x07, vfs.atributes)
+kernel.registerSyscall(0x08, vfs.mkdir)
+kernel.registerSyscall(0x09, vfs.remove)
+kernel.registerSyscall(0x0a, vfs.exists)
+kernel.registerSyscall(0x0b, vfs.mount)
+kernel.registerSyscall(0x0c, vfs.unmount)
+kernel.registerSyscall(0x0d, vfs.getcwd)
+kernel.registerSyscall(0x0e, vfs.setcwd)
+
+kernel.log("VFS module loaded")

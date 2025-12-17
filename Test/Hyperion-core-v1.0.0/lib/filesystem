@@ -1,0 +1,138 @@
+local fs={}
+
+-- 1 : open
+-- 2 : read
+-- 3 : write
+-- 4 : close
+
+function fs.open(path, mode)
+    local fd=cororoutine.yield(1,path,mode)
+    local ret={
+        close=function()
+            -- close file
+            return coroutine.yield(4,fd)
+        end,
+        flush=function()
+            -- close and reopen file to flush buffers
+            coroutine.yield(4,fd)
+            fd=coroutine.yield(1,path,mode)
+        end
+    }
+    if mode=="r" then
+        ret.read=function(count)
+            return coroutine.yield(2,fd,count)
+        end
+        ret.readAll=function()
+            local chunks={} -- to store read chunks
+            while true do
+                local chunk=coroutine.yield(2,fd,math.huge)
+                if chunk==nil or #chunk==0 then break end
+                table.insert(chunks,chunk)
+            end
+            return table.concat(chunks)
+        end
+        ret.readLine = function()
+            local buffer = {}                -- stores leftover data
+            local buffer_str = ""            -- concatenated buffer
+            local chunk_size = 4096          -- adjust chunk size for performance
+            local eof = false
+
+            while true do
+                -- Try to find a newline in the current buffer
+                local line_end = buffer_str:find("\n")
+                if line_end then
+                    local line = buffer_str:sub(1, line_end - 1)
+                    buffer_str = buffer_str:sub(line_end + 1)
+                    return line
+                end
+            
+                -- If EOF was reached previously and buffer is empty, stop
+                if eof then
+                    if buffer_str ~= "" then
+                        local last_line = buffer_str
+                        buffer_str = ""
+                        return last_line
+                    else
+                        return nil
+                    end
+                end
+            
+                -- Read the next chunk
+                local chunk = coroutine.yield(2, fd, chunk_size)
+                if not chunk or chunk == "" then
+                    eof = true
+                else
+                    buffer_str = buffer_str .. chunk
+                end
+            end
+        end
+    elseif mode=="w" then
+        ret.write=function(data)
+            -- write data to file
+            return coroutine.yield(3,fd,data)
+        end
+    elseif mode=="a" then
+        ret.write=function(data)
+            -- append data to file
+            return coroutine.yield(3,fd,data)
+        end
+    else
+        error("Invalid mode '"..mode.."'",2)
+    end
+    return ret
+end
+
+function fs.readAllText(path)
+    local file=fs.open(path,"r")
+    if not file then return false end
+    local content=file.readAll()
+    file.close()
+    return content
+end
+
+function fs.writeAllText(path, data)
+    local file=fs.open(path,"w")
+    file.write(data)
+    file.close()
+end
+
+function fs.appendAllText(path, data)
+    local file=fs.open(path,"a")
+    if not file then return false end
+    file.write(data)
+    file.close()
+end
+
+function fs.mkdir(path)
+    coroutine.yield(8,path)
+end
+
+function fs.remove(path)
+    coroutine.yield(9,path)
+end
+
+function fs.list(path)
+    return coroutine.yield(5,path)
+end
+
+function fs.type(path)
+    return coroutine.yield(6,path)
+end
+
+function fs.attributes(path)
+    return coroutine.yield(7,path)
+end
+
+function fs.exists(path)
+    return coroutine.yield(10, path)
+end
+
+function fs.getcwd()
+    return coroutine.yield(11)
+end
+
+function fs.setcwd(path)
+    return coroutine.yield(12, path)
+end
+
+return fs

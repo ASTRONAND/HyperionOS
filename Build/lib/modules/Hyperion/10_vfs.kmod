@@ -8,6 +8,7 @@ local fs = {}
 
 local disks = {}         -- address → disk object
 local mounts = {["/"] = "$"}   -- mountpoint → disk address (root = boot disk)
+local cwd = "/"
 
 local SYMLINK_PREFIX = "#!@SYMLINK["
 local SYMLINK_SUFFIX = "]"
@@ -27,10 +28,11 @@ end
 local function normalizePath(path)
     if not path or path == "" then return "/" end
 
-    -- ensure absolute
+    -- cwd
     if path:sub(1,1) ~= "/" then
-        path = "/" .. path
+        path=cwd..path
     end
+    
 
     local parts = splitPath(path)
     local out = {}
@@ -300,7 +302,35 @@ function fs.getSize(path, ...)
     return disk:getSize(p, ...)
 end
 
+-- =====================================================================
+-- WD STUFF
+-- =====================================================================
 
+function fs.setCwd(path)
+    if not path or path == "" then return "/" end
+
+    -- ensure absolute
+    if path:sub(1,1) ~= "/" then
+        path = "/" .. path
+    end
+
+    local parts = splitPath(path)
+    local out = {}
+
+    for _,part in ipairs(parts) do
+        if part == ".." then
+            if #out > 0 then table.remove(out) end
+        elseif part ~= "." and part ~= "" then
+            out[#out+1] = part
+        end
+    end
+
+    cwd="/" .. table.concat(out, "/")
+end
+
+function fs.getCwd(path)
+    return cwd
+end
 
 -- =====================================================================
 -- INIT
@@ -317,5 +347,5 @@ if not ok then kernel.panic(err) end
 kernel.disks=disks
 kernel.mounts=mounts
 kernel.fs = fs
-kernel.cache.preload.fs = table.proxy(kernel.fs)
+kernel.cache.preload.fs = fs
 kernel.cache.preload.filesystem = kernel.cache.preload.fs

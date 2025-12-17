@@ -1,0 +1,10 @@
+{
+    "Name": "Hyperion bash",
+    "Version": "1.0.0",
+    "Publishers": ["HyperionOS Dev Team"],
+    "Description": "basic bash shell",
+    "Dependencies": [
+        "https://git.astronand.dev/Hyperion/HyperionOS/archive/Hyperion-core-v1.0.0.pkg"
+    ],
+    "Tar": "https://git.astronand.dev/Hyperion/HyperionOS/archive/Hyperion-bash-v1.0.0.tar"
+}

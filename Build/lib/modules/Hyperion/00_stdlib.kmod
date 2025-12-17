@@ -192,5 +192,38 @@ local function serialize(table)
     return output
 end
 
+local oldtype=type
+local oldgetmetatable=getmetatable
+function type(object)
+    if oldtype(object)~="table" then
+        return oldtype(object)
+    else
+        if oldtype(oldgetmetatable(object))=="table" then
+            local metatable = oldgetmetatable(object)
+            if metatable.__type then return metatable.__type end
+        else
+            return "table"
+        end
+    end
+end
+
+function getmetatable(object)
+    if oldtype(object)~="table" then return end
+    if oldtype(oldgetmetatable(object))=="table" then
+        if oldgetmetatable(object).__isuserdata then
+            if oldtype(oldgetmetatable(object).__usermeta)=="function" then
+                return oldgetmetatable(object).__usermeta()
+            else
+                return oldgetmetatable(object).__usermeta
+            end
+        else
+            return oldgetmetatable(object)
+        end
+    else
+        return oldgetmetatable(object)
+    end
+end
+
+
 table.serialize=serialize
 kernel.log("Loaded stdlib")

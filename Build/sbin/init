@@ -1,3 +1,6 @@
 local args={...}
 local kernel=args[1]
+for i,v in pairs(kernel.drivers.processes) do
+    os.spawn(v, i, {}, {})
+end
 kernel.fs.load("/bin/bash")()

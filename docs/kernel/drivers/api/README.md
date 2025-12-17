@@ -20,9 +20,7 @@ Driver API
     load           - loading code
     unload         - unloading code
     main           - Ran as a process and has normal behavior (used for checking network like things)
-    api            - api difined by type
     arch           - architecture difined in bootloader (EX: cct, oc, ac, cc, ccpc, or all)
     description    - discription
     author         - author of driver
-    prior          - priority (low first)
 ```

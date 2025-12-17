@@ -15,7 +15,7 @@
                     "if (Test-Path '${workspaceFolder}\\Build') { Remove-Item -LiteralPath '${workspaceFolder}\\Build' -Recurse -Force -ErrorAction SilentlyContinue }; New-Item -ItemType Directory -Path '${workspaceFolder}\\Build' | Out-Null; Get-ChildItem -Path '${workspaceFolder}\\Test' -Directory | ForEach-Object { $base = $_.FullName; Get-ChildItem -Path $base -File -Recurse | ForEach-Object { $rel = $_.FullName.Substring($base.Length).TrimStart(\"\\\"); $destPath = Join-Path '${workspaceFolder}\\Build' $rel; $destDir = Split-Path $destPath; if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir | Out-Null }; Copy-Item -LiteralPath $_.FullName -Destination $destPath -Force } }"
                 ]
             },
-
+            
             "linux": {
                 "command": "bash",
                 "args": [

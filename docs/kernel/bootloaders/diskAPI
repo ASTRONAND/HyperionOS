@@ -1,0 +1,17 @@
+--- Disk API Documentation ---
+    string address = "EXAMPLE_DISK_ADDRESS"
+    function disk:isReadOnly()
+    function disk:spaceUsed()
+    function disk:spaceTotal()
+    function disk:list(path)
+    function disk:fileExists(path)
+    function disk:directoryExists(path)
+    function disk:makeDirectory(path)
+    function disk:remove(path)
+    function disk:setLabel(label)
+    function disk:getLabel(label)
+    function disk:size(path)
+    function disk:open(path, mode)
+        function file:read(handle, count)
+        function file:write(handle, data)
+        function file:close(handle)

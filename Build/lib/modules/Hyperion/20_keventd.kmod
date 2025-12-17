@@ -1,10 +1,10 @@
 local args = {...}
 local kernel = args[1]
-kernel.drivers.processes[#kernel.drivers.processes+1]=function()
+kernel.drivers.processes["keventd"]=function()
     while true do
         local event={kernel.computer:getMachineEvent()}
         while event[1]~=nil do
-            kernel.hpv.sendSig("all", table.unpack(event))
+            kernel.hpv.sendSignal("all", table.unpack(event))
             event={kernel.computer:getMachineEvent()}
         end
         coroutine.yield()

@@ -1,3 +1,0 @@
-local args={...}
-local kernel=args[1]
-kernel.fs.load("/bin/bash")()

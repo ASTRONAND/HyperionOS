@@ -1,0 +1,11 @@
+local userdata={}
+userdata.policy={}
+userdata.policy.readOnly=1
+userdata.policy.readWrite=2
+userdata.policy.WriteOnly=3
+userdata.policy.hidden=4
+userdata.policy.custom=5
+
+function userdata.create()
+    return setmetatable()
+end

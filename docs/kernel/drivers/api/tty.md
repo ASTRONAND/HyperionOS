@@ -5,6 +5,8 @@ tty (Teletypewriter) is a driver class made for basic text output (ASCII only) u
 
 ```
 API Signature
+    String: address
+        Address unique to the screen
 
     print(String: text):Nil
         Prints text to the screen with a following \n
