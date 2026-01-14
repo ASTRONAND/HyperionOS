@@ -1,0 +1,12 @@
+local kernel = ...
+
+kernel.processes.keventd = function()
+    while true do
+        local event = {kernel.computer:getMachineEvent()}
+        if event[1] then
+            if event[1] == "key" or event[1] == "keyPressed" or event[1] == "keyReleased" then
+                kernel.devfs.keyboard.push(event)
+            end
+        end
+    end
+end

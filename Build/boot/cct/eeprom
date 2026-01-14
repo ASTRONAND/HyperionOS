@@ -1,3 +1,5 @@
+sleep(1)
+local BOOT_DRIVE_PATH="/$"
 -- UnBIOS by JackMacWindows
 -- This will undo most of the changes/additions made in the BIOS, but some things may remain wrapped if `debug` is unavailable
 -- To use, just place a `bios.lua` in the root of the drive, and run this program
@@ -58,7 +60,7 @@ function _G.term.native()
     term.setCursorPos(1, 1)
     term.setCursorBlink(true)
     term.clear()
-    local file = fs.open("/$/boot/cct/boot.lua", "r")
+    local file = fs.open(BOOT_DRIVE_PATH.."/boot/cct/boot.lua", "r")
     if file == nil then
         term.setCursorBlink(false)
         term.setTextColor(16384)

@@ -1,5 +1,4 @@
-local args={...}
-local kernel=args[1]
+
 function string.hasSuffix(str, suffix)
     return string.sub(str, #suffix+1) == suffix
 end
@@ -117,7 +116,7 @@ function table.proxy(tbl)
                 end
             end,
             __newindex = function()
-                error("Attempt to modify read-only table", 2)
+                error("Attempt to modify table proxy", 2)
             end,
             __pairs = function()
                 return function(_, k)
@@ -158,6 +157,8 @@ local function serialize(table)
         local coma=true
         if type(i) == "string" then
             output=output.."[\""..i.."\"]="
+        elseif type(i) == "number" then
+            output=output.."["..tostring(i).."]="
         end
         if type(v) == "table" then
             if v == table then
@@ -224,6 +225,46 @@ function getmetatable(object)
     end
 end
 
+function isEqual(a, ...)
+    local args={...}
+    for i=0, #args do
+        if a==args[i] then
+            return true
+        end
+    end
+    return false
+end
+
+function table.keys(t)
+    local a = {}
+    for n in pairs(t) do table.insert(a, n) end
+    return a
+end
+
+function table.values(t)
+    local a = {}
+    for _, n in pairs(t) do table.insert(a, n) end
+    return a
+end
+
+function table.indexOf(t, value)
+    for i,v in ipairs(t) do
+        if v==value then
+            return i
+        end
+    end
+    return -1
+end
+
+syscall = setmetatable({}, {__index = function(self, name)
+    return function(...)
+        local res = table.pack(coroutine.yield("syscall", name, ...))
+        if res[1] then
+            return table.unpack(res, 2, res.n)
+        else
+            error(res[2], 2)
+        end
+    end
+end})
 
 table.serialize=serialize
-kernel.log("Loaded stdlib")

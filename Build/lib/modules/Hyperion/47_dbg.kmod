@@ -1,0 +1,6 @@
+local kernel=...
+local debug=debug
+kernel._G.debug={
+    getinfo=debug.getinfo,
+    traceback=debug.traceback
+}

@@ -1,4 +1,5 @@
 local apis = ({...})[1]
+local BOOT_DRIVE_PATH="/$"
 local fs = apis.fs
 local native = apis.peripheral
 local peripheral = {}
@@ -62,33 +63,6 @@ local function createDisk(id, basePath, readonly, periph)
         return fs.getCapacity(basePath)
     end
 
-    function disk:readAllText(path)
-        local p = fs.combine(basePath, path)
-        if not fs.exists(p) then return nil, "file not found" end
-        local h = fs.open(p, "r")
-        local t = h.readAll()
-        h.close()
-        return t
-    end
-
-    function disk:writeAllText(path, text)
-        local p = fs.combine(basePath, path)
-        local h = fs.open(p, "w")
-        if not h then return nil, "cannot write" end
-        h.write(text)
-        h.close()
-        return true
-    end
-
-    function disk:appendAllText(path, text)
-        local p = fs.combine(basePath, path)
-        local h = fs.open(p, "a")
-        if not h then return nil, "cannot append" end
-        h.write(text)
-        h.close()
-        return true
-    end
-
     function disk:list(path)
         local p = fs.combine(basePath, path)
         if not fs.exists(p) or not fs.isDir(p) then return nil, "not directory" end
@@ -103,6 +77,17 @@ local function createDisk(id, basePath, readonly, periph)
     function disk:directoryExists(path)
         local p = fs.combine(basePath, path)
         return fs.exists(p) and fs.isDir(p)
+    end
+
+    function disk:type(path)
+        local p = fs.combine(basePath, path)
+        if not fs.exists(p) then
+            return nil
+        elseif fs.isDir(p) then
+            return "directory"
+        else
+            return "file"
+        end
     end
 
     function disk:makeDirectory(path)
@@ -125,9 +110,14 @@ local function createDisk(id, basePath, readonly, periph)
         return periph.getLabel()
     end
 
-    function disk:size(path)
+    function disk:attributes(path)
         local p = fs.combine(basePath, path)
-        return fs.getSize(p)
+        return fs.attributes(p)
+    end
+
+    function disk:open(path, mode)
+        local p = fs.combine(basePath, path)
+        return fs.open(p, mode)
     end
     
     return disk
@@ -136,7 +126,7 @@ end
 ---------------------------------------------------------
 -- INTERNAL DISK "$" (mapped to "/")
 ---------------------------------------------------------
-internal["$"] = createDisk("$", "/$", false, {
+internal["$"] = createDisk("$", BOOT_DRIVE_PATH, false, {
     setLabel=function(label)
         local h = fs.open("/.label", "w")
         h.write(label)

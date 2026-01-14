@@ -1,4 +1,5 @@
 local apis = ({...})[1]
+local BOOT_DRIVE_PATH="/$"
 local fs = apis.fs
 local native = apis.peripheral
 local peripheral = {}
@@ -125,7 +126,7 @@ end
 ---------------------------------------------------------
 -- INTERNAL DISK "$" (mapped to "/")
 ---------------------------------------------------------
-internal["$"] = createDisk("$", "/$", false, {
+internal["$"] = createDisk("$", BOOT_DRIVE_PATH, false, {
     setLabel=function(label)
         local h = fs.open("/.label", "w")
         h.write(label)

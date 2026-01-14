@@ -1,0 +1,5 @@
+local sys = {}
+sys.fs = require("sys.fs")
+sys.hpv = require("sys.hpv")
+sys.ipc = require("sys.ipc")
+return sys

@@ -1,0 +1,3 @@
+local ipc = {}
+
+return ipc

@@ -1,0 +1,75 @@
+local kernel = ...
+local ports = {}
+local signals = {}
+local ipc = {}
+
+function ipc.open(port)
+    if not ports[port] then
+        local handle = kernel.newUUID()
+        ports[port] = {owner = kernel.currentProcess.pid, handle = handle, messages = {}}
+        return ports[port].handle
+    end
+    error("Port already opened")
+end
+
+function ipc.close(port)
+    if ports[port] then
+        if ports[port].owner == kernel.currentProcess.pid then
+            ports[port] = nil
+            return true
+        else
+            error("Cannot close port you do not own")
+        end
+    end
+    error("Port not opened")
+end
+
+function ipc.send(port, message)
+    if ports[port] then
+        table.insert(ports[port].messages, {from = kernel.currentProcess.pid, message = message})
+        if signals[ports[port].owner] then
+            signals[ports[port].owner](port, message)
+        end
+        return true
+    end
+    error("Port not opened")
+end
+
+function ipc.receive(port)
+    if ports[port] then
+        if #ports[port].messages > 0 then
+            return table.remove(ports[port].messages, 1)
+        else
+            return nil
+        end
+    end
+    error("Port not opened")
+end
+
+function ipc.setSignalHandler(pid, handler)
+    signals[pid] = handler
+end
+
+function ipc.clearSignalHandler(pid)
+    signals[pid] = nil
+end
+
+function ipc.sendSignal(pid, ...)
+    coroutine.resumeWithTimeout(coroutine.create(function(...)
+        if signals[pid] then
+            signals[pid](...)
+            return true
+        end
+    end), 100)
+    return false
+end
+
+kernel.ipc = ipc
+kernel.syscalls["ipc_open"] = ipc.open
+kernel.syscalls["ipc_close"] = ipc.close
+kernel.syscalls["ipc_send"] = ipc.send
+kernel.syscalls["ipc_receive"] = ipc.receive
+kernel.syscalls["ipc_setSignalHandler"] = ipc.setSignalHandler
+kernel.syscalls["ipc_clearSignalHandler"] = ipc.clearSignalHandler
+kernel.syscalls["ipc_sendSignal"] = ipc.sendSignal
+kernel.log("Loaded IPC module")

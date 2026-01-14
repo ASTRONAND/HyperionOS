@@ -49,15 +49,23 @@ function fs.remove(path)
 end
 function fs.readAllText(path)
     local disk, newPath = resolve(path)
-    return disk:readAllText(newPath)
+    local handle = disk:open(newPath, "r")
+    if not handle then return nil end
+    local content = handle.readAll()
+    handle.close()
+    return content
 end
 function fs.writeAllText(path, text)
     local disk, newPath = resolve(path)
-    return disk:writeAllText(newPath, text)
+    local handle = disk:open(newPath, "w")
+    handle.write(text)
+    handle.close()
 end
 function fs.appendAllText(path, text)
     local disk, newPath = resolve(path)
-    return disk:appendAllText(newPath, text)
+    local handle = disk:open(newPath, "a")
+    handle.write(text)
+    handle.close()
 end
 function fs.load(path)
     return load(fs.readAllText(path), path)

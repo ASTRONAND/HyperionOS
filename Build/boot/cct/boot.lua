@@ -1,3 +1,4 @@
+local BOOT_DRIVE_PATH="/$"
 local term = term
 local os = os
 -- Function to write text to the terminal with special character handling
@@ -100,11 +101,17 @@ local ok, err = xpcall(function()
     }
 
     -- Move all non-Lua standard library globals into the apis table
+    local debug = debug
     for i,v in pairs(_G) do
         if not lua[i] or lua[i]==nil then
             apis[i]=v
             _G[i]=nil
         end
+    end
+
+    function sleep(time)
+        local stoptime = apis.os.clock() + (time)
+        while stoptime > apis.os.clock() do end
     end
 
     -- Set up terminal default colors
@@ -135,9 +142,9 @@ local ok, err = xpcall(function()
     end
 
     -- Load kernel first if it fails, we can't continue so we display an error
-    local Kernel = load(getFile("/$/boot/kernel.lua"),"@Kernel")
-    local initFs = load(getFile("/$/boot/cct/initdisks","@Init_disks"))(apis)
-    local fs = load(getFile("/$/boot/initfs"),"@InitFs")()
+    local Kernel = load(getFile(BOOT_DRIVE_PATH.."/boot/kernel.lua"),"@Kernel")
+    local initFs = load(getFile(BOOT_DRIVE_PATH.."/boot/cct/initdisks","@Init_disks"))(apis)
+    local fs = load(getFile(BOOT_DRIVE_PATH.."/boot/initfs"),"@InitFs")()
     if not Kernel then
         displaySuperBadError("Could not load kernel.")
     end
@@ -163,7 +170,7 @@ local ok, err = xpcall(function()
     -- Set up computer api
     local computer = {
         time = function() return apis.os.epoch("utc") end,
-        clock = apis.os.clock,
+        clock = function() return apis.os.clock()/1000 end,
         shutdown = apis.os.shutdown,
         reboot = apis.os.reboot,
         getMachineEvent = function()
@@ -255,13 +262,13 @@ local ok, err = xpcall(function()
             end
         end, "", 1000)
         local ret = {coroutine.resume(co, ...)}
-        if ret[1]=="timeout" then
-            return nil, "Coroutine timed out"
+        if ret[1] and ret[2]=="timeout" then
+            return "timeout"
         elseif ret[1]==false then
-            return false, ret[2]
+            return "error", ret[2]
         else
             debug.sethook(co)
-            return true, table.unpack(ret)
+            return "success", table.unpack(ret, 2)
         end
     end
 
@@ -291,12 +298,13 @@ local ok, err = xpcall(function()
                 exit=true
             end
         end
-        if status == false or coroutine.status(kernelCoro)=="dead" then
+        if status == "error" or coroutine.status(kernelCoro)=="dead" then
             displaySuperBadError("Kernel error: "..tostring(err))
             coroutine.yield("key")
         end
     end
 end, debug.traceback)
+
 if not ok then
     displaySuperBadError("Fatal error during boot: "..err)
 end
