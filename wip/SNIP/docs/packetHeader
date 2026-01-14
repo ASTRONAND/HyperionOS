@@ -1,7 +1,0 @@
-packet length = 65535
-
-SNIP     = 4 bytes
-Sender   = 4 bytes
-Receiver = 4 bytes
-
-Content  = 65513 bytes
