@@ -18,7 +18,13 @@ function sys.spawn(func, name, envars, args, tgid)
                 tasks[tostring(id)].status="Z"
                 tasks[tostring(id)].exit=tostring(err)
             else
-                kernel.log("Task "..tostring(id).." exited with code: "..tostring(err), "INFO")
+                if kernel.config.logTaskExit then
+                    if err then
+                        kernel.log("Task "..tostring(id).." exited with code: "..tostring(err), "INFO")
+                    else
+                        kernel.log("Task "..tostring(id).." exited without code", "INFO")
+                    end
+                end
                 tasks[tostring(id)].status="Z"
                 tasks[tostring(id)].exit=err
             end
