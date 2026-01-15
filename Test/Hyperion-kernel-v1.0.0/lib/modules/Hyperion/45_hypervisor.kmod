@@ -53,7 +53,7 @@ end
 
 kernel.syscalls["HPV_spawn"]=sys.spawn
 kernel.syscalls["HPV_sleep"]=sys.sleep
-kernel._G.sleep=function(...)coroutine.yield("HPV_sleep",...)end
+kernel._G.sleep=function(...)coroutine.yield("syscall","HPV_sleep",...)end
 
 local function reapDeadTasks()
     for pid, task in pairs(tasks) do
@@ -161,16 +161,16 @@ function kernel.main()
                     if ret[2]=="syscall" then
                         if kernel.syscalls[ret[3]] then
                             if kernel.config.debugSyscalls then
-                                kernel.log("Task "..task.pid.." invoking syscall: "..ret[3])
+                                kernel.log("Task "..task.pid.." invoking syscall: "..ret[3], "DBUG")
                             end
                             local sysret = {xpcall(kernel.syscalls[ret[3]], debug.traceback, table.unpack(ret, 4))}
                             if kernel.config.debugSyscalls then
                                 if not sysret[1] then
                                     kernel.log("Task "..task.pid.." syscall "..ret[3].." failed: "..tostring(sysret[2]))
                                 else
-                                    kernel.log("Task "..task.pid.." syscall "..ret[3].." completed returning "..tostring(#sysret-1).." values")
+                                    kernel.log("Task "..task.pid.." syscall "..ret[3].." completed returning "..tostring(#sysret-1).." values", "DBUG")
                                     for i=2,#sysret do
-                                        kernel.log("  retval["..tostring(i-1).."] = "..tostring(sysret[i]))
+                                        kernel.log("  retval["..tostring(i-1).."] = "..tostring(sysret[i]), "DBUG")
                                     end
                                 end
                             end

@@ -33,7 +33,6 @@ function kernel.log(msg, level)
         kernel.currentTask=kernel.kernelTask
         kernel.tty.print(tostring(computer:time()).." "..kernel.user.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
         kernel.currentTask=kernel.standbyTask
-        
     end
 end
 

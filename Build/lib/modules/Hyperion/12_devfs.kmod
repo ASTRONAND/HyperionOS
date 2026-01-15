@@ -144,30 +144,6 @@ data["eeprom"] = {
     end
 }
 
-data["stdin"] = {
-    type = "link",
-    read = function(amount)
-        return kernel.currentTask.fd[0].read(amount)
-    end,
-    write = function() error("Permission denied") end
-}
-
-data["stdout"] = {
-    type = "link",
-    read = function() error("Permission denied") end,
-    write = function(data)
-        kernel.currentTask.fd[1].write(data)
-    end
-}
-
-data["stderr"] = {
-    type = "link",
-    read = function() error("Permission denied") end,
-    write = function(data)
-        kernel.currentTask.fd[2] = data
-    end
-}
-
 local keyboard = kernel.newFifo()
 local mouse = kernel.newFifo()
 data["input"] = newDirectory()
