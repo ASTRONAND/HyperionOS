@@ -2,7 +2,18 @@ local kernel=...
 local fs=require("sys.fs")
 syscall.TTY_bind("tty0")
 
-for i,v in ipairs(kernel.)
+for i,v in pairs(kernel.processes) do
+    kernel.log("Spawning kernel task "..i)
+    syscall.HPV_spawn(function()
+        local status, err = pcall(startupFunc)
+        if not status then
+            kernel.log("Error executing kernel task '" .. filepath .. "': " .. err, "ERROR")
+        else
+            kernel.log("Successfully executed kernel task: " .. filepath, "INFO")
+        end
+    end, i)
+end
+
 local files = fs.list("/bin/startup")
 if not files then error("Failed to list /bin/startup") end
 for i,v in ipairs(files) do
