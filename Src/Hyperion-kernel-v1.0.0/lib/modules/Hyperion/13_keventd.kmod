@@ -1,13 +1,14 @@
 --:Minify:--
 local kernel = ...
+local events = kernel.newFifo()
 
 kernel.processes.keventd = function()
     while true do
         local event = {kernel.computer:getMachineEvent()}
         if event[1] then
-            if event[1] == "key" or event[1] == "keyPressed" or event[1] == "keyReleased" then
-                kernel.devfs.keyboard.push(event)
-            end
+            events.push(event)
         end
     end
 end
+
+kernel.syscalls["IO_getEventAny"]=events.pop

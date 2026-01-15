@@ -24,59 +24,7 @@ for i,v in ipairs(files) do
     end
 end
 
-local function serialize(table, seen)
-    seen = seen or {}
-    if seen[tostring(table)] then
-        return "\"<circular reference>\""
-    end
-    seen[tostring(table)] = true
-    local output = "{"
-    for i,v in pairs(table) do
-        local coma=true
-        if type(i) == "string" then
-            output=output.."[\""..i.."\"]="
-        elseif type(i) == "number" then
-            output=output.."["..tostring(i).."]="
-        end
-        if type(v) == "table" then
-            if v == table then
-                output=string.sub(output,1,#output-(#i+1))
-                coma=false
-            else
-                output=output..serialize(v, seen)
-            end
-        elseif type(v) == "string" then
-            output=output.."[=["..v.."]=]"
-        elseif type(v) == "number" then
-            output=output..tostring(v)
-        elseif type(v) == "boolean" then
-            if v == true then
-                output=output.."true"
-            else
-                output=output.."false"
-            end
-        elseif type(v) == "function" then
-            output=output..tostring(v)
-        elseif type(v) == "userdata" then
-            output=output..tostring(v)
-        elseif type(v) == "thread" then
-            output=output..tostring(v)
-        else
-            error("serialization of type \""..type(v).."\" is not supported")
-        end
-        if coma then
-            output=output..","
-        end
-    end
-    if #table>0 or string.sub(output,#output,#output) == "," then
-        output=string.sub(output,1,#output-1)
-    end
-    output=output.."}"
-    return output
-end
-
 while true do
-    --kernel.log(serialize(kernel.tasks))
     kernel.saveLog()
     sleep(1000)
 end
