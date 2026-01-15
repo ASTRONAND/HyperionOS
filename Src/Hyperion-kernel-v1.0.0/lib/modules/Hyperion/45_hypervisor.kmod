@@ -138,6 +138,7 @@ function kernel.main()
                 else
                     ret = {coroutine.resume(task.coro, table.unpack(task.syscallReturn))}
                 end
+                
                 local elapsed = kernel.computer:time() - startTime
                 task.lastTime = elapsed
                 task.totalTime = (task.totalTime or 0) + elapsed
