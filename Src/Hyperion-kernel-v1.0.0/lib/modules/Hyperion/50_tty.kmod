@@ -1,6 +1,7 @@
 --:Minify:--
 local kernel=...
 kernel.tty={}
+kernel.tty.inst={}
 
 function kernel.tty.register(tty, ttyo)
     kernel.tty[tty]=ttyo

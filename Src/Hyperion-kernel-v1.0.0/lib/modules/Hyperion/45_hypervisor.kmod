@@ -12,9 +12,13 @@ function sys.spawn(func, name, envars, args, tgid)
         coro=coroutine.create(function()
             local ok, err = xpcall(func, debug.traceback, table.unpack(args or {}))
             if not ok then
+                if kernel.config.logTaskExit then
+                    kernel.log("Task "..tostring(id).." exited with err: "..tostring(err), "ERROR")
+                end
                 tasks[tostring(id)].status="Z"
                 tasks[tostring(id)].exit=tostring(err)
             else
+                kernel.log("Task "..tostring(id).." exited with code: "..tostring(err), "INFO")
                 tasks[tostring(id)].status="Z"
                 tasks[tostring(id)].exit=err
             end
