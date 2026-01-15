@@ -1,2 +1,1 @@
-local kernel=...
-kernel.tty.bind("tty0")
+local a=...a.tty.bind("tty0")

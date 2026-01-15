@@ -76,7 +76,7 @@ local function serialize(table, seen)
 end
 
 while true do
-    kernel.log(serialize(kernel.tasks))
+    --kernel.log(serialize(kernel.tasks))
     kernel.saveLog()
     sleep(1000)
 end

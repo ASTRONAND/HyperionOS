@@ -1,0 +1,191 @@
+local apis = ({...})[1]
+local BOOT_DRIVE_PATH="/$"
+local fs = apis.fs
+local native = apis.peripheral
+local peripheral = {}
+local sides = {"top", "bottom", "left", "right", "front", "back"}
+
+function peripheral.getType(name)
+    if native.isPresent(name) then
+        return native.getType(name)
+    end
+    for n = 1, #sides do
+        local side = sides[n]
+        if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", name) then
+            return native.call(side, "getTypeRemote", name)
+        end
+    end
+    return nil
+end
+
+function peripheral.getNames()
+    local names = {}
+    for n = 1, #sides do
+        local side = sides[n]
+        if native.isPresent(side) then
+            table.insert(names, side)
+        end
+        if native.hasType(side, "peripheral_hub") then
+            local hubSides = native.call(side, "getConnectedSides")
+            for _, hubSide in ipairs(hubSides) do
+                table.insert(names, hubSide)
+            end
+        end
+    end
+    return names
+end
+
+---------------------------------------------------------
+-- STORAGE
+---------------------------------------------------------
+local disks = {}      -- real disks
+local internal = {}   -- "$" disk
+
+---------------------------------------------------------
+-- HELPERS
+---------------------------------------------------------
+local function norm(path)
+    if not path or path == "" then return "/" end
+    return fs.combine("/", path)
+end
+
+--- Creates a disk object given a base path
+local function createDisk(id, basePath, readonly, periph)
+    basePath = norm(basePath)
+
+    local disk = {address=id,isReadOnly=function() return readonly end}
+
+    function disk:spaceUsed()
+        return fs.getCapacity(basePath) - fs.getFreeSpace(basePath)
+    end
+
+    function disk:spaceTotal()
+        return fs.getCapacity(basePath)
+    end
+
+    function disk:list(path)
+        local p = fs.combine(basePath, path)
+        if not fs.exists(p) or not fs.isDir(p) then return nil, "not directory" end
+        return fs.list(p)
+    end
+
+    function disk:fileExists(path)
+        local p = fs.combine(basePath, path)
+        return fs.exists(p) and not fs.isDir(p)
+    end
+
+    function disk:directoryExists(path)
+        local p = fs.combine(basePath, path)
+        return fs.exists(p) and fs.isDir(p)
+    end
+
+    function disk:type(path)
+        local p = fs.combine(basePath, path)
+        if not fs.exists(p) then
+            return nil
+        elseif fs.isDir(p) then
+            return "directory"
+        else
+            return "file"
+        end
+    end
+
+    function disk:makeDirectory(path)
+        local p = fs.combine(basePath, path)
+        fs.makeDir(p)
+        return true
+    end
+
+    function disk:remove(path)
+        local p = fs.combine(basePath, path)
+        if fs.exists(p) then fs.delete(p) end
+        return true
+    end
+
+    function disk:setLabel(label)
+        periph.setLabel(label)
+    end
+
+    function disk:getLabel(label)
+        return periph.getLabel()
+    end
+
+    function disk:attributes(path)
+        local p = fs.combine(basePath, path)
+        return fs.attributes(p)
+    end
+
+    function disk:open(path, mode)
+        local p = fs.combine(basePath, path)
+        return fs.open(p, mode)
+    end
+    
+    return disk
+end
+
+---------------------------------------------------------
+-- INTERNAL DISK "$" (mapped to "/")
+---------------------------------------------------------
+internal["$"] = createDisk("$", BOOT_DRIVE_PATH, false, {
+    setLabel=function(label)
+        local h = fs.open("/.label", "w")
+        h.write(label)
+        h.close()
+    end,
+    getLabel=function()
+        local h = fs.open("/.label", "r")
+        local label = h.readAll()
+        h.close()
+        return label
+    end
+})
+
+---------------------------------------------------------
+-- SCAN REAL DISK PERIPHERALS
+---------------------------------------------------------
+local function refresh()
+    -- remove disks that no longer exist
+    for id, _ in pairs(disks) do
+        if not peripheral.getType(id) then
+            disks[id] = nil
+        end
+    end
+
+    -- detect new disks
+    for _, name in ipairs(peripheral.getNames()) do
+        if peripheral.getType(name) == "disk" then
+            if not disks[name] then
+                local mount = disk.getMountPath(name)
+                if mount then
+                    disks[name] = createDisk(name, mount, false, disk)
+                end
+            end
+        end
+    end
+end
+
+---------------------------------------------------------
+-- ITERATOR
+---------------------------------------------------------
+local function iter()
+    refresh()
+    -- first internal
+    local combined = {}
+
+    for id, obj in pairs(internal) do
+        combined[id] = obj
+    end
+    for id, obj in pairs(disks) do
+        combined[id] = obj
+    end
+
+    return pairs(combined)
+end
+
+---------------------------------------------------------
+-- MODULE RETURN
+---------------------------------------------------------
+return {
+    refresh = refresh,
+    list = iter
+}

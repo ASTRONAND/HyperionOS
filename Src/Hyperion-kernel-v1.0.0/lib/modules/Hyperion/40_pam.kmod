@@ -1,0 +1,66 @@
+--:Minify:--
+local kernel = ...
+local pam = {}
+kernel.pam = pam
+local loggedIn = {}
+
+local function getFile(path)
+    local file = kernel.vfs.open(path, "r")
+    if not file then error("Failed to open file: "..path) end
+    local content = kernel.vfs.read(file, 1024000)
+    kernel.vfs.close(file)
+    return content
+end
+
+local blake2s = require("crypto.blake2s")
+if not blake2s then error("Failed to load blake2s") end
+
+if not kernel.vfs.exists("/etc/pam.d/secret") then
+    local key = ""
+    for i=1, 256 do
+        key=key..string.char(math.random(1,255))
+    end
+    local handle = kernel.vfs.open("/etc/pam.d/secret", "w")
+    kernel.vfs.write(handle, key)
+    kernel.vfs.close(handle)
+end
+
+local pepper = getFile("/etc/pam.d/secret")
+
+function pam.authenticate(username, password)
+    local fpasswd = getFile("/etc/passwd")
+    local fshadow = getFile("/etc/shadow")
+
+    local passwdLines = string.split(fpasswd, "\n")
+    local shadowLines = string.split(fshadow, "\n")
+
+    local passwd = {}
+    local shadow = {}
+    for _, line in ipairs(passwdLines) do
+        local fields = string.split(line, ":")
+        passwd[fields[1]] = fields
+    end
+    for _, line in ipairs(shadowLines) do
+        local fields = string.split(line, ":")
+        shadow[fields[1]] = fields
+    end
+
+    for user, fields in pairs(passwd) do
+        if user == username then
+            local shadowPasswd = string.split(shadow[user][2], "$")
+            local salt = shadowPasswd[2]
+            local hashedPassword = blake2s(password .. salt, pepper)
+            if hashedPassword == shadowPasswd[3] then
+                loggedIn[username] = kernel.newUUID()
+                return loggedIn[username]
+            else
+                return false
+            end
+        end
+    end
+end
+
+function pam.authToken(username, token)
+    return loggedIn[username] == token
+end
+

@@ -1,17 +1,1 @@
-local args={...}
-local kernel=args[1]
-kernel._G=_G
-kernel._U=setmetatable({},{
-    __index = kernel._G,
-    __newindex = function(t,k,v)
-        if kernel.config.allowGlobalOverwrites or kernel.allowGlobalOverwrites then
-            rawset(t,k,v)
-            return
-        end
-        error("Attempt to modify global variable '"..k.."'",2)
-    end,
-    __metatable = false
-})
-kernel.allowGlobalOverwrites=true
-kernel._U._G=kernel._U
-kernel.allowGlobalOverwrites=false
+local a={...}local b=a[1]b._G=_G;b._U=setmetatable({},{__index=b._G,__newindex=function(c,d,e)if b.config.allowGlobalOverwrites or b.allowGlobalOverwrites then rawset(c,d,e)return end;error("Attempt to modify global variable '"..d.."'",2)end,__metatable=false})b.allowGlobalOverwrites=true;b._U._G=b._U;b.allowGlobalOverwrites=false

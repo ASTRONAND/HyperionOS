@@ -1,17 +1,1 @@
-local kernel=...
-for i,v in ipairs(string.split(kernel.fstab,"\n")) do
-    if v:sub(1,1)=="U" then
-        local id=""
-        for i=3,#v do
-            if v:sub(i,i)==";" then
-                if i==3 then kernel.log("Invalid fstab line... Skipping.","WARN") goto endline end
-                id=v:sub(3,i-1)
-            end
-        end
-        local path=v:sub(#id+4)
-        if id~="$" then
-            kernel.vfs.mount(id,path)
-        end
-        ::endline::
-    end
-end
+local a=...for b,c in ipairs(string.split(a.fstab,"\n"))do if c:sub(1,1)=="U"then local d=""for b=3,#c do if c:sub(b,b)==";"then if b==3 then a.log("Invalid fstab line... Skipping.","WARN")goto e end;d=c:sub(3,b-1)end end;local f=c:sub(#d+4)if d~="$"then a.vfs.mount(d,f)end::e::end end

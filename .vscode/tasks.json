@@ -1,46 +1,89 @@
 {
-    "version": "2.0.0",
-    "tasks": [
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build (Minfiyed)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\tools\\buildMini.ps1"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build (Source)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\tools\\build.ps1"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
         {
-            "label": "Build",
-            "type": "shell",
-
-            "windows": {
-                "command": "powershell",
-                "args": [
-                    "-NoProfile",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-Command",
-                    "if (Test-Path '${workspaceFolder}\\Build') { Remove-Item -LiteralPath '${workspaceFolder}\\Build' -Recurse -Force -ErrorAction SilentlyContinue }; New-Item -ItemType Directory -Path '${workspaceFolder}\\Build' | Out-Null; Get-ChildItem -Path '${workspaceFolder}\\Test' -Directory | ForEach-Object { $base = $_.FullName; Get-ChildItem -Path $base -File -Recurse | ForEach-Object { $rel = $_.FullName.Substring($base.Length).TrimStart(\"\\\"); $destPath = Join-Path '${workspaceFolder}\\Build' $rel; $destDir = Split-Path $destPath; if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir | Out-Null }; Copy-Item -LiteralPath $_.FullName -Destination $destPath -Force } }"
-                ]
-            },
-            
-            "linux": {
-                "command": "bash",
-                "args": [
-                    "-c",
-                    "[ -d \"${workspaceFolder}/Build\" ] && rm -rf \"${workspaceFolder}/Build\"; mkdir -p \"${workspaceFolder}/Build\"; for d in \"${workspaceFolder}/Test\"/*; do if [ -d \"$d\" ]; then find \"$d\" -type f | while read f; do rel=\"${f#$d/}\"; mkdir -p \"${workspaceFolder}/Build/$(dirname \"$rel\")\"; cp \"$f\" \"${workspaceFolder}/Build/$rel\"; done; fi; done"
-                ]
-            },
-
-            "osx": {
-                "command": "bash",
-                "args": [
-                    "-c",
-                    "[ -d \"${workspaceFolder}/Build\" ] && rm -rf \"${workspaceFolder}/Build\"; mkdir -p \"${workspaceFolder}/Build\"; for d in \"${workspaceFolder}/Test\"/*; do if [ -d \"$d\" ]; then find \"$d\" -type f | while read f; do rel=\"${f#$d/}\"; mkdir -p \"${workspaceFolder}/Build/$(dirname \"$rel\")\"; cp \"$f\" \"${workspaceFolder}/Build/$rel\"; done; fi; done"
-                ]
-            },
-
-            "presentation": {
-                "reveal": "always",
-                "panel": "shared"
-            },
-            "problemMatcher": [],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            }
-        }
-    ]
+      "label": "Test (Minfiyed)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\tools\\buildMiniTest.ps1"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test (Source)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\tools\\buildTest.ps1"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
 }

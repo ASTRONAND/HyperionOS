@@ -1,0 +1,278 @@
+--:Minify:--
+local kernel = ...
+local vfs = {}
+vfs.mounts = { ["$"] = "/" }
+local disks = kernel.disks
+
+-- Path handling
+local function normalizePath(path)
+    local parts = {}
+    for part in path:gmatch("[^/]+") do
+        if part == ".." then
+            if #parts > 0 then table.remove(parts) end
+        elseif part ~= "." and part ~= "" then
+            table.insert(parts, part)
+        end
+    end
+    return "/" .. table.concat(parts, "/") .. (path:sub(-1) == "/" and "/" or "")
+end
+
+local function resolvePath(path)
+    local task = kernel.currentTask
+    local cwd = task.cwd or "/"
+
+    if path:sub(1,1) ~= "/" then
+        path = cwd .. path
+    end
+
+    path = normalizePath(path)
+
+    local mountPoint = "/"
+    local mountId = "$"
+    for k,v in pairs(vfs.mounts) do
+        if path:sub(1,#v) == v and #v > #mountPoint then
+            mountPoint = v
+            mountId = k
+        end
+    end
+
+    local diskPath = path:sub(#mountPoint + 1)
+    return disks[mountId], diskPath
+end
+
+-- File object creation
+local function newFileObject(disk, handle, mode, path)
+    return {
+        disk = disk,
+        handle = handle,
+        mode = mode,
+        path = path,
+        refcount = 1
+    }
+end
+
+local function allocFD(task)
+    local fd = 0
+    while task.fd[fd] do fd = fd + 1 end
+    return fd
+end
+
+local function allocFD(task)
+    -- enforce per-task limit
+    local count = 0
+    for _ in pairs(task.fd) do count = count + 1 end
+    if count >= kernel.config.maxFilesPerTask then
+        error("EMFILE") -- Too many open files in this task
+    end
+
+    -- find first free FD
+    local fd = 0
+    while task.fd[fd] do fd = fd + 1 end
+    return fd
+end
+
+local function checkSystemLimit()
+    -- enforce system-wide limit
+    local total = 0
+    for _, task in pairs(kernel.tasks or {}) do
+        for _ in pairs(task.fd) do total = total + 1 end
+    end
+    if total >= kernel.config.maxOpenFiles then
+        error("ENFILE") -- Too many open files in the system
+    end
+end
+
+-- VFS syscalls
+function vfs.open(path, mode)
+    local task = kernel.currentTask
+
+    -- check limits
+    checkSystemLimit()
+
+    local disk, diskPath = resolvePath(path)
+    if not disk then
+        error("No disk mounted for path '"..path.."'")
+    end
+
+    local handle = disk:open(diskPath, mode)
+    if not handle then return nil end
+
+    local file = newFileObject(disk.address, handle, mode, path)
+    local fd = allocFD(task)
+    task.fd[fd] = file
+
+    return fd
+end
+
+function vfs.close(fd)
+    local task = kernel.currentTask
+    local file = task.fd[fd]
+    if not file then error("EBADF") end
+
+    task.fd[fd] = nil
+    file.refcount = file.refcount - 1
+    if file.refcount == 0 then
+        file.handle.close()
+    end
+    return true
+end
+
+function vfs.read(fd, count)
+    local file = kernel.currentTask.fd[fd]
+    if not file then error("EBADF") end
+    if not file.mode:find("r") then error("File not open for reading") end
+    return file.handle.read(count)
+end
+
+function vfs.write(fd, data)
+    local file = kernel.currentTask.fd[fd]
+    if not file then error("EBADF") end
+    if not file.mode:find("w") then error("File not open for writing") end
+    return file.handle.write(data)
+end
+
+function vfs.whereis(fd)
+    local file = kernel.currentTask.fd[fd]
+    if not file then error("EBADF") end
+    return file.path
+end
+
+-- Filesystem operations
+function vfs.mkdir(path)
+    local disk, diskPath = resolvePath(path)
+    if not disk then error("No disk mounted") end
+    return disk:makeDirectory(diskPath)
+end
+
+function vfs.remove(path)
+    local disk, diskPath = resolvePath(path)
+    if not disk then error("No disk mounted") end
+    return disk:remove(diskPath)
+end
+
+function vfs.attributes(path)
+    if type(path) == "number" then
+        local file = kernel.currentTask.fd[path]
+        if not file then error("EBADF") end
+        return disks[file.disk]:attributes(file.path)
+    end
+    local disk, diskPath = resolvePath(path)
+    if not disk then error("No disk mounted") end
+    return disk:attributes(diskPath)
+end
+
+function vfs.list(path)
+    local disk, diskPath = resolvePath(path)
+    if not disk then error("No disk mounted") end
+    return disk:list(diskPath)
+end
+
+function vfs.exists(path)
+    local disk, diskPath = resolvePath(path)
+    if not disk then return false end
+    return disk:directoryExists(diskPath) or disk:fileExists(diskPath)
+end
+
+function vfs.type(path)
+    if type(path) == "number" then
+        local file = kernel.currentTask.fd[path]
+        if not file then error("EBADF") end
+        return disks[file.disk]:type(file.path)
+    end
+    local disk, diskPath = resolvePath(path)
+    if not disk then error("No disk mounted") end
+    return disk:type(diskPath)
+end
+
+-- CWD
+function vfs.getcwd()
+    return kernel.currentTask.cwd
+end
+
+function vfs.setcwd(path)
+    if path:sub(-1) ~= "/" then path = path .. "/" end
+    if path:sub(1,1) ~= "/" then path = "/" .. path end
+    kernel.currentTask.cwd = normalizePath(path)
+end
+
+-- Mounting
+function vfs.mount(diskId, path)
+    if kernel.uid ~= 0 then error("Permission denied") end
+    if not disks[diskId] then error("Unknown disk '"..diskId.."'") end
+    if path:sub(-1) ~= "/" then path = path .. "/" end
+
+    for _,v in pairs(vfs.mounts) do
+        if v == path then error("Mount point already used") end
+    end
+    vfs.mounts[diskId] = path
+end
+
+function vfs.unmount(path)
+    if kernel.uid ~= 0 then error("Permission denied") end
+    for k,v in pairs(vfs.mounts) do
+        if v == path then
+            vfs.mounts[k] = nil
+            return true
+        end
+    end
+    return false
+end
+
+function vfs.getMounts()
+    return vfs.mounts
+end
+
+function vfs.virtdisk(obj)
+    kernel.disks[obj.address] = obj
+    kernel.log("Registered virtual disk at "..obj.address)
+end
+
+-- Redirect file operations to VFS
+function vfs.dup(oldfd)
+    local task = kernel.currentTask
+    local file = task.fd[oldfd]
+    if not file then error("EBADF") end
+
+    local newfd = allocFD(task)
+    task.fd[newfd] = file
+    file.refcount = file.refcount + 1
+    return newfd
+end
+
+function vfs.dup2(oldfd, newfd)
+    local task = kernel.currentTask
+    local file = task.fd[oldfd]
+    if not file then error("EBADF") end
+
+    if oldfd == newfd then return newfd end
+
+    if task.fd[newfd] then
+        vfs.close(newfd)
+    end
+
+    task.fd[newfd] = file
+    file.refcount = file.refcount + 1
+    return newfd
+end
+
+-- Syscall registration
+kernel.vfs = vfs
+kernel.syscalls["VFS_open"]        = vfs.open
+kernel.syscalls["VFS_read"]        = vfs.read
+kernel.syscalls["VFS_write"]       = vfs.write
+kernel.syscalls["VFS_close"]       = vfs.close
+kernel.syscalls["VFS_list"]        = vfs.list
+kernel.syscalls["VFS_type"]        = vfs.type
+kernel.syscalls["VFS_attributes"]  = vfs.attributes
+kernel.syscalls["VFS_mkdir"]       = vfs.mkdir
+kernel.syscalls["VFS_remove"]      = vfs.remove
+kernel.syscalls["VFS_exists"]      = vfs.exists
+kernel.syscalls["VFS_mount"]       = vfs.mount
+kernel.syscalls["VFS_unmount"]     = vfs.unmount
+kernel.syscalls["VFS_getcwd"]      = vfs.getcwd
+kernel.syscalls["VFS_setcwd"]      = vfs.setcwd
+kernel.syscalls["VFS_whereis"]    = vfs.whereis
+kernel.syscalls["VFS_dup"]        = vfs.dup
+kernel.syscalls["VFS_dup2"]       = vfs.dup2
+
+kernel.log("VFS module loaded")

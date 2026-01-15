@@ -36,7 +36,7 @@ end
 
 local function wrapPeripheral(name)
     if native.isPresent(name) then
-        return native.wrap(name)
+        return wrapPeripheral(name)
     end
     for n = 1, #sides do
         local side = sides[n]
