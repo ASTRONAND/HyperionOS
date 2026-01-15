@@ -4,83 +4,83 @@ kernel.tty={}
 kernel.tty.inst={}
 
 function kernel.tty.register(tty, ttyo)
-    kernel.tty[tty]=ttyo
+    kernel.tty.inst[tty]=ttyo
 end
 
 function kernel.tty.print(text)
     local term=kernel.currentTask.term
-    if term and kernel.tty[term] then
-        kernel.tty[term].print(text)
+    if term and kernel.tty.inst[term] then
+        kernel.tty.inst[term].print(text)
     end
 end
 
 function kernel.tty.printInline(text)
     local term=kernel.currentTask.term
-    if term and kernel.tty[term] then
-        kernel.tty[term].printInline(text)
+    if term and kernel.tty.inst[term] then
+        kernel.tty.inst[term].printInline(text)
     end
 end
 
 function kernel.tty.size()
     local term=kernel.currentTask.term
-    if term and kernel.tty[term] then
-        return kernel.tty[term].size()
+    if term and kernel.tty.inst[term] then
+        return kernel.tty.inst[term].size()
     end
 end
 
 function kernel.tty.setCursorPos(x,y)
     local term=kernel.currentTask.term
-    if term and kernel.tty[term] then
-        return kernel.tty[term].setCursorPos(x,y)
+    if term and kernel.tty.inst[term] then
+        return kernel.tty.inst[term].setCursorPos(x,y)
     end
 end
 
 function kernel.tty.getCursorPos()
     local term=kernel.currentTask.term
-    if term and kernel.tty[term] then
-        return kernel.tty[term].getCursorPos()
+    if term and kernel.tty.inst[term] then
+        return kernel.tty.inst[term].getCursorPos()
     end
 end
 
 function kernel.tty.clear()
     local term=kernel.currentTask.term
-    if term and kernel.tty[term] then
-        return kernel.tty[term].clear()
+    if term and kernel.tty.inst[term] then
+        return kernel.tty.inst[term].clear()
     end
 end
 
 function kernel.tty.setTextColor(color)
     local term=kernel.currentTask.term
-    if term and kernel.tty[term] then
-        return kernel.tty[term].setTextColor(color)
+    if term and kernel.tty.inst[term] then
+        return kernel.tty.inst[term].setTextColor(color)
     end
 end
 
 function kernel.tty.setBackgroundColor(color)
     local term=kernel.currentTask.term
-    if term and kernel.tty[term] then
-        return kernel.tty[term].setBackgroundColor(color)
+    if term and kernel.tty.inst[term] then
+        return kernel.tty.inst[term].setBackgroundColor(color)
     end
 end
 
 function kernel.tty.scroll(n)
     local term=kernel.currentTask.term
-    if term and kernel.tty[term] then
-        return kernel.tty[term].scroll(n)
+    if term and kernel.tty.inst[term] then
+        return kernel.tty.inst[term].scroll(n)
     end
 end
 
 function kernel.tty.getTextColor()
     local term=kernel.currentTask.term
-    if term and kernel.tty[term] and kernel.tty[term].getTextColor then
-        return kernel.tty[term].getTextColor()
+    if term and kernel.tty.inst[term] and kernel.tty.inst[term].getTextColor then
+        return kernel.tty.inst[term].getTextColor()
     end
 end
 
 function kernel.tty.getBackgroundColor()
     local term=kernel.currentTask.term
-    if term and kernel.tty[term] and kernel.tty[term].getBackgroundColor then
-        return kernel.tty[term].getBackgroundColor()
+    if term and kernel.tty.inst[term] and kernel.tty.inst[term].getBackgroundColor then
+        return kernel.tty.inst[term].getBackgroundColor()
     end
 end
 
@@ -88,7 +88,7 @@ function kernel.tty.bind(ttyid)
     if not ttyid then
         return false, "No TTY ID specified"
     end
-    if not kernel.tty[ttyid] then
+    if not kernel.tty.inst[ttyid] then
         return false, "TTY "..tostring(ttyid).." not registered"
     end
     kernel.currentTask.term=ttyid

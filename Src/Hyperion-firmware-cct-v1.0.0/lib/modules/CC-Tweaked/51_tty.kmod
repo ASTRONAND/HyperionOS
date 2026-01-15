@@ -49,22 +49,22 @@ local function wrapPeripheral(name)
 end
 
 local colors={
-    [0]=0x000000, -- #000000
-    0xFFFFFF, -- #FFFFFF
-    0xFF0000, -- #FF0000
-    0x00FF00, -- #00FF00
-    0x0000FF, -- #0000FF
-    0x00FFFF, -- #00FFFF
-    0xFF00FF, -- #FF00FF
-    0xFFFF00, -- #FFFF00
-    0xFF6D00, -- #FF6D00
-    0x6DFF55, -- #6DFF55
-    0x24FFFF, -- #24FFFF
-    0x924900, -- #924900
-    0x6D6D55, -- #6D6D55
-    0xDBDBAA, -- #DBDBAA
-    0x6D00FF, -- #6D00FF
-    0xB6FF00  -- #B6FF00
+    [0]=0x0001, -- #000000
+    0x0002, -- #FFFFFF
+    0x0004, -- #FF0000
+    0x0008, -- #00FF00
+    0x0010, -- #0000FF
+    0x0020, -- #00FFFF
+    0x0040, -- #FF00FF
+    0x0080, -- #FFFF00
+    0x0100, -- #FF6D00
+    0x0200, -- #6DFF55
+    0x0400, -- #24FFFF
+    0x0800, -- #924900
+    0x1000, -- #6D6D55
+    0x2000, -- #DBDBAA
+    0x4000, -- #6D00FF
+    0x8000  -- #B6FF00
 }
 
 local icolors={
