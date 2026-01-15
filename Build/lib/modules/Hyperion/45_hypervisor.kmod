@@ -1,1 +1,213 @@
-local a=...local b={}local c={}local d=2;a.exitMain=false;function c.spawn(e,f,g,h,i,j)local k=d;d=d+1;b[tostring(k)]={coro=coroutine.create(function()local l,m=xpcall(e,debug.traceback,table.unpack(h or{}))if not l then b[tostring(k)].status="Z"b[tostring(k)].exit=tostring(m)else b[tostring(k)].status="Z"b[tostring(k)].exit=m end end),name=f or"task"..tostring(k),envars=g or{},args=h or{},status="R",pid=k,tgid=i or a.currentTask.tgid,user=a.user,uid=a.uid,fd=j or{},exit="",sleep=0,ivs=0,vs=0,children={},parent=a.currentTask,siblings=a.currentTask.children,syscallReturn={},cwd=a.currentTask.cwd,term=a.currentTask.term,timeSlice=0,lastTime=0,totalTime=0,numRuns=0}table.insert(a.currentTask.children,b[tostring(k)])end;function c.sleep(n)a.currentTask.status="S"a.currentTask.sleep=a.computer:time()+n;coroutine.yield()end;a.syscalls["HPV_spawn"]=c.spawn;a.syscalls["HPV_sleep"]=c.sleep;a._G.sleep=function(...)coroutine.yield("syscall","HPV_sleep",...)end;local function o()for p,q in pairs(b)do if q.status=="Z"and not q.reapTime then q.coro=nil;q.ivs=nil;q.vs=nil;q.args=nil;q.envars=nil;q.cwd=nil;q.term=nil;q.numRuns=nil;q.totalTime=nil;q.lastTime=nil;q.timeSlice=nil;q.syscallReturn=nil;q.sleep=nil;for r,s in pairs(q.fd)do a.vfs.close(s)end;q.fd=nil;q.reapTime=a.computer:time()+30000 elseif q.reapTime and a.computer:time()>q.reapTime then for t,u in ipairs(q.children)do u.parent=b["1"]u.siblings=b["1"].children;table.insert(b["1"].children,u)end;for v,w in ipairs(q.siblings)do if w.pid==q.pid then table.remove(q.siblings,v)break end end;b[p]=nil end end end;local x=0.85;local y=0.01;local z=0.0005;local A=0.5;local B=0.08;local C=0.03;local D=0.02;local E=0.5;local F=0.5;local G=0.01;function a.main()while not a.exitMain do local H=0;local I=0;local J=0;local K=0;local L={}for p,q in pairs(b)do if q.status=="S"then if a.computer:time()>=q.sleep then q.status="R"q.sleep=0 end end;if q.status=="R"then a.currentTask=q;a.vfs.cwd=q.cwd;a.user=q.user;a.uid=q.uid;H=H+1;q.timeSlice=math.min(A,math.max(z,G/H^x))local M=a.computer:time()local N;if a.config.preempt then N={coroutine.resumeWithTimeout(q.coro,q.timeSlice,table.unpack(q.syscallReturn))}else N={coroutine.resume(q.coro,table.unpack(q.syscallReturn))}end;local O=a.computer:time()-M;q.lastTime=O;q.totalTime=(q.totalTime or 0)+O;q.numRuns=(q.numRuns or 0)+1;L[#L+1]=O;K=K+O;if O<=z then I=I+1 end;if O>=A then J=J+1 end;if N[1]=="error"then a.log("processHandlerException: "..N[2])q.status="Z"q.exit="processHandlerException: "..N[2]elseif N[1]=="timeout"then q.ivs=q.ivs+1;q.syscallReturn={}elseif N[1]=="success"then q.vs=q.vs+1;if N[2]=="syscall"then if a.syscalls[N[3]]then if a.config.debugSyscalls then a.log("Task "..q.pid.." invoking syscall: "..N[3],"DBUG")end;local P={xpcall(a.syscalls[N[3]],debug.traceback,table.unpack(N,4))}if a.config.debugSyscalls then if not P[1]then a.log("Task "..q.pid.." syscall "..N[3].." failed: "..tostring(P[2]))else a.log("Task "..q.pid.." syscall "..N[3].." completed returning "..tostring(#P-1).." values","DBUG")for v=2,#P do a.log("  retval["..tostring(v-1).."] = "..tostring(P[v]),"DBUG")end end end;if not P[1]then q.syscallReturn={false,P[2]}else q.syscallReturn={true,table.unpack(P,2)}end else q.syscallReturn={false,"Unknown syscall: "..tostring(N[3])}end end end end end;local Q=H>0 and K/H or 0;local R=0;for t,S in ipairs(L)do R=R+(S-Q)^2 end;if H>0 then R=R/H end;if H>0 then local T=E*I/H-F*J/H;local U=y*H^(x-1)/math.max(Q,1e-8)G=G+B*(U-G)+C*T-D*R end;o()end end;a.tasks=b;a.hpv=c
+--:Minify:--
+local kernel = ...
+local tasks = {}
+local sys = {}
+local nextpid = 2
+kernel.exitMain=false
+
+function sys.spawn(func, name, envars, args, tgid)
+    local id = nextpid
+    nextpid = nextpid + 1
+    tasks[tostring(id)] = {
+        coro=coroutine.create(function()
+            local ok, err = xpcall(func, debug.traceback, table.unpack(args or {}))
+            if not ok then
+                tasks[tostring(id)].status="Z"
+                tasks[tostring(id)].exit=tostring(err)
+            else
+                tasks[tostring(id)].status="Z"
+                tasks[tostring(id)].exit=err
+            end
+        end),
+        name=name or "task"..tostring(id),
+        envars=envars or {},
+        args=args or {},
+        status="R",
+        pid=id,
+        tgid=tgid or kernel.currentTask.tgid,
+        user=kernel.user,
+        uid=kernel.uid,
+        fd={},
+        exit="",
+        sleep=0,
+        ivs=0,
+        vs=0,
+        children={},
+        parent=kernel.currentTask,
+        siblings=kernel.currentTask.children,
+        syscallReturn={},
+        cwd=kernel.currentTask.cwd,
+        term=kernel.currentTask.term,
+        timeSlice=0,
+        lastTime=0,
+        totalTime=0,
+        numRuns=0
+    }
+    table.insert(kernel.currentTask.children, tasks[tostring(id)])
+end
+
+function sys.sleep(ms)
+    kernel.currentTask.status="S"
+    kernel.currentTask.sleep=kernel.computer:time()+ms
+    coroutine.yield()
+end
+
+kernel.syscalls["HPV_spawn"]=sys.spawn
+kernel.syscalls["HPV_sleep"]=sys.sleep
+kernel._G.sleep=function(...)coroutine.yield("syscall","HPV_sleep",...)end
+
+local function reapDeadTasks()
+    for pid, task in pairs(tasks) do
+        if task.status == "Z" and not task.reapTime then
+            task.coro = nil
+            task.ivs = nil
+            task.vs = nil
+            task.args = nil
+            task.envars = nil
+            task.cwd = nil
+            task.term = nil
+            task.numRuns = nil
+            task.totalTime = nil
+            task.lastTime = nil
+            task.timeSlice = nil
+            task.syscallReturn = nil
+            task.sleep = nil
+            for k,v in pairs(task.fd) do
+                kernel.vfs.close(v)
+            end
+            task.fd = nil
+            task.reapTime = kernel.computer:time() + 30000
+        elseif task.reapTime and kernel.computer:time() > task.reapTime then
+            for _,child in ipairs(task.children) do
+                child.parent = tasks["1"]
+                child.siblings = tasks["1"].children
+                table.insert(tasks["1"].children, child)
+            end
+            for i, sibling in ipairs(task.siblings) do
+                if sibling.pid == task.pid then
+                    table.remove(task.siblings, i)
+                    break
+                end
+            end
+            tasks[pid] = nil
+        end
+    end
+end
+
+local alpha = 0.85
+local C_target = 0.01
+local Tmin = 0.0005
+local Tmax = 0.5
+local lambda_budget = 0.08
+local lambda_clamp = 0.03
+local lambda_var = 0.02
+local k_min = 0.5
+local k_max = 0.5
+local B = 0.01
+
+function kernel.main()
+    while not kernel.exitMain do
+        local N = 0
+        local Tmin_hit = 0
+        local Tmax_hit = 0
+        local totalTaskTime = 0
+        local taskTimes = {}
+
+        for pid, task in pairs(tasks) do
+            if task.status == "S" then
+                if kernel.computer:time() >= task.sleep then
+                    task.status="R"
+                    task.sleep=0
+                end
+            end
+            if task.status == "R" then
+                kernel.currentTask = task
+                kernel.vfs.cwd = task.cwd
+                kernel.user = task.user
+                kernel.uid = task.uid
+                N = N + 1
+
+                -- assign adaptive time slice
+                task.timeSlice = math.min(Tmax, math.max(Tmin, B / (N ^ alpha)))
+
+                -- measure execution time
+                local startTime = kernel.computer:time()
+                local ret
+                if kernel.config.preempt then
+                    ret = {coroutine.resumeWithTimeout(task.coro, task.timeSlice, table.unpack(task.syscallReturn))}
+                else
+                    ret = {coroutine.resume(task.coro, table.unpack(task.syscallReturn))}
+                end
+
+                local elapsed = kernel.computer:time() - startTime
+                task.lastTime = elapsed
+                task.totalTime = (task.totalTime or 0) + elapsed
+                task.numRuns = (task.numRuns or 0) + 1
+
+                taskTimes[#taskTimes + 1] = elapsed
+                totalTaskTime = totalTaskTime + elapsed
+
+                if elapsed <= Tmin then Tmin_hit = Tmin_hit + 1 end
+                if elapsed >= Tmax then Tmax_hit = Tmax_hit + 1 end
+
+                -- handle task results
+                if ret[1] == "error" then
+                    kernel.log("processHandlerException: "..ret[2])
+                    task.status = "Z"
+                    task.exit = "processHandlerException: "..ret[2]
+                elseif ret[1] == "timeout" then
+                    task.ivs=task.ivs+1
+                    task.syscallReturn = {}
+                elseif ret[1] == "success" then
+                    task.vs=task.vs+1
+                    if ret[2]=="syscall" then
+                        if kernel.syscalls[ret[3]] then
+                            if kernel.config.debugSyscalls then
+                                kernel.log("Task "..task.pid.." invoking syscall: "..ret[3], "DBUG")
+                            end
+                            local sysret = {xpcall(kernel.syscalls[ret[3]], debug.traceback, table.unpack(ret, 4))}
+                            if kernel.config.debugSyscalls then
+                                if not sysret[1] then
+                                    kernel.log("Task "..task.pid.." syscall "..ret[3].." failed: "..tostring(sysret[2]))
+                                else
+                                    kernel.log("Task "..task.pid.." syscall "..ret[3].." completed returning "..tostring(#sysret-1).." values", "DBUG")
+                                    for i=2,#sysret do
+                                        kernel.log("  retval["..tostring(i-1).."] = "..tostring(sysret[i]), "DBUG")
+                                    end
+                                end
+                            end
+                            if not sysret[1] then
+                                task.syscallReturn={false, sysret[2]}
+                            else
+                                task.syscallReturn={true, table.unpack(sysret,2)}
+                            end
+                        else
+                            task.syscallReturn={false, "Unknown syscall: "..tostring(ret[3])}
+                        end
+                    end
+                end
+            end
+        end
+
+        local T_prev_avg = (N > 0) and (totalTaskTime / N) or 0
+        local T_prev_var = 0
+        for _, t in ipairs(taskTimes) do
+            T_prev_var = T_prev_var + (t - T_prev_avg)^2
+        end
+        if N > 0 then T_prev_var = T_prev_var / N end
+
+        if N > 0 then
+            local f_clamp = k_min*(Tmin_hit/N) - k_max*(Tmax_hit/N)
+            local B_budget = (C_target * (N^(alpha-1))) / math.max(T_prev_avg, 1e-8)
+            B = B + lambda_budget * (B_budget - B)
+                + lambda_clamp * f_clamp
+                - lambda_var * T_prev_var
+        end
+
+        -- clean up dead tasks
+        reapDeadTasks()
+    end
+end
+
+kernel.tasks=tasks
+kernel.hpv=sys

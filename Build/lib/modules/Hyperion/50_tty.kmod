@@ -1,1 +1,126 @@
-local a=...a.tty={}function a.tty.register(b,c)a.tty[b]=c end;function a.tty.print(d)local e=a.currentTask.term;if e and a.tty[e]then a.tty[e].print(d)end end;function a.tty.printInline(d)local e=a.currentTask.term;if e and a.tty[e]then a.tty[e].printInline(d)end end;function a.tty.size()local e=a.currentTask.term;if e and a.tty[e]then return a.tty[e].size()end end;function a.tty.setCursorPos(f,g)local e=a.currentTask.term;if e and a.tty[e]then return a.tty[e].setCursorPos(f,g)end end;function a.tty.getCursorPos()local e=a.currentTask.term;if e and a.tty[e]then return a.tty[e].getCursorPos()end end;function a.tty.clear()local e=a.currentTask.term;if e and a.tty[e]then return a.tty[e].clear()end end;function a.tty.setTextColor(h)local e=a.currentTask.term;if e and a.tty[e]then return a.tty[e].setTextColor(h)end end;function a.tty.setBackgroundColor(h)local e=a.currentTask.term;if e and a.tty[e]then return a.tty[e].setBackgroundColor(h)end end;function a.tty.scroll(i)local e=a.currentTask.term;if e and a.tty[e]then return a.tty[e].scroll(i)end end;function a.tty.getTextColor()local e=a.currentTask.term;if e and a.tty[e]and a.tty[e].getTextColor then return a.tty[e].getTextColor()end end;function a.tty.getBackgroundColor()local e=a.currentTask.term;if e and a.tty[e]and a.tty[e].getBackgroundColor then return a.tty[e].getBackgroundColor()end end;function a.tty.bind(j)if not j then return false,"No TTY ID specified"end;if not a.tty[j]then return false,"TTY "..tostring(j).." not registered"end;a.currentTask.term=j;return true end;function a.tty.unbind()a.currentTask.term=false end;function a.tty.isBound()return a.currentTask.term~=nil end;function a.tty.getBoundTTY()return a.currentTask.term end;a.syscalls["TTY_print"]=a.tty.print;a.syscalls["TTY_printInline"]=a.tty.printInline;a.syscalls["TTY_size"]=a.tty.size;a.syscalls["TTY_setCursorPos"]=a.tty.setCursorPos;a.syscalls["TTY_getCursorPos"]=a.tty.getCursorPos;a.syscalls["TTY_clear"]=a.tty.clear;a.syscalls["TTY_setTextColor"]=a.tty.setTextColor;a.syscalls["TTY_setBackgroundColor"]=a.tty.setBackgroundColor;a.syscalls["TTY_scroll"]=a.tty.scroll;a.syscalls["TTY_getTextColor"]=a.tty.getTextColor;a.syscalls["TTY_getBackgroundColor"]=a.tty.getBackgroundColor;a.syscalls["TTY_bind"]=a.tty.bind;a.syscalls["TTY_unbind"]=a.tty.unbind;a.syscalls["TTY_isBound"]=a.tty.isBound;a.syscalls["TTY_getBoundTTY"]=a.tty.getBoundTTY;a.log("TTY module loaded attempting to register console tty")a.status="init"
+--:Minify:--
+local kernel=...
+kernel.tty={}
+
+function kernel.tty.register(tty, ttyo)
+    kernel.tty[tty]=ttyo
+end
+
+function kernel.tty.print(text)
+    local term=kernel.currentTask.term
+    if term and kernel.tty[term] then
+        kernel.tty[term].print(text)
+    end
+end
+
+function kernel.tty.printInline(text)
+    local term=kernel.currentTask.term
+    if term and kernel.tty[term] then
+        kernel.tty[term].printInline(text)
+    end
+end
+
+function kernel.tty.size()
+    local term=kernel.currentTask.term
+    if term and kernel.tty[term] then
+        return kernel.tty[term].size()
+    end
+end
+
+function kernel.tty.setCursorPos(x,y)
+    local term=kernel.currentTask.term
+    if term and kernel.tty[term] then
+        return kernel.tty[term].setCursorPos(x,y)
+    end
+end
+
+function kernel.tty.getCursorPos()
+    local term=kernel.currentTask.term
+    if term and kernel.tty[term] then
+        return kernel.tty[term].getCursorPos()
+    end
+end
+
+function kernel.tty.clear()
+    local term=kernel.currentTask.term
+    if term and kernel.tty[term] then
+        return kernel.tty[term].clear()
+    end
+end
+
+function kernel.tty.setTextColor(color)
+    local term=kernel.currentTask.term
+    if term and kernel.tty[term] then
+        return kernel.tty[term].setTextColor(color)
+    end
+end
+
+function kernel.tty.setBackgroundColor(color)
+    local term=kernel.currentTask.term
+    if term and kernel.tty[term] then
+        return kernel.tty[term].setBackgroundColor(color)
+    end
+end
+
+function kernel.tty.scroll(n)
+    local term=kernel.currentTask.term
+    if term and kernel.tty[term] then
+        return kernel.tty[term].scroll(n)
+    end
+end
+
+function kernel.tty.getTextColor()
+    local term=kernel.currentTask.term
+    if term and kernel.tty[term] and kernel.tty[term].getTextColor then
+        return kernel.tty[term].getTextColor()
+    end
+end
+
+function kernel.tty.getBackgroundColor()
+    local term=kernel.currentTask.term
+    if term and kernel.tty[term] and kernel.tty[term].getBackgroundColor then
+        return kernel.tty[term].getBackgroundColor()
+    end
+end
+
+function kernel.tty.bind(ttyid)
+    if not ttyid then
+        return false, "No TTY ID specified"
+    end
+    if not kernel.tty[ttyid] then
+        return false, "TTY "..tostring(ttyid).." not registered"
+    end
+    kernel.currentTask.term=ttyid
+    return true
+end
+
+function kernel.tty.unbind()
+    kernel.currentTask.term=false
+end
+
+function kernel.tty.isBound()
+    return kernel.currentTask.term ~= nil
+end
+
+function kernel.tty.getBoundTTY()
+    return kernel.currentTask.term
+end
+
+kernel.syscalls["TTY_print"]=kernel.tty.print
+kernel.syscalls["TTY_printInline"]=kernel.tty.printInline
+kernel.syscalls["TTY_size"]=kernel.tty.size
+kernel.syscalls["TTY_setCursorPos"]=kernel.tty.setCursorPos
+kernel.syscalls["TTY_getCursorPos"]=kernel.tty.getCursorPos
+kernel.syscalls["TTY_clear"]=kernel.tty.clear
+kernel.syscalls["TTY_setTextColor"]=kernel.tty.setTextColor
+kernel.syscalls["TTY_setBackgroundColor"]=kernel.tty.setBackgroundColor
+kernel.syscalls["TTY_scroll"]=kernel.tty.scroll
+kernel.syscalls["TTY_getTextColor"]=kernel.tty.getTextColor
+kernel.syscalls["TTY_getBackgroundColor"]=kernel.tty.getBackgroundColor
+kernel.syscalls["TTY_bind"]=kernel.tty.bind
+kernel.syscalls["TTY_unbind"]=kernel.tty.unbind
+kernel.syscalls["TTY_isBound"]=kernel.tty.isBound
+kernel.syscalls["TTY_getBoundTTY"]=kernel.tty.getBoundTTY
+
+kernel.log("TTY module loaded attempting to register console tty")
+kernel.status="init"

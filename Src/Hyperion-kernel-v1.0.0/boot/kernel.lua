@@ -149,7 +149,7 @@ ifs.makeDir("/tmp")
 function kernel.newFifo()
     local fifo = {}
     fifo.push=function(data)
-        table.insert(data)
+        table.insert(fifo, data)
     end
     fifo.pop=function()
         return table.remove(fifo,1)
@@ -238,6 +238,6 @@ for _,p in ipairs(modules) do
 end
 
 kernel.log("Kernel initialized successfully.")
---kernel.status="running"
+kernel.status="running"
 kernel.main()
 kernel.PANIC("Execution complete")

@@ -1,1 +1,28 @@
-local a=...function print(...)coroutine.yield()local b={...}local c=""for d=1,#b do c=c..tostring(b[d]).."\t"end;c=c:sub(1,-2)a.tty.print(c)end;function printf(e,...)coroutine.yield()local c=string.format(e,...)a.tty.print(c)end;function printInline(...)coroutine.yield()local b={...}local c=""for d=1,#b do c=c..tostring(b[d]).."\t"end;c=c:sub(1,-2)a.tty.printInline(c)end
+--:Minify:--
+local kernel=...
+function print(...)
+    local args={...}
+    local output=""
+    for i=1,#args do
+        output=output..tostring(args[i]).."\t"
+    end
+    output=output:sub(1,-2)
+    syscall.TTY_print(output)
+end
+
+function printf(fmt, ...)
+    coroutine.yield()
+    local output=string.format(fmt,...)
+    syscall.TTY_print(output)
+end
+
+function printInline(...)
+    coroutine.yield()
+    local args={...}
+    local output=""
+    for i=1,#args do
+        output=output..tostring(args[i]).."\t"
+    end
+    output=output:sub(1,-2)
+    syscall.TTY_printInline(output)
+end

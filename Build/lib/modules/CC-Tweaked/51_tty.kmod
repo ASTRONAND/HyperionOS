@@ -1,1 +1,182 @@
-local a=...local b=a.apis;local c=b.term;local d=b.peripheral;local e={"top","bottom","left","right","front","back"}local function f(g)if d.isPresent(g)then return d.getType(g)end;for h=1,#e do local i=e[h]if d.hasType(i,"peripheral_hub")and d.call(i,"isPresentRemote",g)then return d.call(i,"getTypeRemote",g)end end;return nil end;local function j()local k={}for h=1,#e do local i=e[h]if d.isPresent(i)then table.insert(k,i)end;if d.hasType(i,"peripheral_hub")then local l=d.call(i,"getConnectedSides")for m,n in ipairs(l)do table.insert(k,n)end end end;return k end;local function o(g)if d.isPresent(g)then return o(g)end;for h=1,#e do local i=e[h]if d.hasType(i,"peripheral_hub")and d.call(i,"isPresentRemote",g)then return d.call(i,"wrapRemote",g)end end;return nil end;local p={[0]=0x000000,0xFFFFFF,0xFF0000,0x00FF00,0x0000FF,0x00FFFF,0xFF00FF,0xFFFF00,0xFF6D00,0x6DFF55,0x24FFFF,0x924900,0x6D6D55,0xDBDBAA,0x6D00FF,0xB6FF00}local q={[0x1]=0,[0x2]=1,[0x4]=2,[0x8]=3,[0x10]=4,[0x20]=5,[0x40]=6,[0x80]=7,[0x100]=8,[0x200]=9,[0x400]=10,[0x800]=11,[0x1000]=12,[0x2000]=13,[0x4000]=14,[0x8000]=15}local function r(s,t)local u,v=t.getCursorPos()local w,x=t.getSize()for y=1,#s do local z=s:sub(y,y)if z=="\n"then v=v+1;u=1 elseif z=="\t"then local A=4;local B=A-(u-1)%A;t.write(string.rep(" ",B))u=u+B elseif z=="\b"then if u>1 then u=u-1;t.setCursorPos(u,v)t.write(" ")t.setCursorPos(u,v)end else if u<=w and v<=x then t.setCursorPos(u,v)t.write(z)u=u+1 end end;if u>w then u=1;v=v+1 end;if v-1>x then t.scroll(1)v=x;t.setCursorPos(u,v)end end;t.setCursorPos(u,v)end;local function C(t)local D={}function D.print(s)r(s.."\n",t)end;function D.printInline(s)r(s,t)end;function D.clear()t.clear()t.setCursorPos(1,1)end;function D.setCursorPos(u,v)t.setCursorPos(u,v)end;function D.getCursorPos()return t.getCursorPos()end;function D.getSize()return t.getSize()end;function D.setBackgroundColor(E)t.setBackgroundColor(p[E])end;function D.setTextColor(E)t.setTextColor(p[E])end;function D.getBackgroundColor()return q[t.getBackgroundColor()]end;function D.getTextColor()return q[t.getTextColor()]end;return D end;a.tty.register("tty0",C(c))for m,g in ipairs(j())do local F=f(g)if F=="monitor"then local G=o(g)G.setTextScale(0.5)a.tty.register(g,C(G))end end
+--:Minify:--
+local kernel=...
+local apis=kernel.apis
+local main=apis.term
+local native=apis.peripheral
+local sides = {"top", "bottom", "left", "right", "front", "back"}
+
+local function getType(name)
+    if native.isPresent(name) then
+        return native.getType(name)
+    end
+    for n = 1, #sides do
+        local side = sides[n]
+        if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", name) then
+            return native.call(side, "getTypeRemote", name)
+        end
+    end
+    return nil
+end
+
+local function getNames()
+    local names = {}
+    for n = 1, #sides do
+        local side = sides[n]
+        if native.isPresent(side) then
+            table.insert(names, side)
+        end
+        if native.hasType(side, "peripheral_hub") then
+            local hubSides = native.call(side, "getConnectedSides")
+            for _, hubSide in ipairs(hubSides) do
+                table.insert(names, hubSide)
+            end
+        end
+    end
+    return names
+end
+
+local function wrapPeripheral(name)
+    if native.isPresent(name) then
+        return wrapPeripheral(name)
+    end
+    for n = 1, #sides do
+        local side = sides[n]
+        if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", name) then
+            return native.call(side, "wrapRemote", name)
+        end
+    end
+    return nil
+end
+
+local colors={
+    [0]=0x000000, -- #000000
+    0xFFFFFF, -- #FFFFFF
+    0xFF0000, -- #FF0000
+    0x00FF00, -- #00FF00
+    0x0000FF, -- #0000FF
+    0x00FFFF, -- #00FFFF
+    0xFF00FF, -- #FF00FF
+    0xFFFF00, -- #FFFF00
+    0xFF6D00, -- #FF6D00
+    0x6DFF55, -- #6DFF55
+    0x24FFFF, -- #24FFFF
+    0x924900, -- #924900
+    0x6D6D55, -- #6D6D55
+    0xDBDBAA, -- #DBDBAA
+    0x6D00FF, -- #6D00FF
+    0xB6FF00  -- #B6FF00
+}
+
+local icolors={
+    [0x1]    =0,  -- #000000
+    [0x2]    =1,  -- #FFFFFF
+    [0x4]    =2,  -- #FF0000
+    [0x8]    =3,  -- #00FF00
+    [0x10]   =4,  -- #0000FF
+    [0x20]   =5,  -- #00FFFF
+    [0x40]   =6,  -- #FF00FF
+    [0x80]   =7,  -- #FFFF00
+    [0x100]  =8,  -- #FF6D00
+    [0x200]  =9,  -- #6DFF55
+    [0x400]  =10, -- #24FFFF
+    [0x800]  =11, -- #924900
+    [0x1000] =12, -- #6D6D55
+    [0x2000] =13, -- #DBDBAA
+    [0x4000] =14, -- #6D00FF
+    [0x8000] =15  -- #B6FF00
+}
+
+local function write(text, term)
+    local x, y = term.getCursorPos()
+    local w, h = term.getSize()
+
+    for i = 1, #text do
+        local c = text:sub(i, i)
+
+        if c == "\n" then
+            y = y + 1
+            x = 1
+        elseif c == "\t" then
+            local tabSize = 4
+            local spaces = tabSize - ((x - 1) % tabSize)
+            term.write(string.rep(" ", spaces))
+            x = x + spaces
+        elseif c == "\b" then
+            if x > 1 then
+                x = x - 1
+                term.setCursorPos(x, y)
+                term.write(" ")
+                term.setCursorPos(x, y)
+            end
+        else
+            if x <= w and y <= h then
+                term.setCursorPos(x, y)
+                term.write(c)
+                x = x + 1
+            end
+        end
+
+        -- Handle wrapping if we go past right edge
+        if x > w then
+            x = 1
+            y = y + 1
+        end
+
+        -- Handle scrolling if we go past bottom
+        if y-1 > h then
+            term.scroll(1)
+            y = h
+            term.setCursorPos(x, y)
+        end
+    end
+
+    term.setCursorPos(x, y)
+end
+
+local function newTTY(term)
+    local ret={}
+    function ret.print(text)
+        write(text.."\n", term)
+    end
+    function ret.printInline(text)
+        write(text, term)
+    end
+    function ret.clear()
+        term.clear()
+        term.setCursorPos(1,1)
+    end
+    function ret.setCursorPos(x,y)
+        term.setCursorPos(x,y)
+    end
+    function ret.getCursorPos()
+        return term.getCursorPos()
+    end
+    function ret.getSize()
+        return term.getSize()
+    end
+    function ret.setBackgroundColor(color)
+        term.setBackgroundColor(colors[color])
+    end
+    function ret.setTextColor(color)
+        term.setTextColor(colors[color])
+    end
+    function ret.getBackgroundColor()
+        return icolors[term.getBackgroundColor()]
+    end
+    function ret.getTextColor()
+        return icolors[term.getTextColor()]
+    end
+    return ret
+end
+
+kernel.tty.register("tty0", newTTY(main))
+
+for _, name in ipairs(getNames()) do
+    local t = getType(name)
+    if t == "monitor" then
+        local monitorTerm = wrapPeripheral(name)
+        monitorTerm.setTextScale(0.5)
+        kernel.tty.register(name, newTTY(monitorTerm))
+    end
+end
+

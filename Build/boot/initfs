@@ -1,1 +1,78 @@
-local a={}local b={}local c={}local function d(e)local f="/"for g,h in pairs(c)do if e:sub(1,#g)==g then if not f or#g>#f then f=g end end end;local i=e:sub(#f+1)return b[c[f]],i end;function a.update(j)b={}for k,l in j.list()do b[k]=l end end;function a.exists(e)local h,i=d(e)return h:directoryExists(i)or h:fileExists(i)end;function a.isFile(e)local h,i=d(e)return h:fileExists(i)end;function a.isDir(e)local h,i=d(e)return h:directoryExists(i)end;function a.list(e)local h,i=d(e)return h:list(i)end;function a.makeDir(e)local h,i=d(e)return h:makeDirectory(i)end;function a.remove(e)local h,i=d(e)return h:remove(i)end;function a.readAllText(e)local h,i=d(e)local m=h:open(i,"r")if not m then return nil end;local n=m.readAll()m.close()return n end;function a.writeAllText(e,o)local h,i=d(e)local m=h:open(i,"w")m.write(o)m.close()end;function a.appendAllText(e,o)local h,i=d(e)local m=h:open(i,"a")m.write(o)m.close()end;function a.load(e)return load(a.readAllText(e),e)end;function a.mount(h,f)if not b[h]then return end;c[f]=h end;return a
+--:Minify:--
+local fs = {}
+local disks = {}
+local mounts = {}
+
+local function resolve(path)
+    local mountPoint = "/"
+    for mount, disk in pairs(mounts) do
+        if path:sub(1, #mount) == mount then
+            if not mountPoint or #mount > #mountPoint then
+                mountPoint = mount
+            end
+        end
+    end
+    local newPath = path:sub(#mountPoint + 1)
+    return disks[mounts[mountPoint]], newPath
+end
+---------------------------------------------------------
+
+function fs.update(initdisks)
+    disks = {}
+    for k, v in initdisks.list() do
+        disks[k] = v
+    end
+end
+
+function fs.exists(path)
+    local disk, newPath = resolve(path)
+    return disk:directoryExists(newPath) or disk:fileExists(newPath)
+end
+function fs.isFile(path)
+    local disk, newPath = resolve(path)
+    return disk:fileExists(newPath)
+end
+function fs.isDir(path)
+    local disk, newPath = resolve(path)
+    return disk:directoryExists(newPath)
+end
+function fs.list(path)
+    local disk, newPath = resolve(path)
+    return disk:list(newPath)
+end
+function fs.makeDir(path)
+    local disk, newPath = resolve(path)
+    return disk:makeDirectory(newPath)
+end
+function fs.remove(path)
+    local disk, newPath = resolve(path)
+    return disk:remove(newPath)
+end
+function fs.readAllText(path)
+    local disk, newPath = resolve(path)
+    local handle = disk:open(newPath, "r")
+    if not handle then return nil end
+    local content = handle.readAll()
+    handle.close()
+    return content
+end
+function fs.writeAllText(path, text)
+    local disk, newPath = resolve(path)
+    local handle = disk:open(newPath, "w")
+    handle.write(text)
+    handle.close()
+end
+function fs.appendAllText(path, text)
+    local disk, newPath = resolve(path)
+    local handle = disk:open(newPath, "a")
+    handle.write(text)
+    handle.close()
+end
+function fs.load(path)
+    return load(fs.readAllText(path), path)
+end
+function fs.mount(disk, mountPoint)
+    if not disks[disk] then return end
+    mounts[mountPoint] = disk
+end
+return fs

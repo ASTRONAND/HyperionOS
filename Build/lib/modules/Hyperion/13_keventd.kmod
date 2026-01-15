@@ -1,1 +1,14 @@
-local a=...a.processes.keventd=function()while true do local b={a.computer:getMachineEvent()}if b[1]then if b[1]=="key"or b[1]=="keyPressed"or b[1]=="keyReleased"then a.devfs.keyboard.push(b)end end end end
+--:Minify:--
+local kernel = ...
+local events = kernel.newFifo()
+
+kernel.processes.keventd = function()
+    while true do
+        local event = {kernel.computer:getMachineEvent()}
+        if event[1] then
+            events.push(event)
+        end
+    end
+end
+
+kernel.syscalls["IO_getEventAny"]=events.pop

@@ -1,1 +1,7 @@
-local a=...local debug=debug;a._G.debug={getinfo=debug.getinfo,traceback=debug.traceback}
+--:Minify:--
+local kernel=...
+local debug=debug
+kernel._G.debug={
+    getinfo=debug.getinfo,
+    traceback=debug.traceback
+}

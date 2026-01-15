@@ -1,1 +1,243 @@
-local a={...}local b=a[1]local c=a[2]local d=a[3]local e=a[5]local f=a[6]local g=a[7]local h=""local i={}i.process="Kernel"i.user="root"i.group="root"i.groups={0}i.uid=0;i.gid=0;i.status="start"i.key={}i.cache={}i.cache.preload={}i._G=_G;i.sleep=sleep;_G.sleep=nil;local j=false;function i.log(k,l)h=h..tostring(f:time()).." "..i.user.." "..i.process.."["..tostring(l or"INFO").."]: "..k.."\n"if i.status=="start"then e:print(tostring(f:time()).." "..i.user.." "..i.process.."["..tostring(l or"INFO").."]: "..k)elseif i.status=="init"then i.standbyTask=i.currentTask;i.currentTask=i.kernelTask;i.tty.print(tostring(f:time()).." "..i.user.." "..i.process.."["..tostring(l or"INFO").."]: "..k)i.currentTask=i.standbyTask end end;function i.PANIC(k)if i.status~="Panic"then i.log("PANIC: "..k,"PANIC")pcall(i["saveLog"])i.status="Panic"i.reason=k;e:setTextColor(2)e:setBackgroundColor(0)e:clear()e:setCursorPos(1,1)e:print(h)e:print("KERNEL PANIC!\n"..k.."\nSystem halted.")e:print("Press any key to continue...")end;while true do local m={f:getMachineEvent()}if m[1]=="keyPressed"then break end end;f:reboot()end;i.panic=i.PANIC;if j then e:setTextColor(1)e:setBackgroundColor(4)e:clear()local n,o=e:getSize()e:setCursorPos(3,5)e:print(":(")e:setCursorPos(3,7)e:print("Your PC ran into a problem and needs to restart. We're just collecting some error")e:setCursorPos(3,8)e:print("info, and then we'll restart for you.\n")e:setCursorPos(3,o-5)e:print("Stop code: average windows experience")e:setCursorPos(1,o)e:print("Press any key to continue... jk reboot it yourself lazy")while true do end end;i.log("Kernel loaded.")i.log("Mounting init disks...")c.refresh()g.update(c)i.disks={}for p,q in c.list()do i.disks[q.address]=q end;g.mount("$","/")local r=g.readAllText("/boot/fstab")local s=function(t,u,v)assert(#u==1,"only delim len 1 supported for now")v=(v or 0)-1;local w={}local x=""for y=1,#t do local z=string.sub(t,y,y)if#w~=v and z==u then table.insert(w,x)x=""else x=x..z end end;table.insert(w,x)return w end;if not g.isFile("/boot/boot.cfg")then i.log("boot.cfg missing or corrupted!, Attempting to write recovery boot.cfg","ERROR")g.writeAllText("/boot/boot.cfg",g.readAllText("/boot/safeboot.cfg"))end;local A,B=load(g.readAllText("/boot/boot.cfg"),"@boot.cfg")if not A then i.PANIC("Failed to load /boot/boot.cfg: "..tostring(B))end;local C,D=pcall(A)if not C then i.PANIC("Error in /boot/boot.cfg: "..tostring(D))end;i.config=D;for y,q in ipairs(s(r,"\n"))do if q:sub(1,1)=="U"then local E=""for y=3,#q do if q:sub(y,y)==";"then if y==3 then i.log("Invalid fstab line... Skipping.","WARN")goto F end;E=q:sub(3,y-1)end end;local G=q:sub(#E+4)g.mount(E,G)::F::end end;i.log("Disks initialized")function i.saveLog()g.writeAllText("/var/log/syslog.log",h)end;g.remove("/tmp")g.makeDir("/tmp")function i.newFifo()local H={}H.push=function(I)table.insert(I)end;H.pop=function()return table.remove(H,1)end;return H end;function i.newUUID()local J="xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"local K=""for y=1,#J do local z=J:sub(y,y)if z=="x"then K=K..string.format("%x",math.random(0,15))elseif z=="y"then K=K..string.format("%x",math.random(8,11))else K=K..z end end;return K end;i.syscalls={}local L={[0]={}}for y=0,100 do L[y]={}end;i.log("Gathering modules")for p,y in ipairs(g.list("/lib/modules"))do for p,q in ipairs(g.list("/lib/modules/"..y))do local M=tonumber(q:sub(1,2))L[M+1][#L[M+1]+1]="/lib/modules/"..y.."/"..q end end;i.ifs=g;i.apis=b;i.computer=f;i.arch=d;i.initdisks=c;i.screen=e;i.processes={}i.fstab=r;i.kernelTask={name="kernel",status="R",pid=0,tgid=0,user="root",uid=0,fd={},exit="",sleep=0,ivs=0,vs=0,children={},syscallReturn={},cwd="/",timeSlice=0,lastTime=0,totalTime=0,numRuns=0}i.currentTask=i.kernelTask;i.syscalls["OS_time"]=function()return i.computer:time()end;i.syscalls["OS_log"]=i.log;i.log("Running modules")for p,N in ipairs(L)do for p,q in ipairs(N)do local O=g.readAllText(q)if not O then i.log("ModuReadErr: "..q,"WARN")goto P end;local Q,B=load(O,"@"..q)if not Q then i.panic("ModuLoadErr: "..tostring(B))goto P end;local R,B=xpcall(Q,debug.traceback,i)if not R then i.panic("ModuRunErr: "..tostring(B))end::P::end end;i.log("Kernel initialized successfully.")i.main()i.PANIC("Execution complete")
+--:Minify:--
+local args = {...}
+local apis = args[1]
+local disks = args[2]
+local arch = args[3]
+local screen = args[5]
+local computer = args[6]
+local ifs = args[7]
+local LOG_Text = ""
+local kernel = {}
+kernel.process = "Kernel"
+kernel.user = "root"
+kernel.group = "root"
+kernel.groups = {0}
+kernel.uid = 0
+kernel.gid = 0
+kernel.status = "start"
+kernel.key = {}
+kernel.cache = {}
+kernel.cache.preload = {}
+kernel._G=_G
+kernel.sleep=sleep
+
+_G.sleep=nil
+local windowsExp = false
+
+function kernel.log(msg, level)
+    LOG_Text = LOG_Text..tostring(computer:time()).." "..kernel.user.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
+    if kernel.status == "start" then
+        screen:print(tostring(computer:time()).." "..kernel.user.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
+    elseif kernel.status == "init" then
+        kernel.standbyTask=kernel.currentTask
+        kernel.currentTask=kernel.kernelTask
+        kernel.tty.print(tostring(computer:time()).." "..kernel.user.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
+        kernel.currentTask=kernel.standbyTask
+    end
+end
+
+function kernel.PANIC(msg)
+    if kernel.status~="Panic" then
+        kernel.log("PANIC: "..msg, "PANIC")
+        pcall(kernel["saveLog"])
+        kernel.status="Panic"
+        kernel.reason=msg
+        screen:setTextColor(2)
+        screen:setBackgroundColor(0)
+        screen:clear()
+        screen:setCursorPos(1,1)
+        screen:print(LOG_Text)
+        screen:print("KERNEL PANIC!\n"..msg.."\nSystem halted.")
+        screen:print("Press any key to continue...")
+    end
+    while true do 
+        local event={computer:getMachineEvent()}
+        if event[1]=="keyPressed" then
+            break
+        end
+    end
+    computer:reboot()
+end
+kernel.panic=kernel.PANIC
+
+if windowsExp then
+    screen:setTextColor(1)
+    screen:setBackgroundColor(4)
+    screen:clear()
+    local w,h = screen:getSize()
+    screen:setCursorPos(3,5)
+    screen:print(":(")
+    screen:setCursorPos(3,7)
+    screen:print("Your PC ran into a problem and needs to restart. We're just collecting some error")
+    screen:setCursorPos(3,8)
+    screen:print("info, and then we'll restart for you.\n")
+    screen:setCursorPos(3,h-5)
+    screen:print("Stop code: average windows experience")
+    screen:setCursorPos(1,h)
+    screen:print("Press any key to continue... jk reboot it yourself lazy")
+    while true do end
+end
+
+kernel.log("Kernel loaded.")
+kernel.log("Mounting init disks...")
+disks.refresh()
+ifs.update(disks)
+kernel.disks={}
+for _,v in disks.list() do
+    kernel.disks[v.address] = v
+end
+ifs.mount("$", "/")
+
+local fstab=ifs.readAllText("/boot/fstab")
+local split = function(str, delim, maxResultCountOrNil)
+    assert(#delim == 1, "only delim len 1 supported for now")
+    maxResultCountOrNil = (maxResultCountOrNil or 0)-1
+    local rv = {}
+    local buf = ""
+    for i = 1, #str do
+        local c = string.sub(str,i,i)
+        if #rv ~= maxResultCountOrNil and c == delim then
+            table.insert(rv, buf)
+            buf = ""
+        else
+            buf = buf..c
+        end
+    end
+    table.insert(rv, buf)
+    return rv
+end
+
+if not ifs.isFile("/boot/boot.cfg") then
+    kernel.log("boot.cfg missing or corrupted!, Attempting to write recovery boot.cfg", "ERROR")
+    ifs.writeAllText("/boot/boot.cfg",ifs.readAllText("/boot/safeboot.cfg"))
+end
+
+local initCfgFunc, err = load(ifs.readAllText("/boot/boot.cfg"), "@boot.cfg")
+if not initCfgFunc then
+    kernel.PANIC("Failed to load /boot/boot.cfg: "..tostring(err))
+end
+
+local initCfgStatus, config = pcall(initCfgFunc)
+if not initCfgStatus then
+    kernel.PANIC("Error in /boot/boot.cfg: "..tostring(config))
+end
+kernel.config = config
+
+for i,v in ipairs(split(fstab,"\n")) do
+    if v:sub(1,1)=="U" then
+        local id=""
+        for i=3,#v do
+            if v:sub(i,i)==";" then
+                if i==3 then kernel.log("Invalid fstab line... Skipping.","WARN") goto endline end
+                id=v:sub(3,i-1)
+            end
+        end
+        local path=v:sub(#id+4)
+        ifs.mount(id,path)
+        ::endline::
+    end
+end
+kernel.log("Disks initialized")
+
+function kernel.saveLog()
+    ifs.writeAllText("/var/log/syslog.log", LOG_Text)
+end
+
+ifs.remove("/tmp")
+ifs.makeDir("/tmp")
+
+function kernel.newFifo()
+    local fifo = {}
+    fifo.push=function(data)
+        table.insert(data)
+    end
+    fifo.pop=function()
+        return table.remove(fifo,1)
+    end
+    return fifo
+end
+
+function kernel.newUUID()
+    local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+    local uuid = ""
+    for i = 1, #template do
+        local c = template:sub(i,i)
+        if c == "x" then
+            uuid = uuid .. string.format("%x", math.random(0, 15))
+        elseif c == "y" then
+            uuid = uuid .. string.format("%x", math.random(8, 11))
+        else
+            uuid = uuid .. c
+        end
+    end
+    return uuid
+end
+
+kernel.syscalls={}
+local modules={[0]={}}
+for i=0, 100 do
+    modules[i]={}
+end
+
+kernel.log("Gathering modules")
+for _, i in ipairs(ifs.list("/lib/modules")) do
+    for _,v in ipairs(ifs.list("/lib/modules/"..i)) do
+        local prior=tonumber(v:sub(1,2))
+        modules[prior+1][#modules[prior+1]+1]="/lib/modules/"..i.."/"..v
+    end
+end
+
+kernel.ifs=ifs
+kernel.apis=apis
+kernel.computer=computer
+kernel.arch=arch
+kernel.initdisks=disks
+kernel.screen=screen
+kernel.processes={}
+kernel.fstab=fstab
+
+kernel.kernelTask = {
+    name="kernel",
+    status="R",
+    pid=0,
+    tgid=0,
+    user="root",
+    uid=0,
+    fd={},
+    exit="",
+    sleep=0,
+    ivs=0,
+    vs=0,
+    children={},
+    syscallReturn={},
+    cwd="/",
+    timeSlice=0,
+    lastTime=0,
+    totalTime=0,
+    numRuns=0
+}
+kernel.currentTask = kernel.kernelTask
+
+kernel.syscalls["OS_time"]=function() return kernel.computer:time() end
+kernel.syscalls["OS_log"]=kernel.log
+
+kernel.log("Running modules")
+for _,p in ipairs(modules) do
+    for _,v in ipairs(p) do
+        local code=ifs.readAllText(v)
+        if not code then 
+            kernel.log("ModuReadErr: "..v, "WARN") 
+            goto skip
+        end
+        local func,err=load(code,"@"..v)
+        if not func then kernel.panic("ModuLoadErr: "..tostring(err)) goto skip end
+        local status, err = xpcall(func,debug.traceback, kernel)
+        if not status then kernel.panic("ModuRunErr: "..tostring(err)) end
+        ::skip::
+    end
+end
+
+kernel.log("Kernel initialized successfully.")
+--kernel.status="running"
+kernel.main()
+kernel.PANIC("Execution complete")

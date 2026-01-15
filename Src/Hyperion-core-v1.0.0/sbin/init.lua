@@ -5,11 +5,11 @@ syscall.TTY_bind("tty0")
 for i,v in pairs(kernel.processes) do
     kernel.log("Spawning kernel task "..i)
     syscall.HPV_spawn(function()
-        local status, err = pcall(startupFunc)
+        local status, err = pcall(v)
         if not status then
-            kernel.log("Error executing kernel task '" .. filepath .. "': " .. err, "ERROR")
+            kernel.log("Error executing kernel task '" .. i .. "': " .. err, "ERROR")
         else
-            kernel.log("Successfully executed kernel task: " .. filepath, "INFO")
+            kernel.log("Successfully executed kernel task: " .. i, "INFO")
         end
     end, i)
 end
