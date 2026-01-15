@@ -5,7 +5,7 @@ local sys = {}
 local nextpid = 2
 kernel.exitMain=false
 
-function sys.spawn(func, name, envars, args, tgid, fshandles)
+function sys.spawn(func, name, envars, args, tgid)
     local id = nextpid
     nextpid = nextpid + 1
     tasks[tostring(id)] = {
@@ -27,7 +27,7 @@ function sys.spawn(func, name, envars, args, tgid, fshandles)
         tgid=tgid or kernel.currentTask.tgid,
         user=kernel.user,
         uid=kernel.uid,
-        fd=fshandles or {},
+        fd={},
         exit="",
         sleep=0,
         ivs=0,
@@ -138,7 +138,7 @@ function kernel.main()
                 else
                     ret = {coroutine.resume(task.coro, table.unpack(task.syscallReturn))}
                 end
-                
+
                 local elapsed = kernel.computer:time() - startTime
                 task.lastTime = elapsed
                 task.totalTime = (task.totalTime or 0) + elapsed
