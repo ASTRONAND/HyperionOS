@@ -1,7 +1,10 @@
 syscall.TTY_clear()
-syscall.TTY_setTextColor(2)
+--syscall.TTY_setTextColor(2)
 syscall.TTY_setCursorPos(1, 1)
 syscall.TTY_print("HyperionOS Bash Shell")
 while true do
-    syscall.TTY_print(syscall.IO_getEventAny())
+    local event = syscall.IO_getEventAny()
+    if event then
+        syscall.TTY_print(table.serialize(event))
+    end
 end
