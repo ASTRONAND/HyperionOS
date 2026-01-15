@@ -20,7 +20,6 @@ kernel.cache = {}
 kernel.cache.preload = {}
 kernel._G=_G
 kernel.sleep=sleep
-kernel.debug=true
 
 _G.sleep=nil
 local windowsExp = false
@@ -112,6 +111,7 @@ if not ifs.isFile("/boot/boot.cfg") then
     kernel.log("boot.cfg missing or corrupted!, Attempting to write recovery boot.cfg", "ERROR")
     ifs.writeAllText("/boot/boot.cfg",ifs.readAllText("/boot/safeboot.cfg"))
 end
+
 local initCfgFunc, err = load(ifs.readAllText("/boot/boot.cfg"), "@boot.cfg")
 if not initCfgFunc then
     kernel.PANIC("Failed to load /boot/boot.cfg: "..tostring(err))
@@ -238,6 +238,6 @@ for _,p in ipairs(modules) do
 end
 
 kernel.log("Kernel initialized successfully.")
-kernel.status="running"
+--kernel.status="running"
 kernel.main()
 kernel.PANIC("Execution complete")

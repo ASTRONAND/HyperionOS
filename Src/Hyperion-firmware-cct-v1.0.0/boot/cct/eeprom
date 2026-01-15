@@ -1,3 +1,4 @@
+--:Minify:--
 sleep(1)
 local BOOT_DRIVE_PATH="/$"
 -- UnBIOS by JackMacWindows

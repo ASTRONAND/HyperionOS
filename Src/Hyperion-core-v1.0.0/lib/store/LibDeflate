@@ -1,3 +1,4 @@
+--:Minify:--
 --[[--
 LibDeflate 1.0.0-release <br>
 Pure Lua compressor and decompressor with high compression ratio using

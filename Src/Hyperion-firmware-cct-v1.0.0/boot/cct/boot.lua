@@ -1,3 +1,4 @@
+--:Minify:--
 local BOOT_DRIVE_PATH="/$"
 local term = term
 local os = os

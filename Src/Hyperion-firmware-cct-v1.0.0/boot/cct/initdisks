@@ -1,3 +1,4 @@
+--:Minify:--
 local apis = ({...})[1]
 local BOOT_DRIVE_PATH="/$"
 local fs = apis.fs
