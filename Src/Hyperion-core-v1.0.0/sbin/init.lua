@@ -2,6 +2,7 @@ local kernel=...
 local fs=require("sys.fs")
 syscall.TTY_bind("tty0")
 
+for i,v in ipairs(kernel.)
 local files = fs.list("/bin/startup")
 if not files then error("Failed to list /bin/startup") end
 for i,v in ipairs(files) do
@@ -12,7 +13,7 @@ for i,v in ipairs(files) do
         if not startupFunc then
             kernel.log("Error loading startup script '" .. filepath .. "': " .. err, "ERROR")
         else
-            kernel.hpv.spawn(function()
+            syscall.HPV_spawn(function()
                 local status, err = pcall(startupFunc)
                 if not status then
                     kernel.log("Error executing startup script '" .. filepath .. "': " .. err, "ERROR")
