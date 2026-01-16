@@ -144,8 +144,9 @@ local ok, err = xpcall(function()
 
     -- Load kernel first if it fails, we can't continue so we display an error
     local Kernel = load(getFile(BOOT_DRIVE_PATH.."/boot/kernel.lua"),"@Kernel")
-    local initFs = load(getFile(BOOT_DRIVE_PATH.."/boot/cct/initdisks","@Init_disks"))(apis)
+    local initFs = load(getFile(BOOT_DRIVE_PATH.."/boot/cct/initdisks"),"@Init_disks")(apis)
     local fs = load(getFile(BOOT_DRIVE_PATH.."/boot/initfs"),"@InitFs")()
+    local key = load(getFile(BOOT_DRIVE_PATH.."/boot/cct/keys.lua"),"@keyhelper")(apis)
     if not Kernel then
         displaySuperBadError("Could not load kernel.")
     end
@@ -155,13 +156,12 @@ local ok, err = xpcall(function()
     if not fs then
         displaySuperBadError("Could not load initfs.")
     end
+    if not key then
+        displaySuperBadError("Could not load key helper.")
+    end
 
     -- Set up event queue
     local eventQueue = {}
-    local lkeys={}
-    lkeys[apis.keys.enter]="\n"
-    lkeys[apis.keys.backspace]="\b"
-    lkeys[apis.keys.tab]="\t"
 
     -- Function to queue events
     local function queueEvent(event, ...)
@@ -282,15 +282,12 @@ local ok, err = xpcall(function()
         local exit = false
         while not exit do
             local event = {coroutine.yield()}
-            if event[1] == "char" then
-                queueEvent("keyTyped", 1, event[2])
-            elseif event[1] == "key" then
+            if event[1] == "key" then
                 queueEvent("keyPressed", 1, event[2])
-                if lkeys[event[2]] then
-                    queueEvent("keyTyped", 1, lkeys[event[2]])
-                end
+                key(event, queueEvent)
             elseif event[1] == "key_up" then
                 queueEvent("keyReleased", 1, event[2])
+                key(event, queueEvent)
             elseif event[1] == "disk" then
                 queueEvent("componentAdded", "disk")
             elseif event[1] == "disk_eject" then

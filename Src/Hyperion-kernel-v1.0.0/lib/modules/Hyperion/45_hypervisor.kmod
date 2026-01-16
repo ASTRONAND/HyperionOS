@@ -54,6 +54,7 @@ function sys.spawn(func, name, envars, args, tgid)
         numRuns=0
     }
     table.insert(kernel.currentTask.children, tasks[tostring(id)])
+    return id
 end
 
 function sys.sleep(ms)
