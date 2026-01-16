@@ -1,6 +1,6 @@
 --:Minify:--
 sleep(1)
-local BOOT_DRIVE_PATH="/$"
+local BOOT_DRIVE_PATH=... or "/$"
 -- UnBIOS by JackMacWindows
 -- This will undo most of the changes/additions made in the BIOS, but some things may remain wrapped if `debug` is unavailable
 -- To use, just place a `bios.lua` in the root of the drive, and run this program
@@ -88,7 +88,7 @@ function _G.term.native()
     local oldshutdown = os.shutdown
     os.shutdown = function()
         os.shutdown = oldshutdown
-        return fn(table.unpack(args))
+        return fn(BOOT_DRIVE_PATH)
     end
 end
 if debug then

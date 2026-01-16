@@ -1,6 +1,6 @@
 --:Minify:--
 local apis = ({...})[1]
-local BOOT_DRIVE_PATH="/$"
+local BOOT_DRIVE_PATH=apis.BOOT_DRIVE_PATH or "/$"
 local fs = apis.fs
 local native = apis.peripheral
 local peripheral = {}

@@ -1,5 +1,5 @@
 --:Minify:--
-local BOOT_DRIVE_PATH="/$"
+local BOOT_DRIVE_PATH=... or "/$"
 ---@diagnostic disable-next-line: undefined-global
 local term = term
 local os = os
@@ -65,7 +65,7 @@ end
 
 -- Wrap all in xpcall to catch errors
 local ok, err = xpcall(function()
-    local apis={}
+    local apis={BOOT_DRIVE_PATH=BOOT_DRIVE_PATH}
 
     -- List of standard Lua globals
     local lua = {
