@@ -1,6 +1,5 @@
 --:Minify:--
 local kernel = ...
-local events = kernel.newFifo()
 
 kernel.processes.keventd = function()
     while true do
@@ -13,9 +12,7 @@ kernel.processes.keventd = function()
                     kernel.reboot()
                 end
             end
-            events.push(event)
+            kernel.io.pushEvent("raw", table.unpack(event))
         end
     end
 end
-
-kernel.syscalls["IO_getEventAny"]=events.pop

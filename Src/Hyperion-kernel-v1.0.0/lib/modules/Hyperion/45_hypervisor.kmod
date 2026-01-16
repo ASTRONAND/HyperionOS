@@ -16,7 +16,7 @@ function sys.spawn(func, name, envars, args, tgid)
                     kernel.log("Task "..tostring(id).." exited with err: "..tostring(err), "ERROR")
                 end
                 tasks[tostring(id)].status="Z"
-                tasks[tostring(id)].exit=tostring(err)
+                tasks[tostring(id)].exit=err
             else
                 if kernel.config.logTaskExit then
                     if err then
@@ -51,7 +51,10 @@ function sys.spawn(func, name, envars, args, tgid)
         timeSlice=0,
         lastTime=0,
         totalTime=0,
-        numRuns=0
+        numRuns=0,
+        privacy=0,
+        debugger=false,
+        eventq=kernel.currentTask.eventq
     }
     table.insert(kernel.currentTask.children, tasks[tostring(id)])
     return id
@@ -63,8 +66,119 @@ function sys.sleep(ms)
     coroutine.yield()
 end
 
+function sys.getTaskInfo(pid)
+    if tasks[tostring(pid)] then
+        local task = tasks[tostring(pid)]
+        local children = {}
+        local siblings = {}
+        for i,v in ipairs(task.children) do
+            children[i]=v.pid
+        end
+        for i,v in ipairs(task.siblings) do
+            siblings[i]=v.pid
+        end
+        return {
+            name=task.name,
+            envars=table.deepcopy(task.envars),
+            args=table.deepcopy(task.args),
+            status=task.status,
+            pid=task.pid,
+            tgid=task.tgid,
+            user=task.user,
+            uid=task.uid,
+            exit=task.exit,
+            sleep=task.sleep,
+            ivs=task.ivs,
+            vs=task.vs,
+            children=children,
+            siblings=siblings,
+            parent=task.parent.pid,
+            cwd=task.cwd,
+            term=task.term
+        }
+    end
+end
+
+function sys.collect(pid)
+    local children={}
+    for i,v in ipairs(kernel.currentTask.children) do
+        children[i]=v.pid
+    end
+    if not tasks[tostring(pid)] then
+        return false, "Task does not exist"
+    elseif not isEqualToAny(tasks[tostring(pid)].pid,table.unpack(children)) then
+        return false, "You do not own this task"
+    elseif tasks[tostring(pid)].status~="Z" then
+        return false, "Task must exit to collect status"
+    else
+        tasks[tostring(pid)].reapTime=0
+        return true, tasks[tostring(pid)].exit
+    end
+end
+
+function sys.kill(pid)
+    local children={}
+    for i,v in ipairs(kernel.currentTask.children) do
+        children[i]=v.pid
+    end
+    if not tasks[tostring(pid)] then
+        return false, "Task does not exist"
+    elseif not isEqualToAny(tasks[tostring(pid)].pid,table.unpack(children)) then
+        return false, "You do not own this task"
+    elseif tasks[tostring(pid)].status=="Z" then
+        return false, "Task is already dead"
+    else
+        tasks[tostring(pid)].status="Z"
+        return true
+    end
+end
+
+function sys.stop(pid)
+    local children={}
+    for i,v in ipairs(kernel.currentTask.children) do
+        children[i]=v.pid
+    end
+    if not tasks[tostring(pid)] then
+        return false, "Task does not exist"
+    elseif not isEqualToAny(tasks[tostring(pid)].pid,table.unpack(children)) then
+        return false, "You do not own this task"
+    elseif tasks[tostring(pid)].status~="R" then
+        return false, "Cannot stop non running task"
+    else
+        tasks[tostring(pid)].status="T"
+        return true
+    end
+end
+
+function sys.continue(pid)
+    local children={}
+    for i,v in ipairs(kernel.currentTask.children) do
+        children[i]=v.pid
+    end
+    if not tasks[tostring(pid)] then
+        return false, "Task does not exist"
+    elseif not isEqualToAny(tasks[tostring(pid)].pid,table.unpack(children)) then
+        return false, "You do not own this task"
+    elseif tasks[tostring(pid)].status~="T" then
+        return false, "Task is not stopped"
+    else
+        tasks[tostring(pid)].status="R"
+        return true
+    end
+end
+
+function sys.getPid()
+    return kernel.currentTask.pid
+end
+
 kernel.syscalls["HPV_spawn"]=sys.spawn
 kernel.syscalls["HPV_sleep"]=sys.sleep
+kernel.syscalls["HPV_getTaskInfo"]=sys.getTaskInfo
+kernel.syscalls["HPV_collect"]=sys.collect
+kernel.syscalls["HPV_kill"]=sys.kill
+kernel.syscalls["HPV_stop"]=sys.stop
+kernel.syscalls["HPV_continue"]=sys.continue
+kernel.syscalls["HPV_getPid"]=sys.getPid
 kernel._G.sleep=function(...)coroutine.yield("syscall","HPV_sleep",...)end
 
 local function reapDeadTasks()
@@ -87,8 +201,10 @@ local function reapDeadTasks()
                 kernel.vfs.close(v)
             end
             task.fd = nil
+            task.debugger=nil
+            task.privacy=nil
             task.reapTime = kernel.computer:time() + 30000
-        elseif task.reapTime and kernel.computer:time() > task.reapTime then
+        elseif task.reapTime and kernel.computer:time() > task.reapTime and task.status=="Z" then
             for _,child in ipairs(task.children) do
                 child.parent = tasks["1"]
                 child.siblings = tasks["1"].children
@@ -175,6 +291,9 @@ function kernel.main()
                         if kernel.syscalls[ret[3]] then
                             if kernel.config.debugSyscalls then
                                 kernel.log("Task "..task.pid.." invoking syscall: "..ret[3], "DBUG")
+                                for i=4,#ret do
+                                    kernel.log("  inval["..tostring(i-3).."] = "..tostring(ret[i]), "DBUG")
+                                end
                             end
                             local sysret = {xpcall(kernel.syscalls[ret[3]], debug.traceback, table.unpack(ret, 4))}
                             if kernel.config.debugSyscalls then
@@ -183,7 +302,11 @@ function kernel.main()
                                 else
                                     kernel.log("Task "..task.pid.." syscall "..ret[3].." completed returning "..tostring(#sysret-1).." values", "DBUG")
                                     for i=2,#sysret do
-                                        kernel.log("  retval["..tostring(i-1).."] = "..tostring(sysret[i]), "DBUG")
+                                        if type(sysret[i])=="table" then
+                                            kernel.log("  retval["..tostring(i-1).."] = "..table.serialize(sysret[i]), "DBUG")
+                                        else
+                                            kernel.log("  retval["..tostring(i-1).."] = "..tostring(sysret[i]), "DBUG")
+                                        end
                                     end
                                 end
                             end

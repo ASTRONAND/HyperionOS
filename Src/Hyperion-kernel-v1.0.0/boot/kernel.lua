@@ -38,7 +38,6 @@ end
 
 function kernel.PANIC(msg)
     if kernel.status~="Panic" then
-        kernel.exitMain = true
         kernel.log("PANIC: "..msg, "PANIC")
         pcall(kernel["saveLog"])
         kernel.status="Panic"
@@ -50,6 +49,7 @@ function kernel.PANIC(msg)
         screen:print(LOG_Text)
         screen:print("KERNEL PANIC!\n"..msg.."\nSystem halted.")
         screen:print("Press any key to continue...")
+        kernel.exitMain = true
     end
     while true do
         local event={computer:getMachineEvent()}
@@ -250,4 +250,7 @@ end
 kernel.log("Kernel initialized successfully.")
 kernel.status="running"
 kernel.main()
+if kernel.status=="panic" then
+    kernel.panic()
+end
 kernel.PANIC("Execution complete")

@@ -1,6 +1,4 @@
--- bit32.lua
--- Full pure-Lua implementation of Lua 5.2 bit32 library
--- NO Lua 5.3 operators used
+--:Minify:--
 
 local bit32 = {}
 
@@ -134,18 +132,6 @@ function bit32.replace(x, v, field, width)
     local mask = bit32.lshift(2^width - 1, field)
     x = bit32.band(x, bit32.bnot(mask))
     return bit32.bor(x, bit32.lshift(v, field))
-end
-
--- ===== Test =====
-
-function bit32.test(x, ...)
-    local args = {...}
-    for i = 1, #args do
-        if bit32.band(x, args[i]) ~= 0 then
-            return true
-        end
-    end
-    return false
 end
 
 return bit32

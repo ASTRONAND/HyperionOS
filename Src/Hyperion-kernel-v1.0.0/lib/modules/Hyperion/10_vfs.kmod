@@ -71,13 +71,9 @@ local function allocFD(task)
     return fd
 end
 
+local total=0
 local function checkSystemLimit()
-    -- enforce system-wide limit
-    local total = 0
-    for _, task in pairs(kernel.tasks or {}) do
-        for _ in pairs(task.fd) do total = total + 1 end
-    end
-    if total >= kernel.config.maxOpenFiles then
+    if total >= kernel.config.maxOpenFiles-16 then
         error("ENFILE") -- Too many open files in the system
     end
 end
@@ -100,6 +96,7 @@ function vfs.open(path, mode)
     local file = newFileObject(disk.address, handle, mode, path)
     local fd = allocFD(task)
     task.fd[fd] = file
+    total=total+1
 
     return fd
 end
@@ -114,6 +111,7 @@ function vfs.close(fd)
     if file.refcount == 0 then
         file.handle.close()
     end
+    total=total-1
     return true
 end
 
@@ -182,6 +180,12 @@ function vfs.type(path)
     local disk, diskPath = resolvePath(path)
     if not disk then error("No disk mounted") end
     return disk:type(diskPath)
+end
+
+function vfs.isDirectory(path)
+    local disk, diskPath = resolvePath(path)
+    if not disk then return false end
+    return disk:directoryExists(diskPath)
 end
 
 -- CWD
@@ -274,5 +278,6 @@ kernel.syscalls["VFS_setcwd"]      = vfs.setcwd
 kernel.syscalls["VFS_whereis"]    = vfs.whereis
 kernel.syscalls["VFS_dup"]        = vfs.dup
 kernel.syscalls["VFS_dup2"]       = vfs.dup2
+kernel.syscalls["VFS_isDirectory"]= vfs.isDirectory
 
 kernel.log("VFS module loaded")

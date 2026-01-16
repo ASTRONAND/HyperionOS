@@ -151,45 +151,54 @@ function table.proxy(tbl)
     return createProxy(tbl)
 end
 
-local function serialize(table)
+local function serialize(tbl, seen)
+    seen = seen or {}
+    
+    -- If we've seen this table before, return a placeholder to prevent infinite loops
+    if seen[tbl] then 
+        return '"[Circular Reference]"' 
+    end
+    
+    -- Mark this table as seen
+    seen[tbl] = true
+    
     local output = "{"
-    for i,v in pairs(table) do
-        local coma=true
+    local first = true
+
+    for i, v in pairs(tbl) do
+        -- Handle comma placement more cleanly
+        if not first then
+            output = output .. ","
+        end
+        first = false
+
+        -- Serialize Key
         if type(i) == "string" then
-            output=output.."[\""..i.."\"]="
+            output = output .. "[\"" .. i .. "\"]="
         elseif type(i) == "number" then
-            output=output.."["..tostring(i).."]="
+            output = output .. "[" .. tostring(i) .. "]="
         end
+
+        -- Serialize Value
         if type(v) == "table" then
-            if v == table then
-                output=string.sub(output,1,#output-(#i+1))
-                coma=false
-            else
-                output=output..serialize(v)
-            end
+            -- Pass the 'seen' table down to the recursive call
+            output = output .. serialize(v, seen)
         elseif type(v) == "string" then
-            output=output.."[=["..v.."]=]"
-        elseif type(v) == "number" then
-            output=output..tostring(v)
-        elseif type(v) == "boolean" then
-            if v == true then
-                output=output.."true"
-            else
-                output=output.."false"
-            end
+            output = output .. "[=[" .. v .. "]=]"
+        elseif type(v) == "number" or type(v) == "boolean" then
+            output = output .. tostring(v)
         elseif type(v) == "function" then
-            output=output..tostring(v)
+            output = output .. "\"" .. tostring(v) .. "\""
+        elseif type(v) == "thread" then
+            output = output .. "\"" .. tostring(v) .. "\""
         else
-            error("serialization of type \""..type(v).."\" is not supported")
-        end
-        if coma then
-            output=output..","
+            error("serialization of type \"" .. type(v) .. "\" is not supported")
         end
     end
-    if #table>0 or string.sub(output,#output,#output) == "," then
-        output=string.sub(output,1,#output-1)
-    end
-    output=output.."}"
+
+    seen[tbl] = nil
+    
+    output = output .. "}"
     return output
 end
 

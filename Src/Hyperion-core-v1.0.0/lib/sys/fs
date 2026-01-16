@@ -1,3 +1,4 @@
+--:Minify:--
 local fs={}
 
 -- "VFS_open" : open
@@ -134,6 +135,10 @@ end
 
 function fs.setcwd(path)
     return syscall.VFS_setcwd(path)
+end
+
+function fs.isDir(path)
+    return syscall.VFS_isDirectory(path)
 end
 
 return fs
