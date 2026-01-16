@@ -2,78 +2,41 @@
 syscall.TTY_clear()
 syscall.TTY_setTextColor(1)
 syscall.TTY_setCursorPos(1, 1)
-syscall.TTY_print("HyperionOS Bash Shell")
-local str=""
-local stopInput=false
-local inputIO=syscall.IO_getBoundQueue()
-local pid=syscall.HPV_getPid()
-local proc=0
-local fs=require("sys.fs")
-printInline("> ")
+print("HyperionOS Bash Shell")
+print("")
+
+local preCommandText = "example@testPrompt:~$ "
+
 while true do
-    local event = {syscall.IO_pullEvent()}
-    if event[1] then
-        if not stopInput then
-            if event[1]=="keyTyped" then
-                if event[3]=="\b" then
-                    if #str>0 then
-                        str=str:sub(1,#str-1)
-                        printInline("\b")
-                    end
-                elseif event[3]=="\n" then
+    local command = ""
+    local cursorPos = 1
+    local typingCmd = true
+    while typingCmd do
+        local event = syscall.IO_getEventAny()
+        if event then
+            if event[1] == "keyTyped" then
+                if event[3] == "\n" then
+                    --Enter
                     print("")
-                    stopInput=true
-                    if str == "" then
-                        printInline("> ")
-                        stopInput=false
-                    else
-                        local path=nil
-                        if fs.exists("/bin/"..str) then
-                            path="/bin/"..str
-                        elseif fs.exists("/bin/"..str..".lua") then
-                            path="/bin/"..str..".lua"
-                        end
-                        if not path then
-                            print("Program not found")
-                            printInline("> ")
-                            stopInput=false
-                        else
-                            local text = fs.readAllText(path)
-                            local program, err = load(text, path)
-                            if not program then
-                                print(err)
-                                printInline("> ")
-                            end
-                            syscall.IO_bind("bash:"..tostring(pid))
-                            proc = syscall.HPV_spawn(program, path)
-                            syscall.IO_bind(inputIO)
-                        end
-                        str=""
+                    typingCmd = false
+                elseif event[3] == "\b" then
+                    --Backspace
+                    if cursorPos > 1 then
+                        cursorPos = cursorPos - 1
+                        command = command:sub(1, cursorPos - 1)..command:sub(cursorPos + 1)
                     end
-                else
-                    str=str..event[3]
-                    printInline(event[3])
+                elseif event[3]:sub(1, 1) == "\x1b" then
+                    --Escape Sequence
+                elseif event[3] ~= "\t" and #event[3] == 1 then
+                    --Standard Character
+                    command = command:sub(1, cursorPos - 1)..event[3]..command:sub(cursorPos + 1)
+                    cursorPos = cursorPos + 1
                 end
             end
         end
-    end
-    if stopInput then
-        local exited, code = syscall.HPV_collect(proc)
-        if exited then
-            print("\nTask exited with code:\n"..tostring(code))
-            printInline("> ")
-            stopInput=false
-        else
-            if event[1] then
-                if event[1]=="keyTyped" and event[3]=="^c" then
-                    syscall.HPV_kill(proc)
-                    print("Terminated")
-                    printInline("> ")
-                    stopInput=false
-                else
-                    syscall.IO_pushEvent("bash:"..tostring(pid), table.unpack(event))
-                end
-            end
-        end
+        local _, cursorY = syscall.TTY_getCursorPos()
+        syscall.TTY_setCursorPos(1, cursorY)
+        printInline(preCommandText..command.." ")
+        syscall.TTY_setCursorPos(#preCommandText + cursorPos, cursorY)
     end
 end
