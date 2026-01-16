@@ -34,13 +34,11 @@ local function write(text)
             end
         end
 
-        -- Handle wrapping if we go past right edge
         if x > w then
             x = 1
             y = y + 1
         end
 
-        -- Handle scrolling if we go past bottom
         if y-1 > h then
             term.scroll(1)
             y = h
@@ -63,6 +61,7 @@ local function displaySuperBadError(err)
     while true do end
 end
 
+term.setCursorBlink(false)
 -- Wrap all in xpcall to catch errors
 local ok, err = xpcall(function()
     local apis={BOOT_DRIVE_PATH=BOOT_DRIVE_PATH}
