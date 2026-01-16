@@ -1,5 +1,5 @@
 --:Minify:--
-local BOOT_DRIVE_PATH=... or "/$"
+local BOOT_DRIVE_PATH=({...})[1] or "/$"
 ---@diagnostic disable-next-line: undefined-global
 local term = term
 local os = os
