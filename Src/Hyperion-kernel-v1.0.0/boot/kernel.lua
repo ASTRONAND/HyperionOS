@@ -38,6 +38,7 @@ end
 
 function kernel.PANIC(msg)
     if kernel.status~="Panic" then
+        kernel.exitMain = true
         kernel.log("PANIC: "..msg, "PANIC")
         pcall(kernel["saveLog"])
         kernel.status="Panic"
@@ -50,7 +51,7 @@ function kernel.PANIC(msg)
         screen:print("KERNEL PANIC!\n"..msg.."\nSystem halted.")
         screen:print("Press any key to continue...")
     end
-    while true do 
+    while true do
         local event={computer:getMachineEvent()}
         if event[1]=="keyPressed" then
             break
@@ -117,6 +118,7 @@ if not initCfgFunc then
     kernel.PANIC("Failed to load /boot/boot.cfg: "..tostring(err))
 end
 
+---@diagnostic disable-next-line: param-type-mismatch
 local initCfgStatus, config = pcall(initCfgFunc)
 if not initCfgStatus then
     kernel.PANIC("Error in /boot/boot.cfg: "..tostring(config))
@@ -217,6 +219,14 @@ kernel.kernelTask = {
     numRuns=0
 }
 kernel.currentTask = kernel.kernelTask
+
+function kernel.shutdown()
+    kernel.computer:shutdown()
+end
+
+function kernel.reboot()
+    kernel.computer:reboot()
+end
 
 kernel.syscalls["OS_time"]=function() return kernel.computer:time() end
 kernel.syscalls["OS_log"]=kernel.log

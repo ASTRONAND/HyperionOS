@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global
 -- unpack_tar.lua
 -- Fully working TAR unpacker for ComputerCraft
 -- Handles Windows Explorer TAR bug (duplicated path segments)

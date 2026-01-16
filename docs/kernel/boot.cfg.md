@@ -21,4 +21,9 @@ maxFilesPerTask<num>
 preempt<bool>
     enable/disable preemptive multitasking
 
+debugSyscalls<bool>
+    logs syscalls and thier return values aswell as what task executed them
+
+logTaskExit<bool>
+    logs task exits and errors
 ```

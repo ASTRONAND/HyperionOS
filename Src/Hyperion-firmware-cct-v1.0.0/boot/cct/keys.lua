@@ -1,3 +1,4 @@
+--:Minify:--
 local apis=...
 local keys=apis.keys
 local tKeys = {}

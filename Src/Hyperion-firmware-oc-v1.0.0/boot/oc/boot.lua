@@ -32,6 +32,7 @@ local lua = {
     _G=true
 }
 
+local apis={}
 for i,v in pairs(_G) do
     if not lua[i] or lua[i]==nil then
         apis[i]=v

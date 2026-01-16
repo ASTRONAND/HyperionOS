@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global
 shell.run("unpack Build.tar /")
 shell.run("rm $")
 shell.run("cp Build $")

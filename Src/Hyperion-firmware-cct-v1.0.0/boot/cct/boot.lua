@@ -1,5 +1,6 @@
 --:Minify:--
 local BOOT_DRIVE_PATH="/$"
+---@diagnostic disable-next-line: undefined-global
 local term = term
 local os = os
 -- Function to write text to the terminal with special character handling
@@ -237,6 +238,7 @@ local ok, err = xpcall(function()
 
     -- Make the kernel coroutine so we can hook its execution
     local kernelCoro = coroutine.create(function()
+        ---@diagnostic disable-next-line: param-type-mismatch
         local ok, err = xpcall(Kernel, debug.traceback, apis, initFs, "cct", "/sbin/init", {
             print=function(_,text) write(text.."\n") end,
             printInline=function(_,text) write(text) end,

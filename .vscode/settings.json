@@ -1,0 +1,9 @@
+{
+    "Lua.diagnostics.globals": [
+        "isEqualToAny",
+        "isEqualToAll",
+        "syscall",
+        "printf",
+        "printInline"
+    ]
+}

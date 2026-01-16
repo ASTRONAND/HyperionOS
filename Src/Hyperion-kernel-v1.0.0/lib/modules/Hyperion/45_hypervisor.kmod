@@ -29,7 +29,7 @@ function sys.spawn(func, name, envars, args, tgid)
                 tasks[tostring(id)].exit=err
             end
         end),
-        name=name or "task"..tostring(id),
+        name=name or ("task"..tostring(id)),
         envars=envars or {},
         args=args or {},
         status="R",

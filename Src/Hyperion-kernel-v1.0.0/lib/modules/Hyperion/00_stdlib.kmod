@@ -204,6 +204,7 @@ function type(object, trueType)
     else
         if oldtype(oldgetmetatable(object))=="table" then
             local metatable = oldgetmetatable(object)
+            ---@diagnostic disable-next-line: need-check-nil
             if metatable.__type then return metatable.__type end
         else
             return "table"

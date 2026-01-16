@@ -6,6 +6,13 @@ kernel.processes.keventd = function()
     while true do
         local event = {kernel.computer:getMachineEvent()}
         if event[1] then
+            if event[1]=="keyTyped" then
+                if event[3]=="\x1b^s" then
+                    kernel.shutdown()
+                elseif event[3]=="\x1b^r" then
+                    kernel.reboot()
+                end
+            end
             events.push(event)
         end
     end
