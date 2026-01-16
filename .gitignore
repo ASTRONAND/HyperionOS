@@ -3,3 +3,7 @@
 /build/
 Build/
 build/
+
+# VSCodeCounter
+/.VSCodeCounter/
+.VSCodeCounter/
