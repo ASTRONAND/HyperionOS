@@ -58,14 +58,12 @@ local function allocFD(task)
 end
 
 local function allocFD(task)
-    -- enforce per-task limit
     local count = 0
     for _ in pairs(task.fd) do count = count + 1 end
     if count >= kernel.config.maxFilesPerTask then
-        error("EMFILE") -- Too many open files in this task
+        error("EMFILE")
     end
 
-    -- find first free FD
     local fd = 0
     while task.fd[fd] do fd = fd + 1 end
     return fd
@@ -74,7 +72,7 @@ end
 local total=0
 local function checkSystemLimit()
     if total >= kernel.config.maxOpenFiles-16 then
-        error("ENFILE") -- Too many open files in the system
+        error("ENFILE")
     end
 end
 
