@@ -1,0 +1,10 @@
+{
+    "Name": "HyperionOS Kernel",
+    "Version": "1.0.0",
+    "Publishers": ["HyperionOS Dev Team"],
+    "Description": "The kernel package for HyperionOS.",
+    "Dependencies": [
+        "HyperionOS"
+    ],
+    "Tar": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm/tar/HyperionOS-kernel.tar.gz"
+}

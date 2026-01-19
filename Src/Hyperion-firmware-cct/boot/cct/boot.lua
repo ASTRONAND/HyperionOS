@@ -3,7 +3,6 @@ local BOOT_DRIVE_PATH=({...})[1] or "/$"
 ---@diagnostic disable-next-line: undefined-global
 local term = term
 local os = os
--- Function to write text to the terminal with special character handling
 local function write(text)
     local x, y = term.getCursorPos()
     local w, h = term.getSize()
@@ -49,7 +48,6 @@ local function write(text)
     term.setCursorPos(x, y)
 end
 
--- Function to display critical errors and halt the system
 local function displaySuperBadError(err)
     term.setBackgroundColor(0x1)
     term.setTextColor(0x4)
@@ -62,11 +60,9 @@ local function displaySuperBadError(err)
 end
 
 term.setCursorBlink(false)
--- Wrap all in xpcall to catch errors
 local ok, err = xpcall(function()
     local apis={BOOT_DRIVE_PATH=BOOT_DRIVE_PATH}
 
-    -- List of standard Lua globals
     local lua = {
         coroutine = true,
         debug = true,
@@ -101,7 +97,6 @@ local ok, err = xpcall(function()
         _G=true
     }
 
-    -- Move all non-Lua standard library globals into the apis table
     local debug = debug
     for i,v in pairs(_G) do
         if not lua[i] or lua[i]==nil then
@@ -115,7 +110,6 @@ local ok, err = xpcall(function()
         while stoptime > apis.os.clock() do end
     end
 
-    -- Set up terminal default colors
     apis.term.setPaletteColor(0x1,    0x000000) -- #000000
     apis.term.setPaletteColor(0x2,    0xFFFFFF) -- #FFFFFF
     apis.term.setPaletteColor(0x4,    0xFF0000) -- #FF0000
@@ -133,7 +127,6 @@ local ok, err = xpcall(function()
     apis.term.setPaletteColor(0x4000, 0x6D00FF) -- #6D00FF
     apis.term.setPaletteColor(0x8000, 0xB6FF00) -- #B6FF00
 
-    -- Wrapper to read files
     local function getFile(path)
         local file = apis.fs.open(path, "r")
         if not file then displaySuperBadError("Could not open file: "..path) end
@@ -142,7 +135,6 @@ local ok, err = xpcall(function()
         return content
     end
 
-    -- Load kernel first if it fails, we can't continue so we display an error
     local Kernel = load(getFile(BOOT_DRIVE_PATH.."/boot/kernel.lua"),"@Kernel")
     local initFs = load(getFile(BOOT_DRIVE_PATH.."/boot/cct/initdisks"),"@Init_disks")(apis)
     local fs = load(getFile(BOOT_DRIVE_PATH.."/boot/initfs"),"@InitFs")()
@@ -160,15 +152,12 @@ local ok, err = xpcall(function()
         displaySuperBadError("Could not load key helper.")
     end
 
-    -- Set up event queue
     local eventQueue = {}
 
-    -- Function to queue events
     local function queueEvent(event, ...)
         table.insert(eventQueue, {event, ...})
     end
 
-    -- Set up computer api
     local computer = {
         time = function() return apis.os.epoch("utc") end,
         clock = function() return apis.os.clock()/1000 end,
@@ -191,7 +180,6 @@ local ok, err = xpcall(function()
         end
     }
 
-    -- Set up terminal colors
     local icolors={
         [0x1]    =0,  -- #000000
         [0x2]    =1,  -- #FFFFFF
@@ -235,7 +223,6 @@ local ok, err = xpcall(function()
     apis.term.clear()
     apis.term.setCursorPos(1, 1)
 
-    -- Make the kernel coroutine so we can hook its execution
     local kernelCoro = coroutine.create(function()
         ---@diagnostic disable-next-line: param-type-mismatch
         local ok, err = xpcall(Kernel, debug.traceback, apis, initFs, "cct", "/sbin/init", {
@@ -255,7 +242,7 @@ local ok, err = xpcall(function()
         end
     end)
 
-    -- Diffine a coroutine.resumeWithTimeout function to avoid hanging the system, time is in milliseconds
+    -- time is in milliseconds
     function coroutine.resumeWithTimeout(co, timeout, ...)
         local startTime = computer.time()
         debug.sethook(co, function()
@@ -276,7 +263,6 @@ local ok, err = xpcall(function()
 
     write("Loaded in "..tostring(apis.os.clock()).." seconds.\n")
 
-    -- Main loop to run the kernel coroutine
     while true do
         local status, err = coroutine.resumeWithTimeout(kernelCoro, 50)
         apis.os.queueEvent("NoSleep")

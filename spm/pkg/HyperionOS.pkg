@@ -1,0 +1,10 @@
+{
+    "Name": "HyperionOS",
+    "Version": "1.0.0",
+    "Publishers": ["HyperionOS Dev Team"],
+    "Description": "The install package for HyperionOS project.",
+    "Dependencies": [
+        "HyperionOS-kernel",
+        "HyperionOS-core"
+    ]
+}

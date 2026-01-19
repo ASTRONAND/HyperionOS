@@ -1,0 +1,11 @@
+{
+    "Packages":{
+        "HyperionOS":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm/pkg/HyperionOS.pkg",
+        "HyperionOS-core":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm/pkg/HyperionOS-core.pkg",
+        "HyperionOS-kernel":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm/pkg/HyperionOS-kernel.pkg",
+        "HyperionOS-firmware-cct":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm/pkg/HyperionOS-firmware-cct.pkg",
+        "HyperionOS-firmware-oc":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm/pkg/HyperionOS-firmware-oc.pkg"
+    },
+    "Nodes":[],
+    "Blacklist":[]
+}

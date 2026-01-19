@@ -1,0 +1,10 @@
+{
+    "Name": "HyperionOS OC Firmware",
+    "Version": "1.0.0",
+    "Publishers": ["HyperionOS Dev Team"],
+    "Description": "The OpenComputers firmware package for HyperionOS.",
+    "Dependencies": [
+        "HyperionOS-kernel"
+    ],
+    "Tar": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm/tar/HyperionOS-kernel.tar.gz"
+}

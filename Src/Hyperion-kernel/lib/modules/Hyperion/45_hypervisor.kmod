@@ -30,7 +30,7 @@ function sys.spawn(func, name, envars, args, tgid)
             end
         end),
         name=name or ("task"..tostring(id)),
-        envars=envars or {},
+        envars=envars or kernel.currentTask.envars,
         args=args or {},
         status="R",
         pid=id,
@@ -171,6 +171,22 @@ function sys.getPid()
     return kernel.currentTask.pid
 end
 
+function sys.list()
+    local ret={}
+    for i,_ in ipairs(tasks) do
+        ret[i]=sys.getTaskInfo(i)
+    end
+    return ret
+end
+
+function sys.getEnviron(key)
+    return kernel.currentTask.envars[key]
+end
+
+function sys.setEnviron(key, value)
+    kernel.currentTask.envars[key]=value
+end
+
 kernel.syscalls["HPV_spawn"]=sys.spawn
 kernel.syscalls["HPV_sleep"]=sys.sleep
 kernel.syscalls["HPV_getTaskInfo"]=sys.getTaskInfo
@@ -179,6 +195,9 @@ kernel.syscalls["HPV_kill"]=sys.kill
 kernel.syscalls["HPV_stop"]=sys.stop
 kernel.syscalls["HPV_continue"]=sys.continue
 kernel.syscalls["HPV_getPid"]=sys.getPid
+kernel.syscalls["HPV_list"]=sys.list
+kernel.syscalls["HPV_setEnviron"]=sys.setEnviron
+kernel.syscalls["HPV_getEnviron"]=sys.getEnviron
 kernel._G.sleep=function(...)coroutine.yield("syscall","HPV_sleep",...)end
 
 local function reapDeadTasks()

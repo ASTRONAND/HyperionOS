@@ -1,0 +1,10 @@
+{
+    "Name": "HyperionOS unit tests",
+    "Version": "1.0.0",
+    "Publishers": ["HyperionOS Dev Team"],
+    "Description": "HyperionOS testing units",
+    "Dependencies": [
+        "HyperionOS"
+    ],
+    "Tar": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm/tar/HyperionOS-units.tar.gz"
+}
