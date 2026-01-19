@@ -6,6 +6,8 @@
         "HyperionOS-firmware-cct":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm/pkg/HyperionOS-firmware-cct.pkg",
         "HyperionOS-firmware-oc":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm/pkg/HyperionOS-firmware-oc.pkg"
     },
-    "Nodes":[],
+    "Nodes":[
+        "https://git.astronand.dev/Astronand/HyperionOS-packages/raw/branch/main/spm.src"
+    ],
     "Blacklist":[]
 }
