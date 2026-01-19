@@ -6,8 +6,8 @@ local arch = args[3]
 local screen = args[5]
 local computer = args[6]
 local ifs = args[7]
-local LOG_Text = ""
 local kernel = {}
+kernel.LOG_Text=""
 kernel.process = "Kernel"
 kernel.user = "root"
 kernel.group = "root"
@@ -25,7 +25,7 @@ _G.sleep=nil
 local windowsExp = false
 
 function kernel.log(msg, level)
-    LOG_Text = LOG_Text..tostring(computer:time()).." "..kernel.user.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
+    kernel.LOG_Text = kernel.LOG_Text..tostring(computer:time()).." "..kernel.user.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
     if kernel.status == "start" then
         screen:print(tostring(computer:time()).." "..kernel.user.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
     elseif kernel.status == "init" then
@@ -46,7 +46,7 @@ function kernel.PANIC(msg)
         screen:setBackgroundColor(0)
         screen:clear()
         screen:setCursorPos(1,1)
-        screen:print(LOG_Text)
+        screen:print(kernel.LOG_Text)
         screen:print("KERNEL PANIC!\n"..msg.."\nSystem halted.")
         screen:print("Press any key to continue...")
         kernel.exitMain = true
@@ -142,7 +142,7 @@ end
 kernel.log("Disks initialized")
 
 function kernel.saveLog()
-    ifs.writeAllText("/var/log/syslog.log", LOG_Text)
+    ifs.writeAllText("/var/log/syslog.log", kernel.LOG_Text)
 end
 
 ifs.remove("/tmp")
