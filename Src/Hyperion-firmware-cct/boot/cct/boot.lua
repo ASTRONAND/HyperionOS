@@ -13,6 +13,11 @@ local function write(text)
         if c == "\n" then
             y = y + 1
             x = 1
+            if y-1 >= h then
+                term.scroll(1)
+                y = h
+                term.setCursorPos(x, y)
+            end
         elseif c == "\t" then
             local tabSize = 4
             local spaces = tabSize - ((x - 1) % tabSize)
@@ -38,7 +43,7 @@ local function write(text)
             y = y + 1
         end
 
-        if y-1 > h then
+        if y-1 >= h then
             term.scroll(1)
             y = h
             term.setCursorPos(x, y)
@@ -66,7 +71,6 @@ local ok, err = xpcall(function()
     local lua = {
         coroutine = true,
         debug = true,
-        _HOST = true,
         _VERSION = true,
         assert = true,
         collectgarbage = true,
@@ -160,7 +164,7 @@ local ok, err = xpcall(function()
 
     local computer = {
         time = function() return apis.os.epoch("utc") end,
-        clock = function() return apis.os.clock()/1000 end,
+        clock = function() return apis.os.clock()*1000 end,
         shutdown = apis.os.shutdown,
         reboot = apis.os.reboot,
         getMachineEvent = function()

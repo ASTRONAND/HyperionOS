@@ -29,12 +29,17 @@ for i,v in ipairs(files) do
         else
             syscall.HPV_spawn(function()
                 syscall.IO_bind("eventQueue:"..tostring(i))
-                eventQueues[#eventQueues+1]="eventQueue:"..tostring(i)
+                local spot = #eventQueues+1
+                eventQueues[spot]="eventQueue:"..tostring(i)
                 local status, err = pcall(startupFunc)
                 if not status then
                     kernel.log("Error executing startup script '" .. filepath .. "': " .. err, "ERROR")
                 else
                     kernel.log("Successfully executed startup script: " .. filepath, "INFO")
+                end
+                local event={true}
+                while event[1] do
+                    syscall.IO_pullEvent()
                 end
             end, "startup:" .. v)
         end

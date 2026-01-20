@@ -13,7 +13,7 @@ function sys.spawn(func, name, envars, args, tgid)
             local ok, err = xpcall(func, debug.traceback, table.unpack(args or {}))
             if not ok then
                 if kernel.config.logTaskExit then
-                    kernel.log("Task "..tostring(id).." exited with err: "..tostring(err), "ERROR")
+                    kernel.log("Task "..tostring(id).." exited with err: "..tostring(err), "ERROR", 2)
                 end
                 tasks[tostring(id)].status="Z"
                 tasks[tostring(id)].exit=err
@@ -123,7 +123,7 @@ function sys.kill(pid)
     end
     if not tasks[tostring(pid)] then
         return false, "Task does not exist"
-    elseif not isEqualToAny(tasks[tostring(pid)].pid,table.unpack(children)) then
+    elseif not isEqualToAny(tasks[tostring(pid)].pid,table.unpack(children)) and kernel.uid~=0 then
         return false, "You do not own this task"
     elseif tasks[tostring(pid)].status=="Z" then
         return false, "Task is already dead"
@@ -140,7 +140,7 @@ function sys.stop(pid)
     end
     if not tasks[tostring(pid)] then
         return false, "Task does not exist"
-    elseif not isEqualToAny(tasks[tostring(pid)].pid,table.unpack(children)) then
+    elseif not isEqualToAny(tasks[tostring(pid)].pid,table.unpack(children)) and kernel.uid~=0 then
         return false, "You do not own this task"
     elseif tasks[tostring(pid)].status~="R" then
         return false, "Cannot stop non running task"
@@ -157,7 +157,7 @@ function sys.continue(pid)
     end
     if not tasks[tostring(pid)] then
         return false, "Task does not exist"
-    elseif not isEqualToAny(tasks[tostring(pid)].pid,table.unpack(children)) then
+    elseif not isEqualToAny(tasks[tostring(pid)].pid,table.unpack(children)) and kernel.uid~=0 then
         return false, "You do not own this task"
     elseif tasks[tostring(pid)].status~="T" then
         return false, "Task is not stopped"
@@ -271,6 +271,7 @@ function kernel.main()
                 kernel.vfs.cwd = task.cwd
                 kernel.user = task.user
                 kernel.uid = task.uid
+                kernel.process = task.name
                 N = N + 1
 
                 -- assign adaptive time slice
@@ -298,7 +299,7 @@ function kernel.main()
 
                 -- handle task results
                 if ret[1] == "error" then
-                    kernel.log("processHandlerException: "..ret[2])
+                    kernel.log("processHandlerException: "..ret[2], "ERROR", 2)
                     task.status = "Z"
                     task.exit = "processHandlerException: "..ret[2]
                 elseif ret[1] == "timeout" then
@@ -309,22 +310,22 @@ function kernel.main()
                     if ret[2]=="syscall" then
                         if kernel.syscalls[ret[3]] then
                             if kernel.config.debugSyscalls then
-                                kernel.log("Task "..task.pid.." invoking syscall: "..ret[3], "DBUG")
+                                kernel.log("Task "..task.pid.." invoking syscall: "..ret[3], "DBUG", 5)
                                 for i=4,#ret do
-                                    kernel.log("  inval["..tostring(i-3).."] = "..tostring(ret[i]), "DBUG")
+                                    kernel.log("  inval["..tostring(i-3).."] = "..tostring(ret[i]), "DBUG", 5)
                                 end
                             end
                             local sysret = {xpcall(kernel.syscalls[ret[3]], debug.traceback, table.unpack(ret, 4))}
                             if kernel.config.debugSyscalls then
                                 if not sysret[1] then
-                                    kernel.log("Task "..task.pid.." syscall "..ret[3].." failed: "..tostring(sysret[2]))
+                                    kernel.log("Task "..task.pid.." syscall "..ret[3].." failed: "..tostring(sysret[2]), "ERROR", 2)
                                 else
-                                    kernel.log("Task "..task.pid.." syscall "..ret[3].." completed returning "..tostring(#sysret-1).." values", "DBUG")
+                                    kernel.log("Task "..task.pid.." syscall "..ret[3].." completed returning "..tostring(#sysret-1).." values", "DBUG", 5)
                                     for i=2,#sysret do
                                         if type(sysret[i])=="table" then
-                                            kernel.log("  retval["..tostring(i-1).."] = "..table.serialize(sysret[i]), "DBUG")
+                                            kernel.log("  retval["..tostring(i-1).."] = "..table.serialize(sysret[i]), "DBUG", 5)
                                         else
-                                            kernel.log("  retval["..tostring(i-1).."] = "..tostring(sysret[i]), "DBUG")
+                                            kernel.log("  retval["..tostring(i-1).."] = "..tostring(sysret[i]), "DBUG", 5)
                                         end
                                     end
                                 end

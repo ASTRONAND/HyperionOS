@@ -8,9 +8,11 @@ local computer = args[6]
 local ifs = args[7]
 local kernel = {}
 kernel.LOG_Text=""
+kernel.version="HyperionOS V1.0.0"
 kernel.process = "Kernel"
 kernel.user = "root"
 kernel.group = "root"
+kernel.hostname = "hyperion"
 kernel.groups = {0}
 kernel.uid = 0
 kernel.gid = 0
@@ -24,13 +26,16 @@ kernel.sleep=sleep
 _G.sleep=nil
 local windowsExp = false
 
-function kernel.log(msg, level)
+function kernel.log(msg, level, c)
+    c=c or 12
     kernel.LOG_Text = kernel.LOG_Text..tostring(computer:time()).." "..kernel.user.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
     if kernel.status == "start" then
+        screen:setTextColor(c)
         screen:print(tostring(computer:time()).." "..kernel.user.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
     elseif kernel.status == "init" then
         kernel.standbyTask=kernel.currentTask
         kernel.currentTask=kernel.kernelTask
+        kernel.tty.setTextColor(c)
         kernel.tty.print(tostring(computer:time()).." "..kernel.user.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
         kernel.currentTask=kernel.standbyTask
     end
@@ -109,7 +114,7 @@ local split = function(str, delim, maxResultCountOrNil)
 end
 
 if not ifs.isFile("/boot/boot.cfg") then
-    kernel.log("boot.cfg missing or corrupted!, Attempting to write recovery boot.cfg", "ERROR")
+    kernel.log("boot.cfg missing or corrupted!, Attempting to write recovery boot.cfg", "ERROR", 2)
     ifs.writeAllText("/boot/boot.cfg",ifs.readAllText("/boot/safeboot.cfg"))
 end
 
@@ -230,13 +235,20 @@ end
 
 kernel.syscalls["OS_time"]=function() return kernel.computer:time() end
 kernel.syscalls["OS_log"]=kernel.log
+kernel.syscalls["OS_getUptime"]=function() return kernel.computer:clock() end
+kernel.syscalls["OS_getUser"]=function() return kernel.user end
+kernel.syscalls["OS_getHostname"]=function() return kernel.host end
+kernel.syscalls["OS_getHost"]=function() return kernel.apis._HOST end
+kernel.syscalls["OS_version"]=function() return kernel.version end
+kernel.syscalls["OS_setHostname"]=function(name) if kernel.uid~=0 then error("Permission denied") end kernel.hostname=name end
+kernel.syscalls["OS_setUser"]=function(uid) if kernel.uid~=0 then error("Permission denied") end kernel.currentTask.uid=uid end
 
 kernel.log("Running modules")
 for _,p in ipairs(modules) do
     for _,v in ipairs(p) do
         local code=ifs.readAllText(v)
         if not code then 
-            kernel.log("ModuReadErr: "..v, "WARN") 
+            kernel.log("ModuReadErr: "..v, "WARN", 8) 
             goto skip
         end
         local func,err=load(code,"@"..v)

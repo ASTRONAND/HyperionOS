@@ -63,13 +63,13 @@ tKeys[keys.pageUp] = '\x1b[5~'
 tKeys[keys.pageDown] = '\x1b[6~'
 tKeys[keys.home] = '\x1b[1~'
 tKeys[keys["end"]] = '\x1b[4~'
-tKeys[keys.capsLock] = '\x1b[capsLock'
-tKeys[keys.scrollLock] = '\x1b[scrollLock'
-tKeys[keys.numLock] = '\x1b[numLock'
-if keys.printScreen then
-    tKeys[keys.printScreen] = '\x1b[printScreen'
-end
-tKeys[keys.pause] = '\x1b[pause'
+--tKeys[keys.capsLock] = '\x1b[capsLock'
+--tKeys[keys.scrollLock] = '\x1b[scrollLock'
+--tKeys[keys.numLock] = '\x1b[numLock'
+--if keys.printScreen then
+--    tKeys[keys.printScreen] = '\x1b[printScreen'
+--end
+--tKeys[keys.pause] = '\x1b[pause'
 tKeys[keys.f1] = '\x1b[11~'
 tKeys[keys.f2] = '\x1b[12~'
 tKeys[keys.f3] = '\x1b[13~'
