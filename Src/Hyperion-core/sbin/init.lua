@@ -28,6 +28,7 @@ for i,v in ipairs(files) do
             kernel.log("Error loading startup script '" .. filepath .. "': " .. err, "ERROR")
         else
             syscall.spawn(function()
+                syscall.setuid(1)
                 syscall.IO_bind("eventQueue:"..tostring(i))
                 local spot = #eventQueues+1
                 eventQueues[spot]="eventQueue:"..tostring(i)

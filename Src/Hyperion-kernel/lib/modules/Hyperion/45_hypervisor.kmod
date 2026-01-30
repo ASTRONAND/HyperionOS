@@ -207,6 +207,11 @@ function sys.exit(code)
     end
 end
 
+function sys.setuid(uid)
+    if kernel.uid~=0 then error("EACCES") end
+    kernel.currentTask.uid=uid
+end
+
 local sysc=kernel.syscalls
 sysc["spawn"]=sys.spawn
 sysc["sleep"]=sys.sleep
@@ -221,6 +226,7 @@ sysc["getTasks"]=sys.getTasks
 sysc["setEnviron"]=sys.setEnviron
 sysc["getEnviron"]=sys.getEnviron
 sysc["exit"]=sys.exit
+sysc["setuid"]=sys.setuid
 kernel._G.sleep=function(...)coroutine.yield("syscall","sleep",...)end
 
 local function reapDeadTasks()
@@ -291,7 +297,6 @@ function kernel.main()
             end
             if task.status == "R" then
                 kernel.currentTask = task
-                kernel.vfs.cwd = task.cwd
                 kernel.user = task.user
                 kernel.uid = task.uid
                 kernel.process = task.name
