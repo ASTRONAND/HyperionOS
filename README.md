@@ -10,6 +10,15 @@
 ---
 
 ## Build requirements
-* **Source:** None it builds directly in vs-code, altough it is the biggest build method it gives the most readability 
+* **Source:** None it builds directly in vs-code, altough it is the biggest build method it gives the most readability
+
+* **Minifyed:** You need node.js and luamin
+
+---
 
 ## Contributing
+* **Credit:** if you contributed feel free to add your name to contributors.md
+---
+
+## Rules/guidelines
+* **AI:** AI **stays out of the kernel** you may use AI to create tests and for debugging. if it is not important you may use AI.

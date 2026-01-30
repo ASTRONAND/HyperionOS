@@ -9,7 +9,7 @@ local inputIO=syscall.IO_getBoundQueue()
 local pid=syscall.getpid()
 local proc=0
 local fs=require("sys.fs")
-local timeout=1
+local timeout=false
 printInline("> ")
 while true do
     local event = {syscall.IO_pullEvent()}
@@ -57,6 +57,9 @@ while true do
                 end
             end
         end
+        timeout=false
+    else
+        timeout=true
     end
     if stopInput then
         local exited, code = syscall.collect(proc)
@@ -77,13 +80,10 @@ while true do
                 else
                     syscall.IO_pushEvent("bash:"..tostring(pid), table.unpack(event))
                 end
-                timeout=10
-            else
-                timeout=timeout-1
-            end
-            if timeout<0 then
-                sleep(.05)
             end
         end
+    end
+    if timeout then
+        sleep(.05)
     end
 end

@@ -1,0 +1,1 @@
+syscall.chown("/bin", 0, 0)

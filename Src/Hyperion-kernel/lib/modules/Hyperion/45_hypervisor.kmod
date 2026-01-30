@@ -64,9 +64,9 @@ function sys.spawn(func, name, envars, args, tgid)
     return id
 end
 
-function sys.sleep(ms)
+function sys.sleep(s)
     kernel.currentTask.status="S"
-    kernel.currentTask.sleep=kernel.computer:time()+ms
+    kernel.currentTask.sleep=kernel.computer:time()+s*1000
     coroutine.yield()
 end
 

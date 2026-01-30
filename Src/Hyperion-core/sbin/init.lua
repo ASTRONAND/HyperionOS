@@ -46,18 +46,18 @@ for i,v in ipairs(files) do
     end
 end
 
-local timeout=1
+local timeout=false
 while true do
     local event = {syscall.IO_pullEvent()}
     if event[1] then
         for i,v in ipairs(eventQueues) do
             syscall.IO_pushEvent(v, table.unpack(event))
         end
-        timeout=10
+        timeout=false
     else
-        timeout=timeout-1
+        timeout=true
     end
-    if timeout<0 then
+    if timeout then
         sleep(.05)
     end
     kernel.saveLog()

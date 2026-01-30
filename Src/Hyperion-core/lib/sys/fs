@@ -133,8 +133,8 @@ function fs.getcwd()
     return syscall.getcwd()
 end
 
-function fs.setcwd(path)
-    return syscall.setcwd(path)
+function fs.chdir(path)
+    return syscall.chdir(path)
 end
 
 function fs.isDir(path)

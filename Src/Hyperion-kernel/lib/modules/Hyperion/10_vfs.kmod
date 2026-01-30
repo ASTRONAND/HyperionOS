@@ -71,24 +71,34 @@ end
 
 -- Parse metafile
 local function parseMetafile(file)
-    local ret={}
-    local pointer=1
+    if not file or file == "" then
+        return {}
+    end
+
+    local ret = {}
+    local pointer = 1
+
     while pointer <= #file do
         local namelen = file:byte(pointer)
         pointer = pointer + 1
+
         local name = file:sub(pointer, pointer + namelen - 1)
         pointer = pointer + namelen
+
         local owner = file:byte(pointer)
-        local group = file:byte(pointer+1)
-        local perms = file:byte(pointer+2)
+        local group = file:byte(pointer + 1)
+        local perms = file:byte(pointer + 2)
         pointer = pointer + 3
+
         local cmetalen = file:byte(pointer)
         pointer = pointer + 1
+
         local cmeta = ""
         if cmetalen > 0 then
             cmeta = file:sub(pointer, pointer + cmetalen - 1)
             pointer = pointer + cmetalen
         end
+
         ret[name] = {
             owner = owner,
             group = group,
@@ -96,6 +106,7 @@ local function parseMetafile(file)
             cmeta = cmeta
         }
     end
+
     return ret
 end
 
@@ -112,34 +123,72 @@ local function makeMetafile(meta)
     return file
 end
 
--- Get metafile path and target
-local function getMeta(path)
-    local disk, newPath = resolvePath(path)
-
-    while newPath ~= "/" and newPath~="" do
-        local target = newPath:match("([^/]+)/?$")
-        if target == ".meta" then error("Cannot open metafile") end
-        if disk:fileExists(newPath .. ".meta") then
-            return newPath .. ".meta", target
-        end
-        newPath = newPath:gsub("/[^/]+/?$", "")
-    end
-
-    return nil
-end
-
 -- Get file metadata object
 local function getFileMeta(path)
-    local mpath, target = getMeta(path)
-    if not mpath then
-        return { owner=0, group=0, perms=62, cmeta="" }
+    local disk, fullPath = resolvePath(path)
+    fullPath = normalizePath(fullPath)
+
+    local parts = {}
+    for p in fullPath:gmatch("[^/]+") do
+        table.insert(parts, p)
     end
-    local disk, _ = resolvePath(mpath)
-    local file = disk:open(mpath, "r")
-    local text = file.read(65535)
-    file.close()
-    return parseMetafile(text)[target]
+
+    -- default fallback
+    local default = { owner=0, group=0, perms=62, cmeta="" }
+
+    -- walk from deepest parent upward
+    for i = #parts, 1, -1 do
+        local parent = "/" .. table.concat(parts, "/", 1, i-1)
+        if parent ~= "/" then parent = parent .. "/" end
+
+        local target = parts[i]
+        local metaPath = parent .. ".meta"
+
+        if disk:fileExists(metaPath) then
+            local f = disk:open(metaPath, "r")
+            local text = f.read(65535)
+            f.close()
+
+            local parsed = parseMetafile(text)
+            if parsed[target] then
+                return parsed[target]
+            end
+        end
+    end
+
+    return default
 end
+
+local function ensureParentMeta(path)
+    local disk, fullPath = resolvePath(path)
+    fullPath = normalizePath(fullPath)
+
+    -- split parent + name
+    local parent, name = fullPath:match("^(.*)/([^/]+)$")
+    if not parent then
+        parent = "/"
+        name = fullPath:gsub("^/", "")
+    end
+
+    if name == ".meta" then
+        error("Cannot open metafile")
+    end
+
+    if parent ~= "/" and parent:sub(-1) ~= "/" then
+        parent = parent .. "/"
+    end
+
+    local metaPath = parent .. ".meta"
+
+    if not disk:fileExists(metaPath) then
+        local f = disk:open(metaPath, "w")
+        f.write("")
+        f.close()
+    end
+
+    return metaPath, name
+end
+
 
 -- Permission checking
 local function checkperms(meta, mode)
@@ -376,19 +425,23 @@ function vfs.chmod(path, perms)
     local disk, diskPath = resolvePath(path)
     local meta = getFileMeta(path)
     checkperms(meta, "w")
+
     meta.perms = perms
-    local mpath, target = getMeta(path)
-    if mpath then
-        local mf = disk:open(mpath,"r")
-        local text = mf.read(65535)
-        mf.close()
-        local parsed = parseMetafile(text)
-        parsed[target] = meta
-        local file = disk:open(mpath,"w")
-        file.write(makeMetafile(parsed))
-        file.close()
-    end
+
+    local mpath, target = ensureParentMeta(path)
+
+    local mf = disk:open(mpath, "r")
+    local text = mf.read(65535)
+    mf.close()
+
+    local parsed = parseMetafile(text)
+    parsed[target] = meta
+
+    local f = disk:open(mpath, "w")
+    f.write(makeMetafile(parsed))
+    f.close()
 end
+
 
 function vfs.fchmod(fd, perms)
     local task = kernel.currentTask
@@ -401,20 +454,24 @@ function vfs.chown(path, uid, gid)
     local disk, diskPath = resolvePath(path)
     local meta = getFileMeta(path)
     checkperms(meta, "w")
+
     meta.owner = uid
     meta.group = gid
-    local mpath, target = getMeta(path)
-    if mpath then
-        local mf = disk:open(mpath,"r")
-        local text = mf.read(65535)
-        mf.close()
-        local parsed = parseMetafile(text)
-        parsed[target] = meta
-        local file = disk:open(mpath,"w")
-        file.write(makeMetafile(parsed))
-        file.close()
-    end
+
+    local mpath, target = ensureParentMeta(path)
+
+    local mf = disk:open(mpath, "r")
+    local text = mf.read(65535)
+    mf.close()
+
+    local parsed = parseMetafile(text)
+    parsed[target] = meta
+
+    local f = disk:open(mpath, "w")
+    f.write(makeMetafile(parsed))
+    f.close()
 end
+
 
 function vfs.fchown(fd, uid, gid)
     local task = kernel.currentTask
