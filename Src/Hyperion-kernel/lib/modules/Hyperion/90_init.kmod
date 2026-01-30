@@ -2,14 +2,12 @@
 local kernel = ...
 kernel.log("Loading init system...")
 kernel.log("InitPath: "..kernel.config.initPath)
-local handle = kernel.vfs.open(kernel.config.initPath, "r")
-kernel.log("O")
-local data = kernel.vfs.read(handle, 1024 * 1024 * 4)
-kernel.log("R")
-kernel.vfs.close(handle)
-kernel.log("C")
 
-local initFunc, err = load(data, "@sysinit")
+local handle = kernel.vfs.open(kernel.config.initPath, "r")
+local data = kernel.vfs.read(handle, 1024 * 1024 * 4)
+kernel.vfs.close(handle)
+
+local initFunc, err = load(data, "@sysinit", "t", kernel._U)
 if not initFunc then
     error("Failed to load init system: "..err)
 end

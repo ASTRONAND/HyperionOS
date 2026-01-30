@@ -114,15 +114,15 @@ function fs.remove(path)
 end
 
 function fs.list(path)
-    return syscall.list(path)
+    return syscall.listdir(path)
 end
 
 function fs.type(path)
     return syscall.type(path)
 end
 
-function fs.attributes(path)
-    return syscall.attributes(path)
+function fs.stat(path)
+    return syscall.stat(path)
 end
 
 function fs.exists(path)

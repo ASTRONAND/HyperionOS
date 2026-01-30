@@ -6,9 +6,10 @@ syscall.TTY_print("HyperionOS Bash Shell")
 local str=""
 local stopInput=false
 local inputIO=syscall.IO_getBoundQueue()
-local pid=syscall.HPV_getPid()
+local pid=syscall.getpid()
 local proc=0
 local fs=require("sys.fs")
+local timeout=1
 printInline("> ")
 while true do
     local event = {syscall.IO_pullEvent()}
@@ -45,7 +46,7 @@ while true do
                                 printInline("> ")
                             end
                             syscall.IO_bind("bash:"..tostring(pid))
-                            proc = syscall.HPV_spawn(program, path)
+                            proc = syscall.spawn(program, path)
                             syscall.IO_bind(inputIO)
                         end
                         str=""
@@ -58,7 +59,7 @@ while true do
         end
     end
     if stopInput then
-        local exited, code = syscall.HPV_collect(proc)
+        local exited, code = syscall.collect(proc)
         if exited then
             print("\nTask exited with code:\n"..tostring(code))
             printInline("> ")
@@ -66,16 +67,22 @@ while true do
         else
             if event[1] then
                 if event[1]=="keyTyped" and event[3]=="^c" then
-                    syscall.HPV_kill(proc)
+                    syscall.kill(proc)
                     print("Terminated")
                     printInline("> ")
                     stopInput=false
                 elseif event[1]=="keyTyped" and event[3]=="^d" then
-                    syscall.HPV_kill(proc)
-                    syscall.HPV_exit(0)
+                    syscall.kill(proc)
+                    syscall.exit(0)
                 else
                     syscall.IO_pushEvent("bash:"..tostring(pid), table.unpack(event))
                 end
+                timeout=10
+            else
+                timeout=timeout-1
+            end
+            if timeout<0 then
+                sleep(.05)
             end
         end
     end

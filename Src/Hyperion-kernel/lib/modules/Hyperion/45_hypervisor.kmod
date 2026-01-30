@@ -70,7 +70,7 @@ function sys.sleep(ms)
     coroutine.yield()
 end
 
-function sys.getTaskInfo(pid)
+function sys.getTask(pid)
     if tasks[tostring(pid)] then
         local task = tasks[tostring(pid)]
         local children = {}
@@ -169,14 +169,18 @@ function sys.continue(pid)
     end
 end
 
-function sys.getPid()
+function sys.getpid()
     return kernel.currentTask.pid
 end
 
-function sys.list()
+function sys.getppid()
+    return kernel.currentTask.parent.pid
+end
+
+function sys.getTasks()
     local ret={}
-    for i,_ in pairs(tasks) do
-        ret[i]=sys.getTaskInfo(i)
+    for i,v in pairs(tasks) do
+        ret[i]=v.pid
     end
     return ret
 end
@@ -203,18 +207,20 @@ function sys.exit(code)
     end
 end
 
-kernel.syscalls["spawn"]=sys.spawn
-kernel.syscalls["sleep"]=sys.sleep
-kernel.syscalls["getTaskInfo"]=sys.getTaskInfo
-kernel.syscalls["collect"]=sys.collect
-kernel.syscalls["kill"]=sys.kill
-kernel.syscalls["stop"]=sys.stop
-kernel.syscalls["continue"]=sys.continue
-kernel.syscalls["getPid"]=sys.getPid
-kernel.syscalls["list"]=sys.list
-kernel.syscalls["setEnviron"]=sys.setEnviron
-kernel.syscalls["getEnviron"]=sys.getEnviron
-kernel.syscalls["exit"]=sys.exit
+local sysc=kernel.syscalls
+sysc["spawn"]=sys.spawn
+sysc["sleep"]=sys.sleep
+sysc["getTask"]=sys.getTask
+sysc["collect"]=sys.collect
+sysc["kill"]=sys.kill
+sysc["stop"]=sys.stop
+sysc["continue"]=sys.continue
+sysc["getpid"]=sys.getpid
+sysc["getppid"]=sys.getppid
+sysc["getTasks"]=sys.getTasks
+sysc["setEnviron"]=sys.setEnviron
+sysc["getEnviron"]=sys.getEnviron
+sysc["exit"]=sys.exit
 kernel._G.sleep=function(...)coroutine.yield("syscall","sleep",...)end
 
 local function reapDeadTasks()

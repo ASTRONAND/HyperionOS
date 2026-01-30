@@ -1,3 +1,4 @@
+--:Minify:--
 local kernel = ...
 local vfs = {}
 kernel.vfs=vfs
@@ -115,17 +116,13 @@ end
 local function getMeta(path)
     local disk, newPath = resolvePath(path)
 
-    kernel.log(newPath)
     while newPath ~= "/" and newPath~="" do
         local target = newPath:match("([^/]+)/?$")
-        kernel.log(target)
         if target == ".meta" then error("Cannot open metafile") end
         if disk:fileExists(newPath .. ".meta") then
             return newPath .. ".meta", target
         end
         newPath = newPath:gsub("/[^/]+/?$", "")
-        kernel.log(newPath)
-        kernel.saveLog()
     end
 
     return nil
@@ -430,7 +427,22 @@ function vfs.exists(path)
     local disk, diskPath = resolvePath(path)
     local meta = getFileMeta(path)
     checkperms(meta, "r")
-    disk:fileExists(diskPath)
+    return disk:fileExists(diskPath)
+end
+
+function vfs.type(path)
+    local disk, diskPath = resolvePath(path)
+    local meta = getFileMeta(path)
+    checkperms(meta, "r")
+    return disk:type(diskPath)
+end
+
+function vfs.getcwd()
+    return kernel.currentTask.cwd
+end
+
+function vfs.chdir(path)
+    kernel.currentTask.cwd=path
 end
 
 -- Export syscalls
@@ -453,9 +465,9 @@ sys["chmod"] = vfs.chmod
 sys["fchmod"] = vfs.fchmod
 sys["chown"] = vfs.chown
 sys["fchown"] = vfs.fchown
-sys["exists"]=vfs.exists
+sys["exists"] = vfs.exists
+sys["type"] = vfs.type
 sys["mount"]  = vfs.mount
 sys["umount"] = vfs.umount
 
 kernel.log("VFS module loaded")
-return vfs

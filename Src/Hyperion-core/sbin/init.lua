@@ -27,7 +27,7 @@ for i,v in ipairs(files) do
         if not startupFunc then
             kernel.log("Error loading startup script '" .. filepath .. "': " .. err, "ERROR")
         else
-            syscall.HPV_spawn(function()
+            syscall.spawn(function()
                 syscall.IO_bind("eventQueue:"..tostring(i))
                 local spot = #eventQueues+1
                 eventQueues[spot]="eventQueue:"..tostring(i)
@@ -38,20 +38,27 @@ for i,v in ipairs(files) do
                     kernel.log("Successfully executed startup script: " .. filepath, "INFO")
                 end
                 local event={true}
-                while event[1] do
-                    syscall.IO_pullEvent()
+                while #event~=0 do
+                    event={syscall.IO_pullEvent()}
                 end
             end, "startup:" .. v)
         end
     end
 end
 
+local timeout=1
 while true do
     local event = {syscall.IO_pullEvent()}
     if event[1] then
         for i,v in ipairs(eventQueues) do
             syscall.IO_pushEvent(v, table.unpack(event))
         end
+        timeout=10
+    else
+        timeout=timeout-1
+    end
+    if timeout<0 then
+        sleep(.05)
     end
     kernel.saveLog()
 end
