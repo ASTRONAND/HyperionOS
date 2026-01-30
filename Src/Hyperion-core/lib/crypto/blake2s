@@ -1,3 +1,4 @@
+--:Minify:--
 -- blake2s.lua
 -- Pure Lua 5.2, 32-bit only, supports keyed hashing
 

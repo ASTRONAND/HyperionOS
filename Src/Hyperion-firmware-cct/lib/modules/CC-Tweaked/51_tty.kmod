@@ -116,14 +116,12 @@ local function write(text, term)
             end
         end
 
-        -- Handle wrapping if we go past right edge
         if x > w then
             x = 1
             y = y + 1
         end
 
-        -- Handle scrolling if we go past bottom
-        if y-1 > h then
+        if y-1 >= h then
             term.scroll(1)
             y = h
             term.setCursorPos(x, y)
@@ -175,8 +173,10 @@ for _, name in ipairs(getNames()) do
     local t = getType(name)
     if t == "monitor" then
         local monitorTerm = wrapPeripheral(name)
+        if not monitorTerm then
+            error("Failed to wrap monitor peripheral")
+        end
         monitorTerm.setTextScale(0.5)
         kernel.tty.register(name, newTTY(monitorTerm))
     end
 end
-

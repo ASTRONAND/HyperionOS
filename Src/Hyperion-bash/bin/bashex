@@ -70,6 +70,9 @@ while true do
                     print("Terminated")
                     printInline("> ")
                     stopInput=false
+                elseif event[1]=="keyTyped" and event[3]=="^d" then
+                    syscall.HPV_kill(proc)
+                    syscall.HPV_exit(0)
                 else
                     syscall.IO_pushEvent("bash:"..tostring(pid), table.unpack(event))
                 end

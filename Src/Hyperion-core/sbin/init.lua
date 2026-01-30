@@ -6,7 +6,7 @@ syscall.IO_bind("raw")
 
 for i,v in pairs(kernel.processes) do
     kernel.log("Spawning kernel task "..i)
-    syscall.HPV_spawn(function()
+    syscall.spawn(function()
         local status, err = pcall(v)
         if not status then
             kernel.log("Error executing kernel task '" .. i .. "': " .. err, "ERROR")

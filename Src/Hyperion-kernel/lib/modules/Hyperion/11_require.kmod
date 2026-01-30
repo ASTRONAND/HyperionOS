@@ -1,7 +1,7 @@
 --:Minify:--
 local kernel = ...
 local cache = {}
-local searchpaths = {
+kernel.searchpaths = {
     "/lib/?.lua",
     "/lib/?",
     "/usr/lib/?.lua",
@@ -18,7 +18,7 @@ function require(module,...)
     end
     local modpath = module:gsub("%.", "/")
     local failed = {}
-    for _, path in ipairs(searchpaths) do
+    for _, path in ipairs(kernel.searchpaths) do
         local full_path = string.gsub(path, "%?", modpath)
         if full_path:sub(1,1)~="/" then
             full_path=kernel.currentTask.cwd..full_path

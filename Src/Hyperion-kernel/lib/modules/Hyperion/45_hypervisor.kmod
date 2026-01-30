@@ -16,7 +16,9 @@ function sys.spawn(func, name, envars, args, tgid)
                     kernel.log("Task "..tostring(id).." exited with err: "..tostring(err), "ERROR", 2)
                 end
                 tasks[tostring(id)].status="Z"
-                tasks[tostring(id)].exit=err
+                if type(err)=="number" then
+                    tasks[tostring(id)].exit=err
+                end
             else
                 if kernel.config.logTaskExit then
                     if err then
@@ -26,7 +28,9 @@ function sys.spawn(func, name, envars, args, tgid)
                     end
                 end
                 tasks[tostring(id)].status="Z"
-                tasks[tostring(id)].exit=err
+                if type(err)=="number" then
+                    tasks[tostring(id)].exit=err
+                end
             end
         end),
         name=name or ("task"..tostring(id)),
@@ -79,8 +83,6 @@ function sys.getTaskInfo(pid)
         end
         return {
             name=task.name,
-            envars=table.deepcopy(task.envars),
-            args=table.deepcopy(task.args),
             status=task.status,
             pid=task.pid,
             tgid=task.tgid,
@@ -173,7 +175,7 @@ end
 
 function sys.list()
     local ret={}
-    for i,_ in ipairs(tasks) do
+    for i,_ in pairs(tasks) do
         ret[i]=sys.getTaskInfo(i)
     end
     return ret
@@ -187,18 +189,33 @@ function sys.setEnviron(key, value)
     kernel.currentTask.envars[key]=value
 end
 
-kernel.syscalls["HPV_spawn"]=sys.spawn
-kernel.syscalls["HPV_sleep"]=sys.sleep
-kernel.syscalls["HPV_getTaskInfo"]=sys.getTaskInfo
-kernel.syscalls["HPV_collect"]=sys.collect
-kernel.syscalls["HPV_kill"]=sys.kill
-kernel.syscalls["HPV_stop"]=sys.stop
-kernel.syscalls["HPV_continue"]=sys.continue
-kernel.syscalls["HPV_getPid"]=sys.getPid
-kernel.syscalls["HPV_list"]=sys.list
-kernel.syscalls["HPV_setEnviron"]=sys.setEnviron
-kernel.syscalls["HPV_getEnviron"]=sys.getEnviron
-kernel._G.sleep=function(...)coroutine.yield("syscall","HPV_sleep",...)end
+function sys.exit(code)
+    if kernel.config.logTaskExit then
+        if code then
+            kernel.log("Task "..tostring(kernel.currentTask.pid).." exited with code: "..tostring(code), "INFO")
+        else
+            kernel.log("Task "..tostring(kernel.currentTask.pid).." exited without code", "INFO")
+        end
+    end
+    tasks[tostring(kernel.currentTask.pid)].status="Z"
+    if type(code)=="number" then
+        tasks[tostring(kernel.currentTask.pid)].exit=code
+    end
+end
+
+kernel.syscalls["spawn"]=sys.spawn
+kernel.syscalls["sleep"]=sys.sleep
+kernel.syscalls["getTaskInfo"]=sys.getTaskInfo
+kernel.syscalls["collect"]=sys.collect
+kernel.syscalls["kill"]=sys.kill
+kernel.syscalls["stop"]=sys.stop
+kernel.syscalls["continue"]=sys.continue
+kernel.syscalls["getPid"]=sys.getPid
+kernel.syscalls["list"]=sys.list
+kernel.syscalls["setEnviron"]=sys.setEnviron
+kernel.syscalls["getEnviron"]=sys.getEnviron
+kernel.syscalls["exit"]=sys.exit
+kernel._G.sleep=function(...)coroutine.yield("syscall","sleep",...)end
 
 local function reapDeadTasks()
     for pid, task in pairs(tasks) do
@@ -216,7 +233,7 @@ local function reapDeadTasks()
             task.timeSlice = nil
             task.syscallReturn = nil
             task.sleep = nil
-            for k,v in pairs(task.fd) do
+            for v,_ in ipairs(task.fd) do
                 kernel.vfs.close(v)
             end
             task.fd = nil

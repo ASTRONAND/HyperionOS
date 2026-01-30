@@ -233,28 +233,31 @@ function kernel.reboot()
     kernel.computer:reboot()
 end
 
-kernel.syscalls["OS_time"]=function() return kernel.computer:time() end
-kernel.syscalls["OS_log"]=kernel.log
-kernel.syscalls["OS_getUptime"]=function() return kernel.computer:clock() end
-kernel.syscalls["OS_getUser"]=function() return kernel.user end
-kernel.syscalls["OS_getHostname"]=function() return kernel.host end
-kernel.syscalls["OS_getHost"]=function() return kernel.apis._HOST end
-kernel.syscalls["OS_version"]=function() return kernel.version end
-kernel.syscalls["OS_setHostname"]=function(name) if kernel.uid~=0 then error("Permission denied") end kernel.hostname=name end
-kernel.syscalls["OS_setUser"]=function(uid) if kernel.uid~=0 then error("Permission denied") end kernel.currentTask.uid=uid end
+kernel.syscalls["time"]=function() return kernel.computer:time() end
+kernel.syscalls["log"]=kernel.log
+kernel.syscalls["getUptime"]=function() return kernel.computer:clock() end
+kernel.syscalls["getUser"]=function() return kernel.user end
+kernel.syscalls["getHostname"]=function() return kernel.host end
+kernel.syscalls["getHost"]=function() return kernel.apis._HOST end
+kernel.syscalls["version"]=function() return kernel.version end
+kernel.syscalls["setHostname"]=function(name) if kernel.uid~=0 then error("Permission denied") end kernel.hostname=name end
+kernel.syscalls["setUser"]=function(uid) if kernel.uid~=0 then error("Permission denied") end kernel.currentTask.uid=uid end
+kernel.syscalls["test"]=function() return true end
 
 kernel.log("Running modules")
 for _,p in ipairs(modules) do
     for _,v in ipairs(p) do
+        if kernel.config.showModLoad then kernel.log("Loading module "..v, "DBUG") end
         local code=ifs.readAllText(v)
-        if not code then 
-            kernel.log("ModuReadErr: "..v, "WARN", 8) 
+        if not code then
+            kernel.log("ModuReadErr: "..v, "WARN", 8)
             goto skip
         end
         local func,err=load(code,"@"..v)
         if not func then kernel.panic("ModuLoadErr: "..tostring(err)) goto skip end
         local status, err = xpcall(func,debug.traceback, kernel)
         if not status then kernel.panic("ModuRunErr: "..tostring(err)) end
+        if kernel.config.showModLoad then kernel.log("Loaded module "..v, "DBUG") end
         ::skip::
     end
 end

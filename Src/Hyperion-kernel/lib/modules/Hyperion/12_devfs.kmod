@@ -1,173 +1,173 @@
 --:Minify:--
-local kernel = ...
-
-local proxy = {}
-local data = {}
-
-proxy.address = "devfs0000"
-proxy.isReadOnly = false
-proxy.spaceUsed = function() return 0 end
-proxy.spaceTotal = function() return 0 end
-proxy.makeDirectory = function() error("Permission denied") end
-proxy.remove = function() error("Permission denied") end
-proxy.setLabel = function() error("Permission denied") end
-proxy.getLabel = function() return "devfs" end
-proxy.attributes = function(path) return {
-    type = proxy.type(path),
-    isReadOnly = false,
-    size = 0,
-    lastModified = 0,
-    created = 0,
-    Permissions = "666",
-    owner = "root",
-    group = "root"
-} end
-
-local function getNode(path)
-    local parts = string.split(path, "/")
-    if parts[1] == "" then
-        table.remove(parts, 1)
-    end
-
-    local node = data
-    for _, part in ipairs(parts) do
-        if node[part] then
-            node = node[part]
-        else
-            return nil
-        end
-    end
-
-    return node
-end
-
-proxy.type = function(path)
-    local node = getNode(path)
-    if node then
-        return node.type
-    else
-        return nil
-    end
-end
-
-proxy.list = function(path)
-    local node = getNode(path)
-    if node and node.type == "directory" then
-        local content = table.keys(node)
-        table.remove(content, table.indexOf(content, "type"))
-        return content
-    else
-        error("Not a directory")
-    end
-end
-
-proxy.open = function(path, mode)
-    local node = getNode(path)
-    if node and (node.type == "file" or node.type == "character device") then
-        if mode == "r" then
-            return {
-                read = node.read,
-                close = function() end
-            }
-        elseif mode == "w" then
-            return {
-                write = node.write,
-                close = function() end
-            }
-        else
-            error("Invalid mode")
-        end
-    else
-        error("Not a file"..type(node))
-    end
-end
-
-local function newStringFile(content)
-    return {
-        type = "file",
-        read = function() return content end,
-        write = function(newContent) content = newContent end
-    }
-end
-
-local function newDirectory()
-    return {
-        type = "directory"
-    }
-end
-
-data["random"] = {
-    type = "character device",
-    read = function(amount)
-        local result = ""
-        for _ = 1, amount do
-            result = result .. string.char(math.random(0, 255))
-        end
-        return result
-    end,
-    write = function() error("Permission denied") end
-}
-
-data["null"] = {
-    type = "character device",
-    read = function() return "" end,
-    write = function() end
-}
-
-data["zero"] = {
-    type = "character device",
-    read = function(amount)
-        return string.rep("\0", amount)
-    end,
-    write = function() error("Permission denied") end
-}
-
-data["rtc"] = {
-    type = "character device",
-    read = function() return kernel.computer:time() end,
-    write = function() error("Permission denied") end
-}
-
-data["rtc0"] = {
-    type = "character device",
-    read = function() return kernel.computer:time() end,
-    write = function() error("Permission denied") end
-}
-
-data["eeprom"] = {
-    type = "character device",
-    read = function() return kernel.computer:getEEPROM() end,
-    write = function(data)
-        if kernel.uid ~= 0 then
-            error("Permission denied")
-        end
-        kernel.computer:setEEPROM(data)
-    end
-}
-
-local keyboard = kernel.newFifo()
-local mouse = kernel.newFifo()
-data["input"] = newDirectory()
-data["input"]["keyboard"] = {
-    type = "pipe",
-    read = function(amount)
-        return keyboard.pop()
-    end,
-    write = function() error("Permission denied") end
-}
-data["input"]["mouse"] = {
-    type = "pipe",
-    read = function(amount)
-        return mouse.pop()
-    end,
-    write = function() error("Permission denied") end
-}
-
-data["pts"] = newDirectory()
-
-kernel.devfs = {}
-kernel.devfs.keyboard = keyboard
-kernel.devfs.mouse = mouse
-kernel.devfs.proxy = proxy
-kernel.devfs.data = data
-kernel.vfs.virtdisk(proxy)
+--local kernel = ...
+--
+--local proxy = {}
+--local data = {}
+--
+--proxy.address = "devfs0000"
+--proxy.isReadOnly = false
+--proxy.spaceUsed = function() return 0 end
+--proxy.spaceTotal = function() return 0 end
+--proxy.makeDirectory = function() error("Permission denied") end
+--proxy.remove = function() error("Permission denied") end
+--proxy.setLabel = function() error("Permission denied") end
+--proxy.getLabel = function() return "devfs" end
+--proxy.attributes = function(path) return {
+--    type = proxy.type(path),
+--    isReadOnly = false,
+--    size = 0,
+--    lastModified = 0,
+--    created = 0,
+--    Permissions = "666",
+--    owner = "root",
+--    group = "root"
+--} end
+--
+--local function getNode(path)
+--    local parts = string.split(path, "/")
+--    if parts[1] == "" then
+--        table.remove(parts, 1)
+--    end
+--
+--    local node = data
+--    for _, part in ipairs(parts) do
+--        if node[part] then
+--            node = node[part]
+--        else
+--            return nil
+--        end
+--    end
+--
+--    return node
+--end
+--
+--proxy.type = function(path)
+--    local node = getNode(path)
+--    if node then
+--        return node.type
+--    else
+--        return nil
+--    end
+--end
+--
+--proxy.list = function(path)
+--    local node = getNode(path)
+--    if node and node.type == "directory" then
+--        local content = table.keys(node)
+--        table.remove(content, table.indexOf(content, "type"))
+--        return content
+--    else
+--        error("Not a directory")
+--    end
+--end
+--
+--proxy.open = function(path, mode)
+--    local node = getNode(path)
+--    if node and (node.type == "file" or node.type == "character device") then
+--        if mode == "r" then
+--            return {
+--                read = node.read,
+--                close = function() end
+--            }
+--        elseif mode == "w" then
+--            return {
+--                write = node.write,
+--                close = function() end
+--            }
+--        else
+--            error("Invalid mode")
+--        end
+--    else
+--        error("Not a file"..type(node))
+--    end
+--end
+--
+--local function newStringFile(content)
+--    return {
+--        type = "file",
+--        read = function() return content end,
+--        write = function(newContent) content = newContent end
+--    }
+--end
+--
+--local function newDirectory()
+--    return {
+--        type = "directory"
+--    }
+--end
+--
+--data["random"] = {
+--    type = "character device",
+--    read = function(amount)
+--        local result = ""
+--        for _ = 1, amount do
+--            result = result .. string.char(math.random(0, 255))
+--        end
+--        return result
+--    end,
+--    write = function() error("Permission denied") end
+--}
+--
+--data["null"] = {
+--    type = "character device",
+--    read = function() return "" end,
+--    write = function() end
+--}
+--
+--data["zero"] = {
+--    type = "character device",
+--    read = function(amount)
+--        return string.rep("\0", amount)
+--    end,
+--    write = function() error("Permission denied") end
+--}
+--
+--data["rtc"] = {
+--    type = "character device",
+--    read = function() return kernel.computer:time() end,
+--    write = function() error("Permission denied") end
+--}
+--
+--data["rtc0"] = {
+--    type = "character device",
+--    read = function() return kernel.computer:time() end,
+--    write = function() error("Permission denied") end
+--}
+--
+--data["eeprom"] = {
+--    type = "character device",
+--    read = function() return kernel.computer:getEEPROM() end,
+--    write = function(data)
+--        if kernel.uid ~= 0 then
+--            error("Permission denied")
+--        end
+--        kernel.computer:setEEPROM(data)
+--    end
+--}
+--
+--local keyboard = kernel.newFifo()
+--local mouse = kernel.newFifo()
+--data["input"] = newDirectory()
+--data["input"]["keyboard"] = {
+--    type = "pipe",
+--    read = function(amount)
+--        return keyboard.pop()
+--    end,
+--    write = function() error("Permission denied") end
+--}
+--data["input"]["mouse"] = {
+--    type = "pipe",
+--    read = function(amount)
+--        return mouse.pop()
+--    end,
+--    write = function() error("Permission denied") end
+--}
+--
+--data["pts"] = newDirectory()
+--
+--kernel.devfs = {}
+--kernel.devfs.keyboard = keyboard
+--kernel.devfs.mouse = mouse
+--kernel.devfs.proxy = proxy
+--kernel.devfs.data = data
+--kernel.vfs.virtdisk(proxy)

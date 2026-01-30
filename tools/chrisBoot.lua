@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global
 local diskpath="put your path here"
 periphemu.create("right", "drive")
 disk.insertDisk("right", diskpath)
@@ -7,4 +8,5 @@ file.close()
 
 local func = load(text, "@bios.lua")
 
+---@diagnostic disable-next-line: need-check-nil
 func("/disk")

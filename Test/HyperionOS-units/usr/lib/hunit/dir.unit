@@ -1,0 +1,3 @@
+local fs = require("sys.fs")
+assert(fs.mkdir("/tmp/hunit/testdir"), "failed to make directory")
+assert(fs.isDir("/tmp/hunit/testdir"), "directory does not exist")

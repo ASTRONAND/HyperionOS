@@ -11,7 +11,7 @@ for i,v in ipairs(string.split(kernel.fstab,"\n")) do
         end
         local path=v:sub(#id+4)
         if id~="$" then
-            kernel.vfs.mount(id,path)
+            kernel.vfs.mount(path, id)
         end
         ::endline::
     end

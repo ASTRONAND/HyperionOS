@@ -1,0 +1,10 @@
+--:Minify:--
+local kernel = ...
+local socket = {}
+
+function socket.socket()
+    
+end
+
+kernel.socket=socket
+kernel.log("Loaded socket module")

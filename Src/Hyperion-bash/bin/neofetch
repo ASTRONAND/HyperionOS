@@ -1,6 +1,6 @@
 local userhost = (syscall.OS_getUser() or "Unknown").."@"..(syscall.OS_getHostname() or "Unknown")
 print("..               *.              .. | "..userhost)
-print(" *=             +@*             +*  | "..string.rep("-",#userhost))
+print(" *=             +@*             +*  | "../rep("-",#userhost))
 print(" .@#.          -@@@=          :#@.  | OS: "..(syscall.OS_version() or "Unknown"))
 print("  =@@+         *@@@#         +@@=   | Host: "..(syscall.OS_getHost() or "Unknown"))
 print("   %@@%:       *@@@#       -%@@%    | Uptime: "..(syscall.OS_getUptime() or "Unknown"))

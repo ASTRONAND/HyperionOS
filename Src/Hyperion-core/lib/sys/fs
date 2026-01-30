@@ -1,33 +1,33 @@
 --:Minify:--
 local fs={}
 
--- "VFS_open" : open
--- "VFS_read" : read
--- "VFS_write" : write
--- "VFS_close" : close
+-- "open" : open
+-- "read" : read
+-- "write" : write
+-- "close" : close
 
 function fs.open(path, mode)
-    local fd=syscall.VFS_open(path,mode)
+    local fd=syscall.open(path,mode)
     local ret={
         close=function()
             -- close file
-            return syscall.VFS_close(fd)
+            return syscall.close(fd)
         end,
         flush=function()
             -- close and reopen file to flush buffers
-            syscall.VFS_close(fd)
-            fd=syscall.VFS_open(path,mode)
+            syscall.close(fd)
+            fd=syscall.open(path,mode)
         end
     }
     if mode=="r" then
         ret.read=function(count)
-            local data = syscall.VFS_read(fd,count)
+            local data = syscall.read(fd,count)
             return data
         end
         ret.readAll=function(chunkSize)
             local chunks={} -- to store read chunks
             while true do
-                local chunk=syscall.VFS_read(fd,chunkSize or 65536)
+                local chunk=syscall.read(fd,chunkSize or 65536)
                 if chunk==nil or #chunk==0 then break end
                 table.insert(chunks,chunk)
             end
@@ -60,7 +60,7 @@ function fs.open(path, mode)
                 end
             
                 -- Read the next chunk
-                local chunk = syscall.VFS_read(fd, chunk_size)
+                local chunk = syscall.read(fd, chunk_size)
                 if not chunk or chunk == "" then
                     eof = true
                 else
@@ -71,12 +71,12 @@ function fs.open(path, mode)
     elseif mode=="w" then
         ret.write=function(data)
             -- write data to file
-            return syscall.VFS_write(fd,data)
+            return syscall.write(fd,data)
         end
     elseif mode=="a" then
         ret.write=function(data)
             -- append data to file
-            return syscall.VFS_write(fd,data)
+            return syscall.write(fd,data)
         end
     else
         error("Invalid mode '"..mode.."'",2)
@@ -106,39 +106,39 @@ function fs.appendAllText(path, data)
 end
 
 function fs.mkdir(path)
-    return syscall.VFS_mkdir(path)
+    return syscall.mkdir(path)
 end
 
 function fs.remove(path)
-    return syscall.VFS_remove(path)
+    return syscall.remove(path)
 end
 
 function fs.list(path)
-    return syscall.VFS_list(path)
+    return syscall.list(path)
 end
 
 function fs.type(path)
-    return syscall.VFS_type(path)
+    return syscall.type(path)
 end
 
 function fs.attributes(path)
-    return syscall.VFS_attributes(path)
+    return syscall.attributes(path)
 end
 
 function fs.exists(path)
-    return syscall.VFS_exists(path)
+    return syscall.exists(path)
 end
 
 function fs.getcwd()
-    return syscall.VFS_getcwd()
+    return syscall.getcwd()
 end
 
 function fs.setcwd(path)
-    return syscall.VFS_setcwd(path)
+    return syscall.setcwd(path)
 end
 
 function fs.isDir(path)
-    return syscall.VFS_isDirectory(path)
+    return syscall.isDirectory(path)
 end
 
 return fs
