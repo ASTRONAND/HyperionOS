@@ -1,0 +1,48 @@
+--:Minify:--
+syscall.TTY_print("HyperionOS lua")
+local str=""
+local stopInput=false
+local timeout=false
+local luaEnv=setmetatable({},{__index=_ENV})
+printInline("> ")
+while true do
+    local event = {syscall.IO_pullEvent()}
+    if event[1] then
+        if not stopInput then
+            if event[1]=="keyTyped" then
+                if event[3]=="\b" then
+                    if #str>0 then
+                        str=str:sub(1,#str-1)
+                        printInline("\b")
+                    end
+                elseif event[3]=="\n" then
+                    print("")
+                    stopInput=true
+                    if str == "" then
+                        printInline("> ")
+                        stopInput=false
+                    elseif str == "exit" then
+                        break
+                    else
+                        local func=load(str,"@Lua","t",luaEnv)
+                        local ok,err = xpcall(func, debug.traceback)
+                        if not ok then
+                            print(err)
+                        end
+                        stopInput=false
+                        str=""
+                    end
+                else
+                    str=str..event[3]
+                    printInline(event[3])
+                end
+            end
+        end
+        timeout=false
+    else
+        timeout=true
+    end
+    if timeout then
+        sleep(.05)
+    end
+end

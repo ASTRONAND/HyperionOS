@@ -241,7 +241,7 @@ kernel.syscalls["getHostname"]=function() return kernel.host end
 kernel.syscalls["getHost"]=function() return kernel.apis._HOST end
 kernel.syscalls["version"]=function() return kernel.version end
 kernel.syscalls["setHostname"]=function(name) if kernel.uid~=0 then error("Permission denied") end kernel.hostname=name end
-kernel.syscalls["setUser"]=function(uid) if kernel.uid~=0 then error("Permission denied") end kernel.currentTask.uid=uid end
+kernel.syscalls["setUser"]=function(user) if kernel.uid~=0 then error("Permission denied") end kernel.currentTask.user=user end
 kernel.syscalls["test"]=function() return true end
 
 kernel.log("Running modules")

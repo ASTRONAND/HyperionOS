@@ -28,5 +28,5 @@ logTaskExit<bool>
     logs task exits and errors
 
 showModLoad<bool>
-    log mofule loads
+    log module loads
 ```

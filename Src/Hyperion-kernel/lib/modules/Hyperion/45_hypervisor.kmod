@@ -212,6 +212,10 @@ function sys.setuid(uid)
     kernel.currentTask.uid=uid
 end
 
+function sys.getuid()
+    return kernel.currentTask.uid
+end
+
 local sysc=kernel.syscalls
 sysc["spawn"]=sys.spawn
 sysc["sleep"]=sys.sleep
@@ -227,6 +231,7 @@ sysc["setEnviron"]=sys.setEnviron
 sysc["getEnviron"]=sys.getEnviron
 sysc["exit"]=sys.exit
 sysc["setuid"]=sys.setuid
+sysc["getuid"]=sys.getuid
 kernel._G.sleep=function(...)coroutine.yield("syscall","sleep",...)end
 
 local function reapDeadTasks()
