@@ -18,6 +18,7 @@
 
 ## Contributing
 * **Credit:** if you contributed feel free to add your name to contributors.md
+
 ---
 
 ## Rules/guidelines
