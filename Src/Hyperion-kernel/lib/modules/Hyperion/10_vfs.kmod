@@ -18,7 +18,7 @@ local function normalizePath(path)
             table.insert(parts, part)
         end
     end
-    return "/" .. table.concat(parts, "/") .. (path:sub(-1) == "/" and "/" or "")
+    return "/" .. table.concat(parts, "/")
 end
 
 -- Resolve mount and disk path
@@ -142,6 +142,9 @@ local function getFileMeta(path)
         if parent ~= "/" then parent = parent .. "/" end
 
         local target = parts[i]
+        if target == ".meta" then
+            error("Cannot open metafile")
+        end
         local metaPath = parent .. ".meta"
 
         if disk:fileExists(metaPath) then
@@ -526,5 +529,7 @@ sys["exists"] = vfs.exists
 sys["type"] = vfs.type
 sys["mount"]  = vfs.mount
 sys["umount"] = vfs.umount
+sys["getcwd"] = vfs.getcwd
+sys["chdir"] = vfs.chdir
 
 kernel.log("VFS module loaded")

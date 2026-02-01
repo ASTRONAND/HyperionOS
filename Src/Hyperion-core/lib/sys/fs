@@ -138,7 +138,7 @@ function fs.chdir(path)
 end
 
 function fs.isDir(path)
-    return syscall.isDirectory(path)
+    return syscall.type(path) == "directory"
 end
 
 return fs
