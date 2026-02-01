@@ -10,8 +10,7 @@ local kernel = {}
 kernel.LOG_Text=""
 kernel.version="HyperionOS V1.0.0"
 kernel.process = "Kernel"
-kernel.user = "root"
-kernel.group = "root"
+kernel.username = "root"
 kernel.hostname = "hyperion"
 kernel.groups = {0}
 kernel.uid = 0
@@ -28,15 +27,15 @@ local windowsExp = false
 
 function kernel.log(msg, level, c)
     c=c or 12
-    kernel.LOG_Text = kernel.LOG_Text..tostring(computer:time()).." "..kernel.user.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
+    kernel.LOG_Text = kernel.LOG_Text..tostring(computer:time()).." "..kernel.username.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
     if kernel.status == "start" then
         screen:setTextColor(c)
-        screen:print(tostring(computer:time()).." "..kernel.user.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
+        screen:print(tostring(computer:time()).." "..kernel.username.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
     elseif kernel.status == "init" then
         kernel.standbyTask=kernel.currentTask
         kernel.currentTask=kernel.kernelTask
         kernel.tty.setTextColor(c)
-        kernel.tty.print(tostring(computer:time()).." "..kernel.user.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
+        kernel.tty.print(tostring(computer:time()).." "..kernel.username.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
         kernel.currentTask=kernel.standbyTask
     end
 end
@@ -48,7 +47,7 @@ function kernel.PANIC(msg)
         kernel.status="Panic"
         kernel.reason=msg
         screen:setTextColor(2)
-        screen:setBackgroundColor(0)
+        screen:setBackgroundColor(16)
         screen:clear()
         screen:setCursorPos(1,1)
         screen:print(kernel.LOG_Text)
@@ -208,7 +207,7 @@ kernel.kernelTask = {
     status="R",
     pid=0,
     tgid=0,
-    user="root",
+    username="root",
     uid=0,
     fd={},
     exit="",
@@ -236,12 +235,12 @@ end
 kernel.syscalls["time"]=function() return kernel.computer:time() end
 kernel.syscalls["log"]=kernel.log
 kernel.syscalls["getUptime"]=function() return kernel.computer:clock() end
-kernel.syscalls["getUser"]=function() return kernel.user end
-kernel.syscalls["getHostname"]=function() return kernel.host end
+kernel.syscalls["getUsername"]=function() return kernel.username end
+kernel.syscalls["getHostname"]=function() return kernel.hostname end
 kernel.syscalls["getHost"]=function() return kernel.apis._HOST end
 kernel.syscalls["version"]=function() return kernel.version end
 kernel.syscalls["setHostname"]=function(name) if kernel.uid~=0 then error("Permission denied") end kernel.hostname=name end
-kernel.syscalls["setUser"]=function(user) if kernel.uid~=0 then error("Permission denied") end kernel.currentTask.user=user end
+kernel.syscalls["setUsername"]=function(user) if kernel.uid~=0 then error("Permission denied") end kernel.currentTask.username=user end
 kernel.syscalls["test"]=function() return true end
 
 kernel.log("Running modules")

@@ -39,7 +39,7 @@ function sys.spawn(func, name, envars, args, tgid)
         status="R",
         pid=id,
         tgid=tgid or kernel.currentTask.tgid,
-        user=kernel.user,
+        username=kernel.username,
         uid=kernel.uid,
         fd={},
         exit="",
@@ -86,7 +86,7 @@ function sys.getTask(pid)
             status=task.status,
             pid=task.pid,
             tgid=task.tgid,
-            user=task.user,
+            username=task.username,
             uid=task.uid,
             exit=task.exit,
             sleep=task.sleep,
@@ -302,7 +302,7 @@ function kernel.main()
             end
             if task.status == "R" then
                 kernel.currentTask = task
-                kernel.user = task.user
+                kernel.username = task.username
                 kernel.uid = task.uid
                 kernel.process = task.name
                 N = N + 1
@@ -331,14 +331,14 @@ function kernel.main()
                 if elapsed >= Tmax then Tmax_hit = Tmax_hit + 1 end
 
                 -- handle task results
-                if ret[1] == "error" then
+                if ret[1] == "error" or ret[1]==false then
                     kernel.log("processHandlerException: "..ret[2], "ERROR", 2)
                     task.status = "Z"
                     task.exit = "processHandlerException: "..ret[2]
                 elseif ret[1] == "timeout" then
                     task.ivs=task.ivs+1
                     task.syscallReturn = {}
-                elseif ret[1] == "success" then
+                elseif ret[1] == "success" or ret[1] == true then
                     task.vs=task.vs+1
                     if ret[2]=="syscall" then
                         if kernel.syscalls[ret[3]] then

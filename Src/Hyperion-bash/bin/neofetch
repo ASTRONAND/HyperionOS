@@ -1,4 +1,4 @@
-local userhost = (syscall.getUser() or "Unknown").."@"..(syscall.getHostname() or "Unknown")
+local userhost = (syscall.getUsername() or "Unknown").."@"..(syscall.getHostname() or "Unknown")
 print("..               *.              .. | "..userhost)
 print(" *=             +@*             +*  | "..string.rep("-",#userhost))
 print(" .@#.          -@@@=          :#@.  | OS: "..(syscall.version() or "Unknown"))

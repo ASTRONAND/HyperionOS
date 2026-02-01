@@ -1,6 +1,7 @@
 --:Minify:--
 local kernel = ...
 
+local timeout=false
 kernel.processes.keventd = function()
     while true do
         local event = {kernel.computer:getMachineEvent()}
@@ -13,6 +14,12 @@ kernel.processes.keventd = function()
                 end
             end
             kernel.io.pushEvent("raw", table.unpack(event))
+            timeout=false
+        else
+            timeout=true
+        end
+        if timeout then
+            sleep(.05)
         end
     end
 end

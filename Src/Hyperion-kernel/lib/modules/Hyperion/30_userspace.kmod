@@ -2,17 +2,28 @@
 local args={...}
 local kernel=args[1]
 kernel._G=_G
-kernel._U=setmetatable({},{
-    __index = kernel._G,
-    __newindex = function(t,k,v)
-        if kernel.config.allowGlobalOverwrites or kernel.allowGlobalOverwrites then
-            rawset(t,k,v)
-            return
-        end
-        error("Attempt to modify global variable '"..k.."'",2)
-    end,
-    __metatable = false
-})
+
+local function fixstupidghxxexploit(tbl)
+    return setmetatable({},{
+        __index = function(t,k)
+            if type(tbl[k])=="table" then
+                return fixstupidghxxexploit(tbl[k])
+            else
+                return tbl[k]
+            end
+        end,
+        __newindex = function(t,k,v)
+            if kernel.config.allowGlobalOverwrites or kernel.allowGlobalOverwrites then
+                rawset(tbl,k,v)
+                return
+            end
+            error("Attempt to modify global variable '"..k.."'",2)
+        end,
+        __metatable = false
+    })
+end
+
+kernel._U=fixstupidghxxexploit(kernel._G)
 kernel.allowGlobalOverwrites=true
 kernel._U._G=kernel._U
 kernel.allowGlobalOverwrites=false

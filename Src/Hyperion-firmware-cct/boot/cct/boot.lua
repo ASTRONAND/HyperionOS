@@ -109,22 +109,22 @@ local ok, err = xpcall(function()
         while stoptime > apis.os.clock() do end
     end
 
-    apis.term.setPaletteColor(0x1,    0x000000) -- #000000
-    apis.term.setPaletteColor(0x2,    0xFFFFFF) -- #FFFFFF
-    apis.term.setPaletteColor(0x4,    0xFF0000) -- #FF0000
-    apis.term.setPaletteColor(0x8,    0x00FF00) -- #00FF00
-    apis.term.setPaletteColor(0x10,   0x0000FF) -- #0000FF
-    apis.term.setPaletteColor(0x20,   0x00FFFF) -- #00FFFF
-    apis.term.setPaletteColor(0x40,   0xFF00FF) -- #FF00FF
-    apis.term.setPaletteColor(0x80,   0xFFFF00) -- #FFFF00
-    apis.term.setPaletteColor(0x100,  0xFF6D00) -- #FF6D00
-    apis.term.setPaletteColor(0x200,  0x6DFF55) -- #6DFF55
-    apis.term.setPaletteColor(0x400,  0x24FFFF) -- #24FFFF
-    apis.term.setPaletteColor(0x800,  0x924900) -- #924900
-    apis.term.setPaletteColor(0x1000, 0x6D6D55) -- #6D6D55
-    apis.term.setPaletteColor(0x2000, 0xDBDBAA) -- #DBDBAA
-    apis.term.setPaletteColor(0x4000, 0x6D00FF) -- #6D00FF
-    apis.term.setPaletteColor(0x8000, 0xB6FF00) -- #B6FF00
+    apis.term.setPaletteColor(0x1,    0xFFFFFF) -- #000000
+    apis.term.setPaletteColor(0x2,    0xFF0000) -- #FFFFFF
+    apis.term.setPaletteColor(0x4,    0x00FF00) -- #FF0000
+    apis.term.setPaletteColor(0x8,    0x0000FF) -- #00FF00
+    apis.term.setPaletteColor(0x10,   0x00FFFF) -- #0000FF
+    apis.term.setPaletteColor(0x20,   0xFF00FF) -- #00FFFF
+    apis.term.setPaletteColor(0x40,   0xFFFF00) -- #FF00FF
+    apis.term.setPaletteColor(0x80,   0xFF6D00) -- #FFFF00
+    apis.term.setPaletteColor(0x100,  0x6DFF55) -- #FF6D00
+    apis.term.setPaletteColor(0x200,  0x24FFFF) -- #6DFF55
+    apis.term.setPaletteColor(0x400,  0x924900) -- #24FFFF
+    apis.term.setPaletteColor(0x800,  0x6D6D55) -- #924900
+    apis.term.setPaletteColor(0x1000, 0xDBDBAA) -- #6D6D55
+    apis.term.setPaletteColor(0x2000, 0x6D00FF) -- #DBDBAA
+    apis.term.setPaletteColor(0x4000, 0xB6FF00) -- #6D00FF
+    apis.term.setPaletteColor(0x8000, 0x000000) -- #B6FF00
 
     local function getFile(path)
         local file = apis.fs.open(path, "r")
@@ -180,26 +180,26 @@ local ok, err = xpcall(function()
     }
 
     local icolors={
-        [0x1]    =0,  -- #000000
-        [0x2]    =1,  -- #FFFFFF
-        [0x4]    =2,  -- #FF0000
-        [0x8]    =3,  -- #00FF00
-        [0x10]   =4,  -- #0000FF
-        [0x20]   =5,  -- #00FFFF
-        [0x40]   =6,  -- #FF00FF
-        [0x80]   =7,  -- #FFFF00
-        [0x100]  =8,  -- #FF6D00
-        [0x200]  =9,  -- #6DFF55
-        [0x400]  =10, -- #24FFFF
-        [0x800]  =11, -- #924900
-        [0x1000] =12, -- #6D6D55
-        [0x2000] =13, -- #DBDBAA
-        [0x4000] =14, -- #6D00FF
-        [0x8000] =15  -- #B6FF00
+        [0x1]    =1,  -- #000000
+        [0x2]    =2,  -- #FFFFFF
+        [0x4]    =3,  -- #FF0000
+        [0x8]    =4,  -- #00FF00
+        [0x10]   =5,  -- #0000FF
+        [0x20]   =6,  -- #00FFFF
+        [0x40]   =7,  -- #FF00FF
+        [0x80]   =8,  -- #FFFF00
+        [0x100]  =9,  -- #FF6D00
+        [0x200]  =10,  -- #6DFF55
+        [0x400]  =11, -- #24FFFF
+        [0x800]  =12, -- #924900
+        [0x1000] =13, -- #6D6D55
+        [0x2000] =14, -- #DBDBAA
+        [0x4000] =15, -- #6D00FF
+        [0x8000] =16  -- #B6FF00
     }
 
     local colors={
-        [0]=0x0001, -- #000000
+        0x0001, -- #000000
         0x0002, -- #FFFFFF
         0x0004, -- #FF0000
         0x0008, -- #00FF00
@@ -217,7 +217,7 @@ local ok, err = xpcall(function()
         0x8000  -- #B6FF00
     }
 
-    apis.term.setBackgroundColor(0x1)
+    apis.term.setBackgroundColor(0x8000)
     apis.term.setTextColor(0x1000)
     apis.term.clear()
     apis.term.setCursorPos(1, 1)
