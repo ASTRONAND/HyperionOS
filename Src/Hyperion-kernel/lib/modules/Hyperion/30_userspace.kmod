@@ -3,15 +3,16 @@ local args={...}
 local kernel=args[1]
 kernel._G=_G
 
-local function fixstupidghxxexploit(tbl)
-    return setmetatable({},{
-        __index = function(t,k)
-            if type(tbl[k])=="table" then
-                return fixstupidghxxexploit(tbl[k])
-            else
-                return tbl[k]
+local function readonly(tbl)
+    return setmetatable({}, {
+        __index = function(_, key)
+            local value = tbl[key]
+            if type(value) == "table" then
+                return readonly(value)
             end
+            return value
         end,
+
         __newindex = function(t,k,v)
             if kernel.config.allowGlobalOverwrites or kernel.allowGlobalOverwrites then
                 rawset(tbl,k,v)
@@ -19,11 +20,40 @@ local function fixstupidghxxexploit(tbl)
             end
             error("Attempt to modify global variable '"..k.."'",2)
         end,
-        __metatable = false
+
+        __pairs = function()
+            local function iter(_, key)
+                local nextKey, value = next(tbl, key)
+                if type(value) == "table" then
+                    value = readonly(value)
+                end
+                return nextKey, value
+            end
+            return iter, tbl, nil
+        end,
+
+        __ipairs = function()
+            local i = 0
+            return function()
+                i = i + 1
+                local value = tbl[i]
+                if value == nil then return end
+                if type(value) == "table" then
+                    value = readonly(value)
+                end
+                return i, value
+            end
+        end,
+
+        __len = function()
+            return #tbl
+        end,
+
+        __metatable = false,
     })
 end
 
-kernel._U=fixstupidghxxexploit(kernel._G)
+kernel._U=readonly(kernel._G)
 kernel.allowGlobalOverwrites=true
 kernel._U._G=kernel._U
 kernel.allowGlobalOverwrites=false
