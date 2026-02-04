@@ -406,7 +406,11 @@ function vfs.listdir(path)
     if disk:type(diskPath) ~= "directory" then error("ENOTDIR") end
     local meta = getFileMeta(path)
     checkperms(meta, "r")
-    return disk:list(diskPath)
+    local list = disk:list(diskPath)
+    if table.indexOf(list,".meta")~=-1 then
+        table.remove(list,table.indexOf(list,".meta"))
+    end
+    return list
 end
 
 function vfs.mkdir(path)

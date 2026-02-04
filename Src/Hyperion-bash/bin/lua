@@ -29,6 +29,7 @@ while true do
                         if not ok then
                             print(err)
                         end
+                        printInline("> ")
                         stopInput=false
                         str=""
                     end

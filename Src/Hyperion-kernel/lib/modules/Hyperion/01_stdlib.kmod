@@ -80,7 +80,7 @@ end
 function table.hasKey(tabl, query)
     for i,v in pairs(tabl) do
         if i==query then
-            return true
+            return v
         end
     end
     return false
@@ -89,7 +89,7 @@ end
 function table.hasVal(tabl, query)
     for i,v in pairs(tabl) do
         if v==query then
-            return true
+            return i
         end
     end
     return false

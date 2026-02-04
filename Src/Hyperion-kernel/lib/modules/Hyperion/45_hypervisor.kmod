@@ -180,7 +180,7 @@ end
 function sys.getTasks()
     local ret={}
     for i,v in pairs(tasks) do
-        ret[i]=v.pid
+        ret[#ret+1]=v.pid
     end
     return ret
 end
