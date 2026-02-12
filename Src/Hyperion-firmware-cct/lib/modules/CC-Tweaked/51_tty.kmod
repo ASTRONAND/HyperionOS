@@ -1,17 +1,16 @@
---:Minify:--
-local kernel=...
-local apis=kernel.apis
-local main=apis.term
-local native=apis.peripheral
+-- :Minify:--
+local kernel = ...
+local apis = kernel.apis
+local main = apis.term
+local native = apis.peripheral
 local sides = {"top", "bottom", "left", "right", "front", "back"}
 
 local function getType(name)
-    if native.isPresent(name) then
-        return native.getType(name)
-    end
+    if native.isPresent(name) then return native.getType(name) end
     for n = 1, #sides do
         local side = sides[n]
-        if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", name) then
+        if native.hasType(side, "peripheral_hub") and
+            native.call(side, "isPresentRemote", name) then
             return native.call(side, "getTypeRemote", name)
         end
     end
@@ -22,9 +21,7 @@ local function getNames()
     local names = {}
     for n = 1, #sides do
         local side = sides[n]
-        if native.isPresent(side) then
-            table.insert(names, side)
-        end
+        if native.isPresent(side) then table.insert(names, side) end
         if native.hasType(side, "peripheral_hub") then
             local hubSides = native.call(side, "getConnectedSides")
             for _, hubSide in ipairs(hubSides) do
@@ -36,38 +33,37 @@ local function getNames()
 end
 
 local function wrapPeripheral(name)
-    if native.isPresent(name) then
-        return wrapPeripheral(name)
-    end
+    if native.isPresent(name) then return wrapPeripheral(name) end
     for n = 1, #sides do
         local side = sides[n]
-        if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", name) then
+        if native.hasType(side, "peripheral_hub") and
+            native.call(side, "isPresentRemote", name) then
             return native.call(side, "wrapRemote", name)
         end
     end
     return nil
 end
 
-local icolors={
-    [0x1]    =1,  -- #000000
-    [0x2]    =2,  -- #FFFFFF
-    [0x4]    =3,  -- #FF0000
-    [0x8]    =4,  -- #00FF00
-    [0x10]   =5,  -- #0000FF
-    [0x20]   =6,  -- #00FFFF
-    [0x40]   =7,  -- #FF00FF
-    [0x80]   =8,  -- #FFFF00
-    [0x100]  =9,  -- #FF6D00
-    [0x200]  =10,  -- #6DFF55
-    [0x400]  =11, -- #24FFFF
-    [0x800]  =12, -- #924900
-    [0x1000] =13, -- #6D6D55
-    [0x2000] =14, -- #DBDBAA
-    [0x4000] =15, -- #6D00FF
-    [0x8000] =16  -- #B6FF00
+local icolors = {
+    [0x1] = 1, -- #000000
+    [0x2] = 2, -- #FFFFFF
+    [0x4] = 3, -- #FF0000
+    [0x8] = 4, -- #00FF00
+    [0x10] = 5, -- #0000FF
+    [0x20] = 6, -- #00FFFF
+    [0x40] = 7, -- #FF00FF
+    [0x80] = 8, -- #FFFF00
+    [0x100] = 9, -- #FF6D00
+    [0x200] = 10, -- #6DFF55
+    [0x400] = 11, -- #24FFFF
+    [0x800] = 12, -- #924900
+    [0x1000] = 13, -- #6D6D55
+    [0x2000] = 14, -- #DBDBAA
+    [0x4000] = 15, -- #6D00FF
+    [0x8000] = 16 -- #B6FF00
 }
 
-local colors={
+local colors = {
     0x0001, -- #000000
     0x0002, -- #FFFFFF
     0x0004, -- #FF0000
@@ -83,7 +79,7 @@ local colors={
     0x1000, -- #6D6D55
     0x2000, -- #DBDBAA
     0x4000, -- #6D00FF
-    0x8000  -- #B6FF00
+    0x8000 -- #B6FF00
 }
 
 local function write(text, term)
@@ -121,7 +117,7 @@ local function write(text, term)
             y = y + 1
         end
 
-        if y-1 >= h then
+        if y - 1 >= h then
             term.scroll(1)
             y = h
             term.setCursorPos(x, y)
@@ -132,38 +128,24 @@ local function write(text, term)
 end
 
 local function newTTY(term)
-    local ret={}
-    function ret.print(text)
-        write(text.."\n", term)
-    end
-    function ret.printInline(text)
-        write(text, term)
-    end
+    local ret = {}
+    function ret.print(text) write(text .. "\n", term) end
+    function ret.printInline(text) write(text, term) end
     function ret.clear()
         term.clear()
-        term.setCursorPos(1,1)
+        term.setCursorPos(1, 1)
     end
-    function ret.setCursorPos(x,y)
-        term.setCursorPos(x,y)
-    end
-    function ret.getCursorPos()
-        return term.getCursorPos()
-    end
-    function ret.getSize()
-        return term.getSize()
-    end
+    function ret.setCursorPos(x, y) term.setCursorPos(x, y) end
+    function ret.getCursorPos() return term.getCursorPos() end
+    function ret.getSize() return term.getSize() end
     function ret.setBackgroundColor(color)
         term.setBackgroundColor(colors[color])
     end
-    function ret.setTextColor(color)
-        term.setTextColor(colors[color])
-    end
+    function ret.setTextColor(color) term.setTextColor(colors[color]) end
     function ret.getBackgroundColor()
         return icolors[term.getBackgroundColor()]
     end
-    function ret.getTextColor()
-        return icolors[term.getTextColor()]
-    end
+    function ret.getTextColor() return icolors[term.getTextColor()] end
     return ret
 end
 

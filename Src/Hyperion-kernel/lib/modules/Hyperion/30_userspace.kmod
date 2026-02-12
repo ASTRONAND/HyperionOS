@@ -1,24 +1,23 @@
---:Minify:--
-local args={...}
-local kernel=args[1]
-kernel._G=_G
+-- :Minify:--
+local args = {...}
+local kernel = args[1]
+kernel._G = _G
 
 local function readonly(tbl)
     return setmetatable({}, {
         __index = function(_, key)
             local value = tbl[key]
-            if type(value) == "table" then
-                return readonly(value)
-            end
+            if type(value) == "table" then return readonly(value) end
             return value
         end,
 
-        __newindex = function(t,k,v)
-            if kernel.config.allowGlobalOverwrites or kernel.allowGlobalOverwrites then
-                rawset(tbl,k,v)
+        __newindex = function(t, k, v)
+            if kernel.config.allowGlobalOverwrites or
+                kernel.allowGlobalOverwrites then
+                rawset(tbl, k, v)
                 return
             end
-            error("Attempt to modify global variable '"..k.."'",2)
+            error("Attempt to modify global variable '" .. k .. "'", 2)
         end,
 
         __pairs = function()
@@ -45,15 +44,13 @@ local function readonly(tbl)
             end
         end,
 
-        __len = function()
-            return #tbl
-        end,
+        __len = function() return #tbl end,
 
-        __metatable = false,
+        __metatable = false
     })
 end
 
-kernel._U=readonly(kernel._G)
-kernel.allowGlobalOverwrites=true
-kernel._U._G=kernel._U
-kernel.allowGlobalOverwrites=false
+kernel._U = readonly(kernel._G)
+kernel.allowGlobalOverwrites = true
+kernel._U._G = kernel._U
+kernel.allowGlobalOverwrites = false

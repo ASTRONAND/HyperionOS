@@ -1,25 +1,23 @@
---:Minify:--
+-- :Minify:--
 local kernel = ...
 
-local timeout=false
+local timeout = false
 kernel.processes.keventd = function()
     while true do
         local event = {kernel.computer:getMachineEvent()}
         if event[1] then
-            if event[1]=="keyTyped" then
-                if event[3]=="\x1b^s" then
+            if event[1] == "keyTyped" then
+                if event[3] == "\x1b^s" then
                     kernel.shutdown()
-                elseif event[3]=="\x1b^r" then
+                elseif event[3] == "\x1b^r" then
                     kernel.reboot()
                 end
             end
             kernel.io.pushEvent("raw", table.unpack(event))
-            timeout=false
+            timeout = false
         else
-            timeout=true
+            timeout = true
         end
-        if timeout then
-            sleep(.05)
-        end
+        if timeout then sleep(.05) end
     end
 end

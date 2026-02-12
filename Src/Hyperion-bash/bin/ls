@@ -1,7 +1,11 @@
 local fs = require("sys.fs")
-local stuff = fs.list(syscall.getcwd())
+local dir = (({...})[1] or "")
+if dir~="" and dir:sub(#dir,#dir)~="/" then
+    dir=dir.."/"
+end
+local stuff = fs.list(dir)
 for i,v in ipairs(stuff) do
-    if fs.isDir(v) then
+    if fs.isDir(dir..v) then
         print(v.."/")
     else
         print(v)

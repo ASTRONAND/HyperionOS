@@ -1,18 +1,34 @@
 --:Minify:--
-local kernel=...
-for i,v in ipairs(string.split(kernel.fstab,"\n")) do
-    if v:sub(1,1)=="U" then
-        local id=""
-        for i=3,#v do
-            if v:sub(i,i)==";" then
-                if i==3 then kernel.log("Invalid fstab line... Skipping.","WARN", 8) goto endline end
-                id=v:sub(3,i-1)
+local kernel = ...
+
+local function trim(str)
+    local s, e = 1, #str
+    while s <= e and (str:sub(s,s) == " " or str:sub(s,s) == "\t") do s = s + 1 end
+    while e >= s and (str:sub(e,e) == " " or str:sub(e,e) == "\t" or str:sub(e,e) == "\n" or str:sub(e,e) == "\r") do e = e - 1 end
+    if s > e then return "" end
+    return str:sub(s,e)
+end
+
+for _, line in ipairs(string.split(kernel.fstab, "\n")) do
+    line = trim(line)
+    if line ~= "" and line:sub(1,1) == "U" then
+        local semicolon_pos
+        for i = 3, #line do
+            if line:sub(i,i) == ";" then
+                semicolon_pos = i
+                break
             end
         end
-        local path=v:sub(#id+4)
-        if id~="$" then
-            kernel.vfs.mount(path, id)
+
+        if not semicolon_pos or semicolon_pos == 3 then
+            kernel.log("Invalid fstab line: "..line.." ... Skipping.", "WARN", 8)
+        else
+            local id = line:sub(3, semicolon_pos - 1)
+            local path = trim(line:sub(semicolon_pos + 1))
+            kernel.log("Mounted "..id.." to "..path)
+            if id ~= "$" then
+                kernel.vfs.mount(path, id)
+            end
         end
-        ::endline::
     end
 end

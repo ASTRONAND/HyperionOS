@@ -10,6 +10,7 @@ local pid=syscall.getpid()
 local proc=0
 local fs=require("sys.fs")
 local timeout=false
+syscall.setEnviron("SHELL","simpleshell")
 printInline("> ")
 while true do
     local event = {syscall.IO_pullEvent()}
@@ -29,10 +30,11 @@ while true do
                         stopInput=false
                     else
                         local path=nil
-                        if fs.exists("/bin/"..str) then
-                            path="/bin/"..str
-                        elseif fs.exists("/bin/"..str..".lua") then
-                            path="/bin/"..str..".lua"
+                        local split=string.split(str, " ")
+                        if fs.exists("/bin/"..split[1]) then
+                            path="/bin/"..split[1]
+                        elseif fs.exists("/bin/"..split[1]..".lua") then
+                            path="/bin/"..split[1]..".lua"
                         end
                         if not path then
                             print("Program not found")
@@ -46,11 +48,13 @@ while true do
                                 printInline("> ")
                             end
                             syscall.IO_bind("bash:"..tostring(pid))
-                            proc = syscall.spawn(program, path)
+                            proc = syscall.spawn(program, path, nil, {table.unpack(split, 2)})
                             syscall.IO_bind(inputIO)
                         end
                         str=""
                     end
+                elseif event[1]=="keyTyped" and event[3]=="^d" then
+                    syscall.exit(0)
                 else
                     str=str..event[3]
                     printInline(event[3])
@@ -64,7 +68,9 @@ while true do
     if stopInput then
         local exited, code = syscall.collect(proc)
         if exited then
-            print("\nTask exited with code:\n"..tostring(code))
+            if code then
+                print("\nTask exited with code:\n"..tostring(code))
+            end
             printInline("> ")
             stopInput=false
         else
@@ -74,9 +80,6 @@ while true do
                     print("Terminated")
                     printInline("> ")
                     stopInput=false
-                elseif event[1]=="keyTyped" and event[3]=="^d" then
-                    syscall.kill(proc)
-                    syscall.exit(0)
                 else
                     syscall.IO_pushEvent("bash:"..tostring(pid), table.unpack(event))
                 end

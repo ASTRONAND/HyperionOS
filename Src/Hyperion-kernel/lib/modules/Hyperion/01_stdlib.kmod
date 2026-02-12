@@ -1,59 +1,36 @@
---:Minify:--
+-- :Minify:--
 function string.hasSuffix(str, suffix)
-    return string.sub(str, #suffix+1) == suffix
+    return string.sub(str, #suffix + 1) == suffix
 end
 
 function string.hasPrefix(str, prefix)
     return string.sub(str, 1, #prefix) == prefix
 end
 
-function string.getSuffix(str, prefix)
-    return string.sub(str, #prefix+1)
-end
+function string.getSuffix(str, prefix) return string.sub(str, #prefix + 1) end
 
-function string.getPrefix(str, suffix)
-    return string.sub(str, 1, #suffix)
-end
+function string.getPrefix(str, suffix) return string.sub(str, 1, #suffix) end
 
-function string.join(str, ...)
-    return table.concat(table.pack(str, ...))
-end
+function string.join(str, ...) return table.concat(table.pack(str, ...)) end
 
-function string.delim(str, ...)
-    return table.concat(table.pack(...), str)
-end
+function string.delim(str, ...) return table.concat(table.pack(...), str) end
 
 function string.split(str, delim, maxResultCountOrNil)
     assert(#delim == 1, "only delim len 1 supported for now")
-    maxResultCountOrNil = (maxResultCountOrNil or 0)-1
+    maxResultCountOrNil = (maxResultCountOrNil or 0) - 1
     local rv = {}
     local buf = ""
     for i = 1, #str do
-        local c = string.sub(str,i,i)
+        local c = string.sub(str, i, i)
         if #rv ~= maxResultCountOrNil and c == delim then
             table.insert(rv, buf)
             buf = ""
         else
-            buf = buf..c
+            buf = buf .. c
         end
     end
     table.insert(rv, buf)
     return rv
-end
-
-function string.replace(str, search, replacement)
-    local rv = ""
-    local consumedLen = 1
-    local i = 1
-    while i<#str do
-        if string.sub(str, i, i+#search-1) == search then
-            rv = rv .. string.sub(str, consumedLen, i-1) .. replacement
-            i=i+#search
-            consumedLen = i
-        end
-        i=i+1
-    end
-    return rv .. string.sub(str, consumedLen)
 end
 
 function table.deepcopy(orig, copies)
@@ -78,98 +55,30 @@ function table.deepcopy(orig, copies)
 end
 
 function table.hasKey(tabl, query)
-    for i,v in pairs(tabl) do
-        if i==query then
-            return v
-        end
-    end
+    for i, v in pairs(tabl) do if i == query then return v end end
     return false
 end
 
 function table.hasVal(tabl, query)
-    for i,v in pairs(tabl) do
-        if v==query then
-            return i
-        end
-    end
+    for i, v in pairs(tabl) do if v == query then return i end end
     return false
-end
-
-function table.proxy(tbl)
-    local proxies = setmetatable({}, {__mode = "k"}) -- Weak table to avoid cycles
-
-    local function createProxy(t)
-        if type(t) ~= "table" then return t end
-        if proxies[t] then return proxies[t] end -- reuse proxy for the same table (handle cycles)
-
-        local proxy = {}
-        proxies[t] = proxy
-
-        local mt
-        mt = {
-            __index = function(_, k)
-                local value = t[k]
-                if type(value) == "table" then
-                    return createProxy(value) -- recursively proxy subtables
-                else
-                    return value
-                end
-            end,
-            __newindex = function()
-                error("Attempt to modify table proxy", 2)
-            end,
-            __pairs = function()
-                return function(_, k)
-                    local nextKey, nextValue = next(t, k)
-                    if type(nextValue) == "table" then
-                        nextValue = createProxy(nextValue)
-                    end
-                    return nextKey, nextValue
-                end, nil, nil
-            end,
-            __ipairs = function()
-                local i = 0
-                local n = #t
-                return function()
-                    i = i + 1
-                    if i <= n then
-                        local v = t[i]
-                        if type(v) == "table" then
-                            v = createProxy(v)
-                        end
-                        return i, v
-                    end
-                end
-            end,
-            __metatable = false
-        }
-
-        setmetatable(proxy, mt)
-        return proxy
-    end
-
-    return createProxy(tbl)
 end
 
 local function serialize(tbl, seen)
     seen = seen or {}
-    
+
     -- If we've seen this table before, return a placeholder to prevent infinite loops
-    if seen[tbl] then 
-        return '"[Circular Reference]"' 
-    end
-    
+    if seen[tbl] then return '"[Circular Reference]"' end
+
     -- Mark this table as seen
     seen[tbl] = true
-    
+
     local output = "{"
     local first = true
 
     for i, v in pairs(tbl) do
         -- Handle comma placement more cleanly
-        if not first then
-            output = output .. ","
-        end
+        if not first then output = output .. "," end
         first = false
 
         -- Serialize Key
@@ -197,21 +106,19 @@ local function serialize(tbl, seen)
     end
 
     seen[tbl] = nil
-    
+
     output = output .. "}"
     return output
 end
 
-local oldtype=type
-local oldgetmetatable=getmetatable
+local oldtype = type
+local oldgetmetatable = getmetatable
 function type(object, trueType)
-    if trueType then
-        return oldtype(object)
-    end
-    if oldtype(object)~="table" then
+    if trueType then return oldtype(object) end
+    if oldtype(object) ~= "table" then
         return oldtype(object)
     else
-        if oldtype(oldgetmetatable(object))=="table" then
+        if oldtype(oldgetmetatable(object)) == "table" then
             local metatable = oldgetmetatable(object)
             ---@diagnostic disable-next-line: need-check-nil
             if metatable.__type then return metatable.__type end
@@ -222,10 +129,10 @@ function type(object, trueType)
 end
 
 function getmetatable(object)
-    if oldtype(object)~="table" then return end
-    if oldtype(oldgetmetatable(object))=="table" then
+    if oldtype(object) ~= "table" then return end
+    if oldtype(oldgetmetatable(object)) == "table" then
         if oldgetmetatable(object).__isuserdata then
-            if oldtype(oldgetmetatable(object).__usermeta)=="function" then
+            if oldtype(oldgetmetatable(object).__usermeta) == "function" then
                 return oldgetmetatable(object).__usermeta()
             else
                 return oldgetmetatable(object).__usermeta
@@ -239,22 +146,14 @@ function getmetatable(object)
 end
 
 function isEqualToAny(a, ...)
-    local args={...}
-    for i=0, #args do
-        if a==args[i] then
-            return true
-        end
-    end
+    local args = {...}
+    for i = 0, #args do if a == args[i] then return true end end
     return false
 end
 
 function isEqualToAll(a, ...)
-    local args={...}
-    for i=0, #args do
-        if a~=args[i] then
-            return false
-        end
-    end
+    local args = {...}
+    for i = 0, #args do if a ~= args[i] then return false end end
     return true
 end
 
@@ -271,12 +170,39 @@ function table.values(t)
 end
 
 function table.indexOf(t, value)
-    for i,v in ipairs(t) do
-        if v==value then
-            return i
+    for i, v in ipairs(t) do if v == value then return i end end
+    return -1
+end
+
+function string.replace(s, target, repl)
+    local result = {}
+    local i = 1
+    local n = #s
+    local t_len = #target
+
+    while i <= n do
+        local match = true
+        if i + t_len - 1 <= n then
+            for j = 1, t_len do
+                if s:sub(i + j - 1, i + j - 1) ~= target:sub(j, j) then
+                    match = false
+                    break
+                end
+            end
+        else
+            match = false
+        end
+
+        if match then
+            table.insert(result, repl)
+            i = i + t_len
+        else
+            table.insert(result, s:sub(i, i))
+            i = i + 1
         end
     end
-    return -1
+
+    return table.concat(result)
 end
 
 syscall = setmetatable({}, {
@@ -292,4 +218,4 @@ syscall = setmetatable({}, {
     end
 })
 
-table.serialize=serialize
+table.serialize = serialize

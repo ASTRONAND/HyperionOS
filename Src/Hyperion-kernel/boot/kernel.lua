@@ -12,7 +12,7 @@ kernel.version="HyperionOS V1.0.0"
 kernel.process = "Kernel"
 kernel.username = "root"
 kernel.hostname = "hyperion"
-kernel.groups = {0}
+kernel.groups = {}
 kernel.uid = 0
 kernel.gid = 0
 kernel.status = "start"
@@ -149,9 +149,6 @@ function kernel.saveLog()
     ifs.writeAllText("/var/log/syslog.log", kernel.LOG_Text)
 end
 
-ifs.remove("/tmp")
-ifs.makeDir("/tmp")
-
 function kernel.newFifo()
     local fifo = {}
     fifo.push=function(data)
@@ -241,6 +238,7 @@ kernel.syscalls["getHost"]=function() return kernel.apis._HOST end
 kernel.syscalls["version"]=function() return kernel.version end
 kernel.syscalls["setHostname"]=function(name) if kernel.uid~=0 then error("Permission denied") end kernel.hostname=name end
 kernel.syscalls["setUsername"]=function(user) if kernel.uid~=0 then error("Permission denied") end kernel.currentTask.username=user end
+kernel.syscalls["arch"]=function() return arch end
 kernel.syscalls["test"]=function() return true end
 
 kernel.log("Running modules")

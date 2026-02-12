@@ -1,0 +1,15 @@
+local kernel=...
+local sysc=kernel.syscalls
+kernel.gpio={}
+
+sysc["gpio_write"]=function(pin, data)
+    if kernel.gpio[pin] then
+        return kernel.gpio[pin]("w", data)
+    end
+end
+
+sysc["gpio_read"]=function(pin)
+    if kernel.gpio[pin] then
+        return kernel.gpio[pin]("r")
+    end
+end

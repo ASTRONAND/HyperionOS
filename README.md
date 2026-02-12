@@ -29,6 +29,8 @@ You can also view real-time loading logs during boot if `showModLoad` in boot.cf
 To trigger a panic (for testing):
 ```lua
 kernel.PANIC("Test panic message")
+OR
+kernel.log("Test log message")
 ```
 
 ---

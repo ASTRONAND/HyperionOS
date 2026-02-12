@@ -1,15 +1,15 @@
---:Minify:--
+-- :Minify:--
 local kernel = ...
 local vfs = {}
-kernel.vfs=vfs
-vfs.mounts = { ["$"] = "/" }
+kernel.vfs = vfs
+vfs.mounts = {["$"] = "/"}
 vfs.disks = kernel.disks
 
 -- Path normalization
 local function normalizePath(path)
     local task = kernel.currentTask
     local cwd = task.cwd or "/"
-    if path:sub(1,1) ~= "/" then path = cwd .. "/" .. path end
+    if path:sub(1, 1) ~= "/" then path = cwd .. "/" .. path end
     local parts = {}
     for part in path:gmatch("[^/]+") do
         if part == ".." then
@@ -21,22 +21,43 @@ local function normalizePath(path)
     return "/" .. table.concat(parts, "/")
 end
 
+function vfs.splitPath(path)
+    local rv=string.split(path,"/")
+    while table.indexOf(rv, "") ~= -1 do
+        table.remove(rv, table.indexOf(rv, ""))
+    end
+    return rv
+end
+
 -- Resolve mount and disk path
 local function resolvePath(path)
     path = normalizePath(path)
 
-    local mountPoint = "/"
-    local mountId = "$"
-    for k,v in pairs(vfs.mounts) do
-        if path:sub(1,#v) == v and #v > #mountPoint then
-            mountPoint = v
-            mountId = k
+    local mountPoint = nil
+    local mountId = nil
+
+    for id, mp in pairs(vfs.mounts) do
+        if path == mp or (mp == "/" and path:sub(1, 1) == "/") or path:sub(1, #mp + 1) == mp .. "/" then
+            if not mountPoint or #mp > #mountPoint then
+                mountPoint = mp
+                mountId = id
+            end
         end
     end
 
-    local diskPath = path:sub(#mountPoint)
-    if diskPath == "" then diskPath = "/" end
-    
+    if not mountId then
+        error("ENODEV")
+    end
+
+    local diskPath = path:sub(#mountPoint + 1)
+    if diskPath == "" then
+        diskPath = "/"
+    end
+
+    if kernel.config.logPathResolution then
+        kernel.log("Path '"..path.."' resolved to disk '"..mountId.."' and path '"..diskPath.."'")
+    end
+
     return vfs.disks[mountId], diskPath
 end
 
@@ -55,25 +76,26 @@ local function checkSystemLimit()
 end
 
 -- File object constructor
-local function newFileObj(handle, mode, path, meta)
+local function newFileObj(handle, mode, path, meta, type)
     return {
         handle = handle,
         mode = mode,
         path = path,
-        meta = meta
+        meta = meta,
+        type = type
     }
 end
 
--- Validate mode
-local function ismode(mode)
-    if not (mode == "r" or mode == "w" or mode == "a") then error("EINVAL") end
+function vfs.newfd(fdobj)
+    checkSystemLimit()
+    total=total+1
+    local fd = allocFD(kernel.currentTask)
+    kernel.currentTask.fd[fd]=fdobj
 end
 
 -- Parse metafile
 local function parseMetafile(file)
-    if not file or file == "" then
-        return {}
-    end
+    if not file or file == "" then return {} end
 
     local ret = {}
     local pointer = 1
@@ -99,12 +121,7 @@ local function parseMetafile(file)
             pointer = pointer + cmetalen
         end
 
-        ret[name] = {
-            owner = owner,
-            group = group,
-            perms = perms,
-            cmeta = cmeta
-        }
+        ret[name] = {owner = owner, group = group, perms = perms, cmeta = cmeta}
     end
 
     return ret
@@ -112,7 +129,7 @@ end
 
 -- Build metafile
 local function makeMetafile(meta)
-    local file=""
+    local file = ""
     for name, m in pairs(meta) do
         local entry = ""
         entry = entry .. string.char(#name) .. name
@@ -129,22 +146,18 @@ local function getFileMeta(path)
     fullPath = normalizePath(fullPath)
 
     local parts = {}
-    for p in fullPath:gmatch("[^/]+") do
-        table.insert(parts, p)
-    end
+    for p in fullPath:gmatch("[^/]+") do table.insert(parts, p) end
 
     -- default fallback
-    local default = { owner=0, group=0, perms=62, cmeta="" }
+    local default = {owner = 0, group = 0, perms = 63, cmeta = ""}
 
     -- walk from deepest parent upward
     for i = #parts, 1, -1 do
-        local parent = "/" .. table.concat(parts, "/", 1, i-1)
+        local parent = "/" .. table.concat(parts, "/", 1, i - 1)
         if parent ~= "/" then parent = parent .. "/" end
 
         local target = parts[i]
-        if target == ".meta" then
-            error("Cannot open metafile")
-        end
+        if target == ".meta" then error("Cannot open metafile") end
         local metaPath = parent .. ".meta"
 
         if disk:fileExists(metaPath) then
@@ -153,9 +166,7 @@ local function getFileMeta(path)
             f.close()
 
             local parsed = parseMetafile(text)
-            if parsed[target] then
-                return parsed[target]
-            end
+            if parsed[target] then return parsed[target] end
         end
     end
 
@@ -173,13 +184,9 @@ local function ensureParentMeta(path)
         name = fullPath:gsub("^/", "")
     end
 
-    if name == ".meta" then
-        error("Cannot open metafile")
-    end
+    if name == ".meta" then error("Cannot open metafile") end
 
-    if parent ~= "/" and parent:sub(-1) ~= "/" then
-        parent = parent .. "/"
-    end
+    if parent ~= "/" and parent:sub(-1) ~= "/" then parent = parent .. "/" end
 
     local metaPath = parent .. ".meta"
 
@@ -192,27 +199,32 @@ local function ensureParentMeta(path)
     return metaPath, name
 end
 
-
 -- Permission checking
 local function checkperms(meta, mode)
     local modes = {
-        r = {owner=5, group=3, everyone=1},
-        w = {owner=4, group=2, everyone=0},
-        a = {owner=4, group=2, everyone=0}
+        r = {owner = 5, group = 3, everyone = 1},
+        w = {owner = 4, group = 2, everyone = 0},
+        a = {owner = 4, group = 2, everyone = 0}
     }
 
     local bits = meta.perms
     local function bit_is_set(num, bit)
-        return math.floor(num / (2^bit)) % 2 == 1
+        return math.floor(num / (2 ^ bit)) % 2 == 1
     end
 
     if kernel.uid == 0 then return true end
-    if kernel.uid == meta.owner and bit_is_set(bits, modes[mode].owner) then return true end
+    if kernel.uid == meta.owner and bit_is_set(bits, modes[mode].owner) then
+        return true
+    end
+
     if meta.group and kernel.groups then
         for _, gid in ipairs(kernel.groups) do
-            if gid == meta.group and bit_is_set(bits, modes[mode].group) then return true end
+            if gid == meta.group and bit_is_set(bits, modes[mode].group) then
+                return true
+            end
         end
     end
+
     if bit_is_set(bits, modes[mode].everyone) then return true end
     error("EACCES")
 end
@@ -220,10 +232,26 @@ end
 -- mounts
 local function normalizeMountPoint(path)
     path = normalizePath(path)
-    if path ~= "/" and path:sub(-1) == "/" then
-        path = path:sub(1, -2)
-    end
+    if path ~= "/" and path:sub(-1) == "/" then path = path:sub(1, -2) end
     return path
+end
+
+local required = {
+    "open",
+    "type",
+    "list",
+    "attributes",
+    "fileExists",
+    "makeDirectory",
+    "remove"
+}
+
+local function check(disk)
+    for _, name in ipairs(required) do
+        if type(disk[name]) ~= "function" then
+            error("Invalid disk: missing method '" .. name .. "'")
+        end
+    end
 end
 
 function vfs.mount(target, diskOrId)
@@ -231,28 +259,28 @@ function vfs.mount(target, diskOrId)
     if not target then error("EINVAL") end
 
     target = normalizeMountPoint(target)
+    if not vfs.exists(target) then vfs.mkdir(target) end
+    if vfs.type(target) ~= "directory" then error("EINVAL") end
 
     local disk
     local id
 
     if type(diskOrId) == "string" then
         disk = kernel.disks[diskOrId]
-        id = diskOrId
         if not disk then error("ENODEV") end
+        check(disk)
+        id = diskOrId
     elseif type(diskOrId) == "table" then
+        check(disk)
         disk = diskOrId
-        id = tostring(disk)
+        id = disk.address
         vfs.disks[id] = disk
     else
         error("EINVAL")
     end
 
     -- Prevent shadowing an existing mount
-    for _, mp in pairs(vfs.mounts) do
-        if mp == target then
-            error("EBUSY")
-        end
-    end
+    for _, mp in pairs(vfs.mounts) do if mp == target then error("EBUSY") end end
 
     vfs.mounts[id] = target
     return true
@@ -277,7 +305,6 @@ end
 
 -- Open file
 function vfs.open(path, mode)
-    ismode(mode)
     checkSystemLimit()
     local task = kernel.currentTask
     local fd = allocFD(task)
@@ -287,8 +314,13 @@ function vfs.open(path, mode)
     local meta = getFileMeta(path)
     checkperms(meta, mode)
 
-    local handle = disk:open(diskPath, mode)
-    task.fd[fd] = newFileObj(handle, mode, path, meta)
+    local handle
+    if disk:type(diskPath)~="directory" then
+        handle = disk:open(diskPath, mode)
+        if type(handle)~="table" then error("ENFILE") end
+    end
+
+    task.fd[fd] = newFileObj(handle, mode, path, meta, disk:type(diskPath))
     total = total + 1
     return fd
 end
@@ -298,6 +330,7 @@ function vfs.read(fd, count)
     local task = kernel.currentTask
     local file = task.fd[fd]
     if not file then error("EBADF") end
+    if not file.handle.read then error("EBADF") end
     if file.mode ~= "r" then error("EBADF") end
     return file.handle.read(count or 1)
 end
@@ -307,6 +340,7 @@ function vfs.write(fd, content)
     local task = kernel.currentTask
     local file = task.fd[fd]
     if not file then error("EBADF") end
+    if not file.handle.write then error("EBADF") end
     if file.mode ~= "w" and file.mode ~= "a" then error("EBADF") end
     return file.handle.write(content)
 end
@@ -316,6 +350,8 @@ function vfs.pread(fd, count, offset)
     local task = kernel.currentTask
     local file = task.fd[fd]
     if not file then error("EBADF") end
+    if not file.handle.read then error("EBADF") end
+    if not file.handle.seek then error("EBADF") end
     if file.mode ~= "r" then error("EBADF") end
     file.handle.seek("set", offset)
     return file.handle.read(count or 1)
@@ -325,6 +361,8 @@ function vfs.pwrite(fd, content, offset)
     local task = kernel.currentTask
     local file = task.fd[fd]
     if not file then error("EBADF") end
+    if not file.handle.write then error("EBADF") end
+    if not file.handle.seek then error("EBADF") end
     if file.mode ~= "w" and file.mode ~= "a" then error("EBADF") end
     file.handle.seek("set", offset)
     return file.handle.write(content)
@@ -335,6 +373,7 @@ function vfs.lseek(fd, offset, whence)
     local task = kernel.currentTask
     local file = task.fd[fd]
     if not file then error("EBADF") end
+    if not file.handle.seek then error("EBADF") end
     return file.handle.seek(whence or "set", offset)
 end
 
@@ -343,6 +382,7 @@ function vfs.fsync(fd)
     local task = kernel.currentTask
     local file = task.fd[fd]
     if not file then error("EBADF") end
+    if not file.handle.flush then error("EBADF") end
     if file.mode ~= "w" and file.mode ~= "a" then error("EBADF") end
     file.handle.flush()
 end
@@ -352,7 +392,9 @@ function vfs.close(fd)
     local task = kernel.currentTask
     local file = task.fd[fd]
     if not file then error("EBADF") end
-    file.handle.close()
+    if file.handle.close then
+        file.handle.close()
+    end
     task.fd[fd] = nil
     total = total - 1
 end
@@ -364,8 +406,11 @@ function vfs.sendfile(outfd, infd, count)
     local outFile = task.fd[outfd]
     if not inFile or not outFile then error("EBADF") end
     if inFile.mode ~= "r" then error("EBADF") end
+    if not inFile.handle.read then error("EBADF") end
     if outFile.mode ~= "w" and outFile.mode ~= "a" then error("EBADF") end
+    if not outFile.handle.write then error("EBADF") end
     local data = inFile.handle.read(count or 1024)
+    if not data or data == "" then return end
     return outFile.handle.write(data)
 end
 
@@ -403,12 +448,12 @@ end
 -- Directory operations
 function vfs.listdir(path)
     local disk, diskPath = resolvePath(path)
-    if disk:type(diskPath) ~= "directory" then error("ENOTDIR") end
+    if disk:type(diskPath) ~= "directory" then error("ENOENT") end
     local meta = getFileMeta(path)
     checkperms(meta, "r")
     local list = disk:list(diskPath)
-    if table.indexOf(list,".meta")~=-1 then
-        table.remove(list,table.indexOf(list,".meta"))
+    if table.indexOf(list, ".meta") ~= -1 then
+        table.remove(list, table.indexOf(list, ".meta"))
     end
     return list
 end
@@ -431,8 +476,8 @@ end
 function vfs.chmod(path, perms)
     local disk, diskPath = resolvePath(path)
     local meta = getFileMeta(path)
-    checkperms(meta, "w")
 
+    if meta.owner ~= kernel.currentTask.uid then error("EACCES") end
     meta.perms = perms
 
     local mpath, target = ensureParentMeta(path)
@@ -449,7 +494,6 @@ function vfs.chmod(path, perms)
     f.close()
 end
 
-
 function vfs.fchmod(fd, perms)
     local task = kernel.currentTask
     local file = task.fd[fd]
@@ -460,8 +504,8 @@ end
 function vfs.chown(path, uid, gid)
     local disk, diskPath = resolvePath(path)
     local meta = getFileMeta(path)
-    checkperms(meta, "w")
 
+    if meta.owner ~= kernel.currentTask.uid then error("EACCES") end
     meta.owner = uid
     meta.group = gid
 
@@ -478,7 +522,6 @@ function vfs.chown(path, uid, gid)
     f.write(makeMetafile(parsed))
     f.close()
 end
-
 
 function vfs.fchown(fd, uid, gid)
     local task = kernel.currentTask
@@ -501,13 +544,9 @@ function vfs.type(path)
     return disk:type(diskPath)
 end
 
-function vfs.getcwd()
-    return kernel.currentTask.cwd
-end
+function vfs.getcwd() return kernel.currentTask.cwd end
 
-function vfs.chdir(path)
-    kernel.currentTask.cwd=path
-end
+function vfs.chdir(path) kernel.currentTask.cwd = path end
 
 -- Export syscalls
 local sys = kernel.syscalls
@@ -531,7 +570,7 @@ sys["chown"] = vfs.chown
 sys["fchown"] = vfs.fchown
 sys["exists"] = vfs.exists
 sys["type"] = vfs.type
-sys["mount"]  = vfs.mount
+sys["mount"] = vfs.mount
 sys["umount"] = vfs.umount
 sys["getcwd"] = vfs.getcwd
 sys["chdir"] = vfs.chdir

@@ -1,6 +1,6 @@
---:Minify:--
-local apis=...
-local keys=apis.keys
+-- :Minify:--
+local apis = ...
+local keys = apis.keys
 local tKeys = {}
 tKeys[keys.space] = ' '
 tKeys[keys.grave] = '`'
@@ -63,13 +63,13 @@ tKeys[keys.pageUp] = '\x1b[5~'
 tKeys[keys.pageDown] = '\x1b[6~'
 tKeys[keys.home] = '\x1b[1~'
 tKeys[keys["end"]] = '\x1b[4~'
---tKeys[keys.capsLock] = '\x1b[capsLock'
---tKeys[keys.scrollLock] = '\x1b[scrollLock'
---tKeys[keys.numLock] = '\x1b[numLock'
---if keys.printScreen then
+-- tKeys[keys.capsLock] = '\x1b[capsLock'
+-- tKeys[keys.scrollLock] = '\x1b[scrollLock'
+-- tKeys[keys.numLock] = '\x1b[numLock'
+-- if keys.printScreen then
 --    tKeys[keys.printScreen] = '\x1b[printScreen'
---end
---tKeys[keys.pause] = '\x1b[pause'
+-- end
+-- tKeys[keys.pause] = '\x1b[pause'
 tKeys[keys.f1] = '\x1b[11~'
 tKeys[keys.f2] = '\x1b[12~'
 tKeys[keys.f3] = '\x1b[13~'
@@ -82,19 +82,19 @@ tKeys[keys.f9] = '\x1b[20~'
 tKeys[keys.f10] = '\x1b[21~'
 tKeys[keys.f11] = '\x1b[23~'
 tKeys[keys.f12] = '\x1b[24~'
---tKeys[keys.f13] = '\x1b[25~'
---tKeys[keys.f14] = '\x1b[26~'
---tKeys[keys.f15] = '\x1b[28~'
---tKeys[keys.f16] = '\x1b[29~'
---tKeys[keys.f17] = '\x1b[31~'
---tKeys[keys.f18] = '\x1b[32~'
---tKeys[keys.f19] = '\x1b[33~'
---tKeys[keys.f20] = '\x1b[34~'
---tKeys[keys.f21] = '\x1b[42~'
---tKeys[keys.f22] = '\x1b[43~'
---tKeys[keys.f23] = '\x1b[44~'
---tKeys[keys.f24] = '\x1b[45~'
---tKeys[keys.f25] = '\x1b[46~'
+-- tKeys[keys.f13] = '\x1b[25~'
+-- tKeys[keys.f14] = '\x1b[26~'
+-- tKeys[keys.f15] = '\x1b[28~'
+-- tKeys[keys.f16] = '\x1b[29~'
+-- tKeys[keys.f17] = '\x1b[31~'
+-- tKeys[keys.f18] = '\x1b[32~'
+-- tKeys[keys.f19] = '\x1b[33~'
+-- tKeys[keys.f20] = '\x1b[34~'
+-- tKeys[keys.f21] = '\x1b[42~'
+-- tKeys[keys.f22] = '\x1b[43~'
+-- tKeys[keys.f23] = '\x1b[44~'
+-- tKeys[keys.f24] = '\x1b[45~'
+-- tKeys[keys.f25] = '\x1b[46~'
 
 -- Numpad
 tKeys[keys.numPad0] = '0'
@@ -108,15 +108,15 @@ tKeys[keys.numPad7] = '7'
 tKeys[keys.numPad8] = '8'
 tKeys[keys.numPad9] = '9'
 
---tKeys[340] = 'leftShift'
---tKeys[341] = 'leftCtrl'
---tKeys[342] = 'leftAlt'
---tKeys[343] = 'leftSuper'
---tKeys[344] = 'rightShift'
---tKeys[345] = 'rightCtrl'
---tKeys[346] = 'rightAlt'
---tKeys[347] = 'rightSuper'
---tKeys[348] = 'menu'
+-- tKeys[340] = 'leftShift'
+-- tKeys[341] = 'leftCtrl'
+-- tKeys[342] = 'leftAlt'
+-- tKeys[343] = 'leftSuper'
+-- tKeys[344] = 'rightShift'
+-- tKeys[345] = 'rightCtrl'
+-- tKeys[346] = 'rightAlt'
+-- tKeys[347] = 'rightSuper'
+-- tKeys[348] = 'menu'
 
 local shift = false
 local ctrl = false
@@ -178,26 +178,34 @@ end
 
 local function p()
     local str = ""
-    if alt then
-        str=str.."\x1b"
-    end
-    if ctrl then
-        str=str.."^"
-    end
+    if alt then str = str .. "\x1b" end
+    if ctrl then str = str .. "^" end
     return str
 end
 
 return function(event, q)
     if event[1] == "key" then
-        if event[2]==keys.leftCtrl or event[2]==keys.rightCtrl then ctrl=true return
-        elseif event[2]==keys.leftAlt or event[2]==keys.rightAlt then alt=true return
-        elseif event[2]==keys.leftShift or event[2]==keys.rightCtrl then shift=true return
+        if event[2] == keys.leftCtrl or event[2] == keys.rightCtrl then
+            ctrl = true
+            return
+        elseif event[2] == keys.leftAlt or event[2] == keys.rightAlt then
+            alt = true
+            return
+        elseif event[2] == keys.leftShift or event[2] == keys.rightCtrl then
+            shift = true
+            return
         end
-        q("keyTyped", 1, p()..s(tKeys[event[2]]))
+        q("keyTyped", 1, p() .. s(tKeys[event[2]]))
     elseif event[1] == "key_up" then
-        if event[2]==keys.leftCtrl or event[2]==keys.rightCtrl then ctrl=false return
-        elseif event[2]==keys.leftAlt or event[2]==keys.rightAlt then alt=false return
-        elseif event[2]==keys.leftShift or event[2]==keys.rightCtrl then shift=false return
+        if event[2] == keys.leftCtrl or event[2] == keys.rightCtrl then
+            ctrl = false
+            return
+        elseif event[2] == keys.leftAlt or event[2] == keys.rightAlt then
+            alt = false
+            return
+        elseif event[2] == keys.leftShift or event[2] == keys.rightCtrl then
+            shift = false
+            return
         end
     end
 end

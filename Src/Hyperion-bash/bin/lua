@@ -21,7 +21,7 @@ while true do
                     if str == "" then
                         printInline("> ")
                         stopInput=false
-                    elseif str == "exit" then
+                    elseif str == "exit()" then
                         break
                     else
                         local func=load(str,"@Lua","t",luaEnv)

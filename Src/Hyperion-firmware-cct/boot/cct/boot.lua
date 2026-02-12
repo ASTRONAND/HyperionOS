@@ -1,5 +1,5 @@
---:Minify:--
-local BOOT_DRIVE_PATH=({...})[1] or "/$"
+-- :Minify:--
+local BOOT_DRIVE_PATH = ({...})[1] or "/$"
 ---@diagnostic disable-next-line: undefined-global
 local term = term
 local os = os
@@ -38,7 +38,7 @@ local function write(text)
             y = y + 1
         end
 
-        if y-1 >= h then
+        if y - 1 >= h then
             term.scroll(1)
             y = h
             term.setCursorPos(x, y)
@@ -61,7 +61,7 @@ end
 
 term.setCursorBlink(false)
 local ok, err = xpcall(function()
-    local apis={BOOT_DRIVE_PATH=BOOT_DRIVE_PATH}
+    local apis = {BOOT_DRIVE_PATH = BOOT_DRIVE_PATH}
 
     local lua = {
         coroutine = true,
@@ -93,14 +93,14 @@ local ok, err = xpcall(function()
         tostring = true,
         type = true,
         xpcall = true,
-        _G=true
+        _G = true
     }
 
     local debug = debug
-    for i,v in pairs(_G) do
-        if not lua[i] or lua[i]==nil then
-            apis[i]=v
-            _G[i]=nil
+    for i, v in pairs(_G) do
+        if not lua[i] or lua[i] == nil then
+            apis[i] = v
+            _G[i] = nil
         end
     end
 
@@ -109,18 +109,18 @@ local ok, err = xpcall(function()
         while stoptime > apis.os.clock() do end
     end
 
-    apis.term.setPaletteColor(0x1,    0xFFFFFF) -- #000000
-    apis.term.setPaletteColor(0x2,    0xFF0000) -- #FFFFFF
-    apis.term.setPaletteColor(0x4,    0x00FF00) -- #FF0000
-    apis.term.setPaletteColor(0x8,    0x0000FF) -- #00FF00
-    apis.term.setPaletteColor(0x10,   0x00FFFF) -- #0000FF
-    apis.term.setPaletteColor(0x20,   0xFF00FF) -- #00FFFF
-    apis.term.setPaletteColor(0x40,   0xFFFF00) -- #FF00FF
-    apis.term.setPaletteColor(0x80,   0xFF6D00) -- #FFFF00
-    apis.term.setPaletteColor(0x100,  0x6DFF55) -- #FF6D00
-    apis.term.setPaletteColor(0x200,  0x24FFFF) -- #6DFF55
-    apis.term.setPaletteColor(0x400,  0x924900) -- #24FFFF
-    apis.term.setPaletteColor(0x800,  0x6D6D55) -- #924900
+    apis.term.setPaletteColor(0x1, 0xFFFFFF) -- #000000
+    apis.term.setPaletteColor(0x2, 0xFF0000) -- #FFFFFF
+    apis.term.setPaletteColor(0x4, 0x00FF00) -- #FF0000
+    apis.term.setPaletteColor(0x8, 0x0000FF) -- #00FF00
+    apis.term.setPaletteColor(0x10, 0x00FFFF) -- #0000FF
+    apis.term.setPaletteColor(0x20, 0xFF00FF) -- #00FFFF
+    apis.term.setPaletteColor(0x40, 0xFFFF00) -- #FF00FF
+    apis.term.setPaletteColor(0x80, 0xFF6D00) -- #FFFF00
+    apis.term.setPaletteColor(0x100, 0x6DFF55) -- #FF6D00
+    apis.term.setPaletteColor(0x200, 0x24FFFF) -- #6DFF55
+    apis.term.setPaletteColor(0x400, 0x924900) -- #24FFFF
+    apis.term.setPaletteColor(0x800, 0x6D6D55) -- #924900
     apis.term.setPaletteColor(0x1000, 0xDBDBAA) -- #6D6D55
     apis.term.setPaletteColor(0x2000, 0x6D00FF) -- #DBDBAA
     apis.term.setPaletteColor(0x4000, 0xB6FF00) -- #6D00FF
@@ -128,28 +128,23 @@ local ok, err = xpcall(function()
 
     local function getFile(path)
         local file = apis.fs.open(path, "r")
-        if not file then displaySuperBadError("Could not open file: "..path) end
+        if not file then
+            displaySuperBadError("Could not open file: " .. path)
+        end
         local content = file.readAll()
         file.close()
         return content
     end
 
-    local Kernel = load(getFile(BOOT_DRIVE_PATH.."/boot/kernel.lua"),"@Kernel")
-    local initFs = load(getFile(BOOT_DRIVE_PATH.."/boot/cct/initdisks"),"@Init_disks")(apis)
-    local fs = load(getFile(BOOT_DRIVE_PATH.."/boot/initfs"),"@InitFs")()
-    local key = load(getFile(BOOT_DRIVE_PATH.."/boot/cct/keys.lua"),"@keyhelper")(apis)
-    if not Kernel then
-        displaySuperBadError("Could not load kernel.")
-    end
-    if not initFs then
-        displaySuperBadError("Could not load initdisks.")
-    end
-    if not fs then
-        displaySuperBadError("Could not load initfs.")
-    end
-    if not key then
-        displaySuperBadError("Could not load key helper.")
-    end
+    local Kernel = load(getFile(BOOT_DRIVE_PATH .. "/boot/kernel.lua"),"@Kernel")
+    local initFs = load(getFile(BOOT_DRIVE_PATH .. "/boot/cct/initdisks"),"@Init_disks")(apis)
+    local fs = load(getFile(BOOT_DRIVE_PATH .. "/boot/initfs"), "@InitFs")()
+    local key = load(getFile(BOOT_DRIVE_PATH .. "/boot/cct/keys.lua"),"@keyhelper")(apis)
+
+    if not Kernel then displaySuperBadError("Could not load kernel.") end
+    if not initFs then displaySuperBadError("Could not load initdisks.") end
+    if not fs then displaySuperBadError("Could not load initfs.") end
+    if not key then displaySuperBadError("Could not load key helper.") end
 
     local eventQueue = {}
 
@@ -159,7 +154,7 @@ local ok, err = xpcall(function()
 
     local computer = {
         time = function() return apis.os.epoch("utc") end,
-        clock = function() return apis.os.clock()*1000 end,
+        clock = function() return apis.os.clock() * 1000 end,
         shutdown = apis.os.shutdown,
         reboot = apis.os.reboot,
         getMachineEvent = function()
@@ -169,36 +164,34 @@ local ok, err = xpcall(function()
                 return nil
             end
         end,
-        getEEPROM = function()
-            return getFile("/startup.lua")
-        end,
-        setEEPROM = function(_,text)
+        getEEPROM = function() return getFile("/startup.lua") end,
+        setEEPROM = function(_, text)
             local h = apis.fs.open("/startup.lua", "w")
             h.write(text)
             h.close()
         end
     }
 
-    local icolors={
-        [0x1]    =1,  -- #000000
-        [0x2]    =2,  -- #FFFFFF
-        [0x4]    =3,  -- #FF0000
-        [0x8]    =4,  -- #00FF00
-        [0x10]   =5,  -- #0000FF
-        [0x20]   =6,  -- #00FFFF
-        [0x40]   =7,  -- #FF00FF
-        [0x80]   =8,  -- #FFFF00
-        [0x100]  =9,  -- #FF6D00
-        [0x200]  =10,  -- #6DFF55
-        [0x400]  =11, -- #24FFFF
-        [0x800]  =12, -- #924900
-        [0x1000] =13, -- #6D6D55
-        [0x2000] =14, -- #DBDBAA
-        [0x4000] =15, -- #6D00FF
-        [0x8000] =16  -- #B6FF00
+    local icolors = {
+        [0x1] = 1, -- #000000
+        [0x2] = 2, -- #FFFFFF
+        [0x4] = 3, -- #FF0000
+        [0x8] = 4, -- #00FF00
+        [0x10] = 5, -- #0000FF
+        [0x20] = 6, -- #00FFFF
+        [0x40] = 7, -- #FF00FF
+        [0x80] = 8, -- #FFFF00
+        [0x100] = 9, -- #FF6D00
+        [0x200] = 10, -- #6DFF55
+        [0x400] = 11, -- #24FFFF
+        [0x800] = 12, -- #924900
+        [0x1000] = 13, -- #6D6D55
+        [0x2000] = 14, -- #DBDBAA
+        [0x4000] = 15, -- #6D00FF
+        [0x8000] = 16 -- #B6FF00
     }
 
-    local colors={
+    local colors = {
         0x0001, -- #000000
         0x0002, -- #FFFFFF
         0x0004, -- #FF0000
@@ -214,7 +207,7 @@ local ok, err = xpcall(function()
         0x1000, -- #6D6D55
         0x2000, -- #DBDBAA
         0x4000, -- #6D00FF
-        0x8000  -- #B6FF00
+        0x8000 -- #B6FF00
     }
 
     apis.term.setBackgroundColor(0x8000)
@@ -224,21 +217,33 @@ local ok, err = xpcall(function()
 
     local kernelCoro = coroutine.create(function()
         ---@diagnostic disable-next-line: param-type-mismatch
-        local ok, err = xpcall(Kernel, debug.traceback, apis, initFs, "cct", "/sbin/init", {
-            print=function(_,text) write(text.."\n") end,
-            printInline=function(_,text) write(text) end,
-            clear=function() apis.term.clear() apis.term.setCursorPos(1,1) end,
-            setCursorPos=function(_,x,y) apis.term.setCursorPos(x,y) end,
-            getCursorPos=function() return apis.term.getCursorPos() end,
-            getSize=function() return apis.term.getSize() end,
-            setBackgroundColor=function(_,color) apis.term.setBackgroundColor(colors[color]) end,
-            setTextColor=function(_,color) apis.term.setTextColor(colors[color]) end,
-            getBackgroundColor=function() return icolors[apis.term.getBackgroundColor()] end,
-            getTextColor=function() return icolors[apis.term.getTextColor()] end
+        local ok, err = xpcall(Kernel, debug.traceback, apis, initFs, "cct", "/sbin/init",
+        {
+            print = function(_, text) write(text .. "\n") end,
+            printInline = function(_, text) write(text) end,
+            clear = function()
+                apis.term.clear()
+                apis.term.setCursorPos(1, 1)
+            end,
+            setCursorPos = function(_, x, y)
+                apis.term.setCursorPos(x, y)
+            end,
+            getCursorPos = function() return apis.term.getCursorPos() end,
+            getSize = function() return apis.term.getSize() end,
+            setBackgroundColor = function(_, color)
+                apis.term.setBackgroundColor(colors[color])
+            end,
+            setTextColor = function(_, color)
+                apis.term.setTextColor(colors[color])
+            end,
+            getBackgroundColor = function()
+                return icolors[apis.term.getBackgroundColor()]
+            end,
+            getTextColor = function()
+                return icolors[apis.term.getTextColor()]
+            end
         }, computer, fs, "$")
-        if not ok then
-            displaySuperBadError(err)
-        end
+        if not ok then displaySuperBadError(err) end
     end)
 
     -- time is in milliseconds
@@ -250,9 +255,9 @@ local ok, err = xpcall(function()
             end
         end, "", 1000)
         local ret = {coroutine.resume(co, ...)}
-        if ret[1] and ret[2]=="timeout" then
+        if ret[1] and ret[2] == "timeout" then
             return "timeout"
-        elseif ret[1]==false then
+        elseif ret[1] == false then
             return "error", ret[2]
         else
             debug.sethook(co)
@@ -260,7 +265,7 @@ local ok, err = xpcall(function()
         end
     end
 
-    write("Loaded in "..tostring(apis.os.clock()).." seconds.\n")
+    write("Loaded in " .. tostring(apis.os.clock()) .. " seconds.\n")
 
     while true do
         local status, err = coroutine.resumeWithTimeout(kernelCoro, 50)
@@ -279,17 +284,15 @@ local ok, err = xpcall(function()
             elseif event[1] == "disk_eject" then
                 queueEvent("componentRemoved", "disk")
             elseif event[1] == "NoSleep" then
-                exit=true
+                exit = true
             end
         end
-        if status == "error" or coroutine.status(kernelCoro)=="dead" then
-            displaySuperBadError("Kernel error: "..tostring(err))
+        if status == "error" or coroutine.status(kernelCoro) == "dead" then
+            displaySuperBadError("Kernel error: " .. tostring(err))
             coroutine.yield("key")
         end
     end
 end, debug.traceback)
 
-if not ok then
-    displaySuperBadError("Fatal error during boot: "..err)
-end
+if not ok then displaySuperBadError("Fatal error during boot: " .. err) end
 while true do coroutine.yield() end

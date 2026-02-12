@@ -1,4 +1,4 @@
---:Minify:--
+-- :Minify:--
 local fs = {}
 local disks = {}
 local mounts = {}
@@ -15,39 +15,42 @@ local function resolve(path)
     local newPath = path:sub(#mountPoint + 1)
     return disks[mounts[mountPoint]], newPath
 end
----------------------------------------------------------
 
 function fs.update(initdisks)
     disks = {}
-    for k, v in initdisks.list() do
-        disks[k] = v
-    end
+    for k, v in initdisks.list() do disks[k] = v end
 end
 
 function fs.exists(path)
     local disk, newPath = resolve(path)
     return disk:directoryExists(newPath) or disk:fileExists(newPath)
 end
+
 function fs.isFile(path)
     local disk, newPath = resolve(path)
     return disk:fileExists(newPath)
 end
+
 function fs.isDir(path)
     local disk, newPath = resolve(path)
     return disk:directoryExists(newPath)
 end
+
 function fs.list(path)
     local disk, newPath = resolve(path)
     return disk:list(newPath)
 end
+
 function fs.makeDir(path)
     local disk, newPath = resolve(path)
     return disk:makeDirectory(newPath)
 end
+
 function fs.remove(path)
     local disk, newPath = resolve(path)
     return disk:remove(newPath)
 end
+
 function fs.readAllText(path)
     local disk, newPath = resolve(path)
     local handle = disk:open(newPath, "r")
@@ -56,23 +59,26 @@ function fs.readAllText(path)
     handle.close()
     return content
 end
+
 function fs.writeAllText(path, text)
     local disk, newPath = resolve(path)
     local handle = disk:open(newPath, "w")
     handle.write(text)
     handle.close()
 end
+
 function fs.appendAllText(path, text)
     local disk, newPath = resolve(path)
     local handle = disk:open(newPath, "a")
     handle.write(text)
     handle.close()
 end
-function fs.load(path)
-    return load(fs.readAllText(path), path)
-end
+
+function fs.load(path) return load(fs.readAllText(path), path) end
+
 function fs.mount(disk, mountPoint)
     if not disks[disk] then return end
     mounts[mountPoint] = disk
 end
+
 return fs
