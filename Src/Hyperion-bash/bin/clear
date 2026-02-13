@@ -1,1 +1,1 @@
-syscall.TTY_clear()
+syscall.devctl(1,"clear")

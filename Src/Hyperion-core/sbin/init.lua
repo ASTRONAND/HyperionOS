@@ -1,8 +1,6 @@
 --:Minify:--
 local kernel=...
 local fs=require("sys.fs")
-syscall.TTY_bind("tty0")
-syscall.IO_bind("raw")
 
 for i,v in pairs(kernel.processes) do
     kernel.log("Spawning kernel task "..i)
@@ -16,7 +14,6 @@ for i,v in pairs(kernel.processes) do
     end, i)
 end
 
-local eventQueues = {}
 local files = fs.list("/bin/startup")
 if not files then error("Failed to list /bin/startup") end
 for i,v in ipairs(files) do
@@ -30,37 +27,18 @@ for i,v in ipairs(files) do
             syscall.spawn(function()
                 syscall.setUsername("User")
                 syscall.setuid(1)
-                syscall.IO_bind("eventQueue:"..tostring(i))
-                local spot = #eventQueues+1
-                eventQueues[spot]="eventQueue:"..tostring(i)
                 local status, err = pcall(startupFunc)
                 if not status then
                     kernel.log("Error executing startup script '" .. filepath .. "': " .. err, "ERROR")
                 else
                     kernel.log("Successfully executed startup script: " .. filepath, "INFO")
                 end
-                local event={true}
-                while #event~=0 do
-                    event={syscall.IO_pullEvent()}
-                end
             end, "startup:" .. v)
         end
     end
 end
 
-local timeout=false
 while true do
-    local event = {syscall.IO_pullEvent()}
-    if event[1] then
-        for i,v in ipairs(eventQueues) do
-            syscall.IO_pushEvent(v, table.unpack(event))
-        end
-        timeout=false
-    else
-        timeout=true
-    end
-    if timeout then
-        sleep(.05)
-    end
+    sleep(1)
     kernel.saveLog()
 end

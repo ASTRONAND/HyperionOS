@@ -104,6 +104,12 @@ local ok, err = xpcall(function()
         end
     end
 
+    local acekeys={
+        [apis.keys.enter]="\n",
+        [apis.keys.tab]="\t",
+        [apis.keys.backspace]="\b"
+    }
+
     function sleep(time)
         local stoptime = apis.os.clock() + (time)
         while stoptime > apis.os.clock() do end
@@ -139,12 +145,10 @@ local ok, err = xpcall(function()
     local Kernel = load(getFile(BOOT_DRIVE_PATH .. "/boot/kernel.lua"),"@Kernel")
     local initFs = load(getFile(BOOT_DRIVE_PATH .. "/boot/cct/initdisks"),"@Init_disks")(apis)
     local fs = load(getFile(BOOT_DRIVE_PATH .. "/boot/initfs"), "@InitFs")()
-    local key = load(getFile(BOOT_DRIVE_PATH .. "/boot/cct/keys.lua"),"@keyhelper")(apis)
 
     if not Kernel then displaySuperBadError("Could not load kernel.") end
     if not initFs then displaySuperBadError("Could not load initdisks.") end
     if not fs then displaySuperBadError("Could not load initfs.") end
-    if not key then displaySuperBadError("Could not load key helper.") end
 
     local eventQueue = {}
 
@@ -275,10 +279,13 @@ local ok, err = xpcall(function()
             local event = {coroutine.yield()}
             if event[1] == "key" then
                 queueEvent("keyPressed", 1, event[2])
-                key(event, queueEvent)
+                if acekeys[event[2]] then
+                    queueEvent("keyTyped", 1, acekeys[event[2]])
+                end
+            elseif event[1] == "char" then
+                queueEvent("keyTyped", 1, event[2])
             elseif event[1] == "key_up" then
                 queueEvent("keyReleased", 1, event[2])
-                key(event, queueEvent)
             elseif event[1] == "disk" then
                 queueEvent("componentAdded", "disk")
             elseif event[1] == "disk_eject" then

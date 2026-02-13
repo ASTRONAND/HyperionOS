@@ -5,6 +5,7 @@ local proxy = {}
 local data = {}
 
 proxy.address = "devfs0000"
+proxy.isvirt = true
 proxy.isReadOnly = function() return false end
 proxy.spaceUsed = function() return 0 end
 proxy.spaceTotal = function() return 0 end
@@ -140,4 +141,7 @@ function data.zero(op, mode)
 end
 
 data["disk"]={}
+kernel.devfs={}
+kernel.devfs.data=data
+kernel.devfs.proxy=proxy
 kernel.disks["devfs0000"]=proxy

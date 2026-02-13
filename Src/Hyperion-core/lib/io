@@ -1,0 +1,6 @@
+local io = {}
+local fs = require("sys.fs")
+
+function io.open(path, mode)
+    return fs.open(path, mode)
+end

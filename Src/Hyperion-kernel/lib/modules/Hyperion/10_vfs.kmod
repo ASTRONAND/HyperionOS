@@ -82,7 +82,8 @@ local function newFileObj(handle, mode, path, meta, type)
         mode = mode,
         path = path,
         meta = meta,
-        type = type
+        type = type,
+        refcount = 1
     }
 end
 
@@ -321,7 +322,9 @@ function vfs.open(path, mode)
     end
 
     task.fd[fd] = newFileObj(handle, mode, path, meta, disk:type(diskPath))
-    total = total + 1
+    if not disk.isvirt then
+        total = total + 1
+    end
     return fd
 end
 
@@ -331,17 +334,16 @@ function vfs.read(fd, count)
     local file = task.fd[fd]
     if not file then error("EBADF") end
     if not file.handle.read then error("EBADF") end
-    if file.mode ~= "r" then error("EBADF") end
     return file.handle.read(count or 1)
 end
 
 -- Write
 function vfs.write(fd, content)
+    kernel.log(tostring(fd).."|"..content)
     local task = kernel.currentTask
     local file = task.fd[fd]
     if not file then error("EBADF") end
     if not file.handle.write then error("EBADF") end
-    if file.mode ~= "w" and file.mode ~= "a" then error("EBADF") end
     return file.handle.write(content)
 end
 
@@ -352,7 +354,6 @@ function vfs.pread(fd, count, offset)
     if not file then error("EBADF") end
     if not file.handle.read then error("EBADF") end
     if not file.handle.seek then error("EBADF") end
-    if file.mode ~= "r" then error("EBADF") end
     file.handle.seek("set", offset)
     return file.handle.read(count or 1)
 end
@@ -363,7 +364,6 @@ function vfs.pwrite(fd, content, offset)
     if not file then error("EBADF") end
     if not file.handle.write then error("EBADF") end
     if not file.handle.seek then error("EBADF") end
-    if file.mode ~= "w" and file.mode ~= "a" then error("EBADF") end
     file.handle.seek("set", offset)
     return file.handle.write(content)
 end
@@ -392,11 +392,16 @@ function vfs.close(fd)
     local task = kernel.currentTask
     local file = task.fd[fd]
     if not file then error("EBADF") end
-    if file.handle.close then
-        file.handle.close()
-    end
+
     task.fd[fd] = nil
     total = total - 1
+
+    file.refcount = file.refcount - 1
+    if file.refcount <= 0 then
+        if file.handle.close then
+            file.handle.close()
+        end
+    end
 end
 
 -- Sendfile
@@ -405,9 +410,7 @@ function vfs.sendfile(outfd, infd, count)
     local inFile = task.fd[infd]
     local outFile = task.fd[outfd]
     if not inFile or not outFile then error("EBADF") end
-    if inFile.mode ~= "r" then error("EBADF") end
     if not inFile.handle.read then error("EBADF") end
-    if outFile.mode ~= "w" and outFile.mode ~= "a" then error("EBADF") end
     if not outFile.handle.write then error("EBADF") end
     local data = inFile.handle.read(count or 1024)
     if not data or data == "" then return end
@@ -548,6 +551,52 @@ function vfs.getcwd() return kernel.currentTask.cwd end
 
 function vfs.chdir(path) kernel.currentTask.cwd = path end
 
+function vfs.dup(oldfd)
+    local task = kernel.currentTask
+    local file = task.fd[oldfd]
+    if not file then error("EBADF") end
+
+    checkSystemLimit()
+
+    local newfd = allocFD(task)
+    file.refcount = file.refcount + 1
+    task.fd[newfd] = file
+    total = total + 1
+
+    return newfd
+end
+
+function vfs.dup2(oldfd, newfd)
+    local task = kernel.currentTask
+    local file = task.fd[oldfd]
+    if not file then error("EBADF") end
+    if newfd < 0 or newfd >= kernel.config.maxFilesPerTask then
+        error("EBADF")
+    end
+
+    if oldfd == newfd then
+        return newfd
+    end
+
+    if task.fd[newfd] then
+        vfs.close(newfd)
+    end
+
+    checkSystemLimit()
+
+    file.refcount = file.refcount + 1
+    task.fd[newfd] = file
+    total = total + 1
+
+    return newfd
+end
+
+function vfs.devctl(fd, method, ...)
+    if not kernel.currentTask.fd[fd] then error("EBADF") end
+    if not kernel.currentTask.fd[fd].handle[method] then error("EINVAL") end
+    kernel.currentTask.fd[fd].handle[method](...)
+end
+
 -- Export syscalls
 local sys = kernel.syscalls
 sys["open"] = vfs.open
@@ -574,5 +623,8 @@ sys["mount"] = vfs.mount
 sys["umount"] = vfs.umount
 sys["getcwd"] = vfs.getcwd
 sys["chdir"] = vfs.chdir
+sys["dup"] = vfs.dup
+sys["dup2"] = vfs.dup2
+sys["devctl"] = vfs.devctl
 
 kernel.log("VFS module loaded")

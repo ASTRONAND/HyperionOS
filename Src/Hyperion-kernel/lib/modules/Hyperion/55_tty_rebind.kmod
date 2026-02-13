@@ -1,3 +1,0 @@
---:Minify:--
-local kernel=...
-kernel.tty.bind("tty0")

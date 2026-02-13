@@ -3,6 +3,6 @@ local file = syscall.open(args[1], "r")
 local content=""
 while content~=nil do
     content=syscall.read(file, 1024)
-    syscall.TTY_printInline(content)
+    printInline(content)
 end
 syscall.close(file)

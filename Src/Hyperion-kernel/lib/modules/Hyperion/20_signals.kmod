@@ -1,0 +1,27 @@
+--:Minify:--
+local kernel = ...
+local signal = {}
+kernel.signal=signal
+
+function signal.sigsend(pid, sig)
+    if sig<0 or sig>256 then error("EINVAL") end
+    local task = kernel.tasks[tostring(pid)]
+    if not task then error("ENOENT") end
+    if not task.sigq then return end
+    task.sigq[#task.sigq+1] = sig
+end
+
+function signal.sigcatch(handler)
+    kernel.currentTask.sigh=handler
+    if not kernel.currentTask.sigq then kernel.currentTask.sigq={} end
+end
+
+function signal.sigignore()
+    kernel.currentTask.sigh=nil
+    kernel.currentTask.sigq=nil
+end
+
+local s=kernel.syscalls
+s["sigsend"] = signal.sigsend
+s["sigcatch"] = signal.sigcatch
+s["sigignore"] = signal.sigignore

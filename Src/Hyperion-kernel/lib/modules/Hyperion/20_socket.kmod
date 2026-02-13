@@ -10,11 +10,5 @@ function socket.bind()
     
 end
 
-
-kernel.syscalls["ioctl"]=function(fd, method, ...)
-    if not kernel.currentTask.fd[fd] then error("EBADF") end
-    if not kernel.currentTask.fd[fd][method] then error("EINVAL") end
-
-end
 kernel.socket=socket
 kernel.log("Loaded socket module")

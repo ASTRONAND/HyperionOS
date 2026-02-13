@@ -48,11 +48,7 @@ function sys.spawn(func, name, envars, args, tgid)
         tgid = tgid or kernel.currentTask.tgid,
         username = kernel.username,
         uid = kernel.uid,
-        fd = {
-            [0]=kernel.currentTask.fd[0],
-            [1]=kernel.currentTask.fd[1],
-            [2]=kernel.currentTask.fd[2]
-        },
+        fd = {},
         sleep = 0,
         ivs = 0,
         vs = 0,
@@ -64,10 +60,7 @@ function sys.spawn(func, name, envars, args, tgid)
         timeSlice = 0,
         lastTime = 0,
         totalTime = 0,
-        numRuns = 0,
-        privacy = 0,
-        debugger = false,
-        eventq = kernel.currentTask.eventq
+        numRuns = 0
     }
 
     table.insert(kernel.currentTask.children, tasks[tostring(id)])
@@ -135,8 +128,7 @@ function sys.kill(pid)
     if not tasks[tostring(pid)] then
         return false, "Task does not exist"
 
-    elseif not isEqualToAny(tasks[tostring(pid)].pid, table.unpack(children)) and
-        kernel.uid ~= 0 then
+    elseif not isEqualToAny(tasks[tostring(pid)].pid, table.unpack(children)) and kernel.uid ~= 0 then
         return false, "You do not own this task"
 
     elseif tasks[tostring(pid)].status == "Z" then
@@ -155,10 +147,9 @@ function sys.stop(pid)
     if not tasks[tostring(pid)] then
         return false, "Task does not exist"
 
-    elseif not isEqualToAny(tasks[tostring(pid)].pid, table.unpack(children)) and
-        kernel.uid ~= 0 then
+    elseif not isEqualToAny(tasks[tostring(pid)].pid, table.unpack(children)) and kernel.uid ~= 0 then
         return false, "You do not own this task"
-        
+
     elseif tasks[tostring(pid)].status ~= "R" then
         return false, "Cannot stop non running task"
 
@@ -174,10 +165,9 @@ function sys.continue(pid)
     if not tasks[tostring(pid)] then
         return false, "Task does not exist"
 
-    elseif not isEqualToAny(tasks[tostring(pid)].pid, table.unpack(children)) and
-        kernel.uid ~= 0 then
+    elseif not isEqualToAny(tasks[tostring(pid)].pid, table.unpack(children)) and kernel.uid ~= 0 then
         return false, "You do not own this task"
-        
+
     elseif tasks[tostring(pid)].status ~= "T" then
         return false, "Task is not stopped"
 
@@ -256,10 +246,8 @@ local function reapDeadTasks()
             task.timeSlice = nil
             task.syscallReturn = nil
             task.sleep = nil
-            for v, _ in ipairs(task.fd) do kernel.vfs.close(v) end
+            for v, _ in ipairs(task.fd) do pcall(kernel.vfs.close,v) end
             task.fd = nil
-            task.debugger = nil
-            task.privacy = nil
             task.reapTime = kernel.computer:time() + 30000
 
         elseif task.reapTime and kernel.computer:time() > task.reapTime and
@@ -314,106 +302,118 @@ function kernel.main()
                 kernel.uid = task.uid
                 kernel.process = task.name
                 N = N + 1
-
+                
                 -- assign adaptive time slice
                 task.timeSlice = math.min(Tmax, math.max(Tmin, B / (N ^ alpha)))
 
-                -- measure execution time
-                local startTime = kernel.computer:time()
-                local ret
-                if kernel.config.preempt then
-                    ret = {
-                        coroutine.resumeWithTimeout(
-                            task.coro,
-                            task.timeSlice,
-                            table.unpack(task.syscallReturn)
-                        )
-                    }
-                else
-                    ret = {
-                        coroutine.resume(
-                            task.coro,
-                            table.unpack(task.syscallReturn)
-                        )
-                    }
+                if task.sigq and #task.sigq~=0 and task.sigh then
+                    local coro = coroutine.create(task.sigh)
+                    if kernel.config.preempt then
+                        coroutine.resumeWithTimeout(coro, task.timeSlice, table.remove(task.sigq, 1))
+                    else
+                        coroutine.resume(coro, table.remove(task.sigq, 1))
+                    end
                 end
 
-                local elapsed = kernel.computer:time() - startTime
-                task.lastTime = elapsed
-                task.totalTime = (task.totalTime or 0) + elapsed
-                task.numRuns = (task.numRuns or 0) + 1
+                -- check for exit/stop
+                if task.status=="R" then
+                    -- measure execution time
+                    local startTime = kernel.computer:time()
+                    local ret
+                    if kernel.config.preempt then
+                        ret = {
+                            coroutine.resumeWithTimeout(
+                                task.coro,
+                                task.timeSlice,
+                                table.unpack(task.syscallReturn)
+                            )
+                        }
+                    else
+                        ret = {
+                            coroutine.resume(
+                                task.coro,
+                                table.unpack(task.syscallReturn)
+                            )
+                        }
+                    end
 
-                taskTimes[#taskTimes + 1] = elapsed
-                totalTaskTime = totalTaskTime + elapsed
+                    local elapsed = kernel.computer:time() - startTime
+                    task.lastTime = elapsed
+                    task.totalTime = (task.totalTime or 0) + elapsed
+                    task.numRuns = (task.numRuns or 0) + 1
 
-                if elapsed <= Tmin then Tmin_hit = Tmin_hit + 1 end
-                if elapsed >= Tmax then Tmax_hit = Tmax_hit + 1 end
+                    taskTimes[#taskTimes + 1] = elapsed
+                    totalTaskTime = totalTaskTime + elapsed
 
-                -- handle task results
-                if ret[1] == "error" or ret[1] == false then
-                    kernel.log("processHandlerException: " .. ret[2], "ERROR", 2)
-                    task.status = "Z"
-                    task.exit = "processHandlerException: " .. ret[2]
+                    if elapsed <= Tmin then Tmin_hit = Tmin_hit + 1 end
+                    if elapsed >= Tmax then Tmax_hit = Tmax_hit + 1 end
 
-                elseif ret[1] == "timeout" then
-                    task.ivs = task.ivs + 1
-                    task.syscallReturn = {}
+                    -- handle task results
+                    if ret[1] == "error" or ret[1] == false then
+                        kernel.log("processHandlerException: " .. ret[2], "ERROR", 2)
+                        task.status = "Z"
+                        task.exit = "processHandlerException: " .. ret[2]
 
-                elseif ret[1] == "success" or ret[1] == true then
-                    task.vs = task.vs + 1
+                    elseif ret[1] == "timeout" then
+                        task.ivs = task.ivs + 1
+                        task.syscallReturn = {}
 
-                    if ret[2] == "syscall" then
-                        if kernel.syscalls[ret[3]] then
-                            if kernel.config.debugSyscalls then
-                                kernel.log("Task " .. task.pid .. " invoking syscall: " .. ret[3], "DBUG", 5)
+                    elseif ret[1] == "success" or ret[1] == true then
+                        task.vs = task.vs + 1
 
-                                for i = 4, #ret do
-                                    kernel.log("  inval[" .. tostring(i - 3) .. "] = " .. tostring(ret[i]), "DBUG", 5)
+                        if ret[2] == "syscall" then
+                            if kernel.syscalls[ret[3]] then
+                                if kernel.config.debugSyscalls then
+                                    kernel.log("Task " .. task.pid .. " invoking syscall: " .. ret[3], "DBUG", 5)
+
+                                    for i = 4, #ret do
+                                        kernel.log("  inval[" .. tostring(i - 3) .. "] = " .. tostring(ret[i]), "DBUG", 5)
+                                    end
                                 end
-                            end
 
-                            local sysret = {
-                                xpcall(kernel.syscalls[ret[3]], debug.traceback, table.unpack(ret, 4))
-                            }
+                                local sysret = {
+                                    xpcall(kernel.syscalls[ret[3]], debug.traceback, table.unpack(ret, 4))
+                                }
 
-                            if kernel.config.debugSyscalls then
-                                if not sysret[1] then
-                                    kernel.log(
-                                        "Task " .. task.pid .. " syscall " .. ret[3] .. " failed: " .. tostring(sysret[2]), "ERROR", 2
-                                    )
+                                if kernel.config.debugSyscalls then
+                                    if not sysret[1] then
+                                        kernel.log(
+                                            "Task " .. task.pid .. " syscall " .. ret[3] .. " failed: " .. tostring(sysret[2]), "ERROR", 2
+                                        )
 
-                                else
-                                    kernel.log(
-                                        "Task " .. task.pid .. " syscall " .. ret[3] .. " completed returning " .. tostring(#sysret - 1) .. " values", "DBUG", 5
-                                    )
+                                    else
+                                        kernel.log(
+                                            "Task " .. task.pid .. " syscall " .. ret[3] .. " completed returning " .. tostring(#sysret - 1) .. " values", "DBUG", 5
+                                        )
 
-                                    for i = 2, #sysret do
-                                        if type(sysret[i]) == "table" then
-                                            kernel.log(
-                                                "  retval[" .. tostring(i - 1) .. "] = " .. table.serialize(sysret[i]),"DBUG", 5
-                                            )
+                                        for i = 2, #sysret do
+                                            if type(sysret[i]) == "table" then
+                                                kernel.log(
+                                                    "  retval[" .. tostring(i - 1) .. "] = " .. table.serialize(sysret[i]),"DBUG", 5
+                                                )
 
-                                        else
-                                            kernel.log(
-                                                "  retval[" .. tostring(i - 1) .. "] = " .. tostring(sysret[i]), "DBUG", 5
-                                            )
+                                            else
+                                                kernel.log(
+                                                    "  retval[" .. tostring(i - 1) .. "] = " .. tostring(sysret[i]), "DBUG", 5
+                                                )
+                                            end
                                         end
                                     end
                                 end
-                            end
 
-                            if not sysret[1] then
-                                task.syscallReturn = {false, sysret[2]}
+                                if not sysret[1] then
+                                    task.syscallReturn = {false, sysret[2]}
 
+                                else
+                                    task.syscallReturn = {
+                                        true, table.unpack(sysret, 2)
+                                    }
+                                end
                             else
                                 task.syscallReturn = {
-                                    true, table.unpack(sysret, 2)
+                                    false, "Unknown syscall: " .. tostring(ret[3])
                                 }
                             end
-                        else
-                            task.syscallReturn = {
-                                false, "Unknown syscall: " .. tostring(ret[3])
-                            }
                         end
                     end
                 end

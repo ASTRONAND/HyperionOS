@@ -34,8 +34,8 @@ function kernel.log(msg, level, c)
     elseif kernel.status == "init" then
         kernel.standbyTask=kernel.currentTask
         kernel.currentTask=kernel.kernelTask
-        kernel.tty.setTextColor(c)
-        kernel.tty.print(tostring(computer:time()).." "..kernel.username.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
+        kernel.vfs.devctl(1,"sfgc",c)
+        kernel.vfs.write(1,tostring(computer:time()).." "..kernel.username.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
         kernel.currentTask=kernel.standbyTask
     end
 end
@@ -239,12 +239,19 @@ kernel.syscalls["version"]=function() return kernel.version end
 kernel.syscalls["setHostname"]=function(name) if kernel.uid~=0 then error("Permission denied") end kernel.hostname=name end
 kernel.syscalls["setUsername"]=function(user) if kernel.uid~=0 then error("Permission denied") end kernel.currentTask.username=user end
 kernel.syscalls["arch"]=function() return arch end
+kernel.syscalls["sysdump"]=function()
+    local rv={}
+    for i,v in pairs(kernel.syscalls) do
+        rv[#rv+1] = i
+    end
+    return rv
+end
 kernel.syscalls["test"]=function() return true end
 
 kernel.log("Running modules")
 for _,p in ipairs(modules) do
     for _,v in ipairs(p) do
-        if kernel.config.showModLoad then kernel.log("Loading module "..v, "DBUG") end
+        if kernel.config.showModLoad then kernel.log("Loading module "..v, "DBUG", 5) end
         local code=ifs.readAllText(v)
         if not code then
             kernel.log("ModuReadErr: "..v, "WARN", 8)
@@ -254,7 +261,7 @@ for _,p in ipairs(modules) do
         if not func then kernel.panic("ModuLoadErr: "..tostring(err)) goto skip end
         local status, err = xpcall(func,debug.traceback, kernel)
         if not status then kernel.panic("ModuRunErr: "..tostring(err)) end
-        if kernel.config.showModLoad then kernel.log("Loaded module "..v, "DBUG") end
+        if kernel.config.showModLoad then kernel.log("Loaded module "..v, "DBUG", 5) end
         ::skip::
     end
 end

@@ -4,6 +4,7 @@ local proxy = {}
 local data = {}
 
 proxy.address = "tmpfs0000"
+proxy.isvirt = true
 proxy.isReadOnly = function() return false end
 
 -- Space functions (just placeholders)
@@ -102,7 +103,7 @@ function proxy:type(path)
     if #steps == 0 then return "directory" end
     for i=1,#steps do
         step = step[steps[i]]
-        if not step then error("ENOENT") end
+        if not step then return false end
     end
     if type(step) == "table" then return "directory" end
     if type(step) == "string" then return "file" end

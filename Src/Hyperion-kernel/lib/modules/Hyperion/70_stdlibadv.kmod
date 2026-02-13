@@ -5,13 +5,13 @@ function print(...)
     local output = ""
     for i = 1, #args do output = output .. tostring(args[i]) .. "\t" end
     output = output:sub(1, -2)
-    syscall.TTY_print(output)
+    syscall.write(1, output.."\n")
 end
 
 function printf(fmt, ...)
     coroutine.yield()
     local output = string.format(fmt, ...)
-    syscall.TTY_print(output)
+    syscall.write(1, output.."\n")
 end
 
 function printInline(...)
@@ -20,5 +20,5 @@ function printInline(...)
     local output = ""
     for i = 1, #args do output = output .. tostring(args[i]) .. "\t" end
     output = output:sub(1, -2)
-    syscall.TTY_printInline(output)
+    syscall.write(1, output)
 end
