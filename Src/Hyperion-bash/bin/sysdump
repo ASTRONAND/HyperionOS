@@ -2,3 +2,4 @@ local syscalls=syscall.sysdump()
 for i=1, #syscalls do
     print(syscalls[i])
 end
+print("Total # of syscalls: "..tostring(#syscalls))

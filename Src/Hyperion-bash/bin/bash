@@ -12,7 +12,7 @@ local fs = require("sys.fs")
 syscall.devctl(1,"clear")
 syscall.devctl(1,"sfgc",1)
 syscall.devctl(1,"spos",1,1)
-print("HyperionOS Bash Shell "..tostring(syscall.getpid()))
+print("HyperionOS Bash Shell")
 
 local userhost = (syscall.getUsername() or "Unknown").."@"..(syscall.getHostname() or "Unknown")
 local commandHistory = {}
@@ -22,14 +22,10 @@ syscall.setEnviron("PATH","/bin/")
 syscall.chdir("/")
 
 for i = 1, 16 do
-    syscall.devctl(1,"spos",(i * 3)-2,2)
     syscall.devctl(1,"sbgc",i)
     printInline("   ");
-    syscall.devctl(1,"spos",(i * 3)-2,3)
-    syscall.devctl(1,"sbgc",16)
-    printInline(i);
 end
-syscall.devctl(1,"spos",1,4)
+print("\n")
 
 syscall.sigcatch(function(sig)
     if sig == 1 then
@@ -69,22 +65,30 @@ function getUserInput()
                 end
             elseif key == "=" then --TODO: REPLACE WITH UP ARROW
                 if history < #commandHistory then
+                    syscall.devctl(1,"spos",curOffsetX,curOffsetY)
+                    printInline((" "):rep(#input + 1))
                     history = history + 1
                     input = commandHistory[#commandHistory - history + 1]
                     cursorPos = #input + 1
                 end
             elseif key == "]" then --TODO: REPLACE WITH DOWN ARROW
                 if history > 1 then
+                    syscall.devctl(1,"spos",curOffsetX,curOffsetY)
+                    printInline((" "):rep(#input + 1))
                     history = history - 1
                     input = commandHistory[#commandHistory - history + 1]
                     cursorPos = #input + 1
                 elseif history == 1 then
+                    syscall.devctl(1,"spos",curOffsetX,curOffsetY)
+                    printInline((" "):rep(#input + 1))
                     history = 0
                     input = ""
                     cursorPos = 1
                 end
             elseif key == "\b" then
                 if cursorPos > 1 then
+                    syscall.devctl(1,"spos",curOffsetX,curOffsetY)
+                    printInline((" "):rep(#input + 1))
                     input = string.sub(input, 1, cursorPos-2)..string.sub(input, cursorPos)
                     cursorPos = cursorPos - 1
                 end
@@ -95,6 +99,16 @@ function getUserInput()
             else
                 input = string.sub(input, 1, cursorPos-1)..key..string.sub(input, cursorPos)
                 cursorPos = cursorPos + 1
+            end
+            local screenSizeStr = syscall.devctl(1, "size")
+            local sizeX = tonumber(screenSizeStr:sub(1, screenSizeStr:find(";")-1))
+            local sizeY = tonumber(screenSizeStr:sub(screenSizeStr:find(";")+1))
+            local totalChars = sizeX * sizeY
+            local eocCharNum = ((curOffsetY - 1) * sizeX) + curOffsetX + #input
+            if eocCharNum >= totalChars then
+                syscall.devctl(1,"spos",sizeX,sizeY)
+                printInline(" ")
+                curOffsetY = curOffsetY - 1
             end
         end
         syscall.devctl(1,"spos",curOffsetX,curOffsetY)
@@ -111,7 +125,9 @@ function getUserInput()
         syscall.devctl(1,"sfgc",1)
         syscall.devctl(1,"sbgc",16)
         printInline(string.sub(input, cursorPos+1))
-        printInline((" "):rep(200))
+        if cursorPos <= #input then
+            printInline(" ")
+        end
         local curBlink = ((math.floor(syscall.getUptime() / 500) % 2) == 0)
         if curBlink ~= blinkState then
             blinkState = curBlink
@@ -181,6 +197,11 @@ function runCommand(command)
         end
         if terminate then
             local success, err = syscall.kill(proc)
+            if success then
+                syscall.devctl(1,"sfgc",2)
+                print("\nProgram Terminated.")
+                syscall.devctl(1,"sfgc",1)
+            end
             terminate = false
             break
         end
