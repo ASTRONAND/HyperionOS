@@ -1,42 +1,210 @@
 --:Minify:--
-syscall.TTY_clear()
-syscall.TTY_setTextColor(1)
-syscall.TTY_setCursorPos(1, 1)
-print("HyperionOS Bash Shell")
-print("")
+syscall.open("/dev/tty/TTY1","r") --stdin  (Device 0)
+syscall.open("/dev/tty/TTY1","w") --stdout (Device 1)
+syscall.open("/dev/null","w")     --stderr (device 2)
 
-local preCommandText = "example@testPrompt:~$ "
+local success, errorMsg = xpcall(function()
 
-while true do
-    local command = ""
+
+
+local fs = require("sys.fs")
+
+syscall.devctl(1,"clear")
+syscall.devctl(1,"sfgc",1)
+syscall.devctl(1,"spos",1,1)
+print("HyperionOS Bash Shell "..tostring(syscall.getpid()))
+
+local userhost = (syscall.getUsername() or "Unknown").."@"..(syscall.getHostname() or "Unknown")
+local commandHistory = {}
+local terminate = false
+syscall.setEnviron("SHELL","indevbash")
+syscall.setEnviron("PATH","/bin/")
+syscall.chdir("/")
+
+for i = 1, 16 do
+    syscall.devctl(1,"spos",(i * 3)-2,2)
+    syscall.devctl(1,"sbgc",i)
+    printInline("   ");
+    syscall.devctl(1,"spos",(i * 3)-2,3)
+    syscall.devctl(1,"sbgc",16)
+    printInline(i);
+end
+syscall.devctl(1,"spos",1,4)
+
+syscall.sigcatch(function(sig)
+    if sig == 1 then
+        terminate = true
+    end
+end)
+
+
+function getUserInput()
+    syscall.devctl(1,"sfgc",3)
+    printInline(userhost)
+    syscall.devctl(1,"sfgc",1)
+    printInline(":")
+    syscall.devctl(1,"sfgc",10)
+    printInline(syscall.getcwd())
+    syscall.devctl(1,"sfgc",1)
+    printInline("$ ")
+    local curOffsetStr = syscall.devctl(1, "gpos")
+    local curOffsetX = tonumber(curOffsetStr:sub(1, curOffsetStr:find(";")-1))
+    local curOffsetY = tonumber(curOffsetStr:sub(curOffsetStr:find(";")+1))
+
+    local input = ""
+    local blinkState = false 
     local cursorPos = 1
-    local typingCmd = true
-    while typingCmd do
-        local event = syscall.IO_getEventAny()
-        if event then
-            if event[1] == "keyTyped" then
-                if event[3] == "\n" then
-                    --Enter
-                    print("")
-                    typingCmd = false
-                elseif event[3] == "\b" then
-                    --Backspace
-                    if cursorPos > 1 then
-                        cursorPos = cursorPos - 1
-                        command = command:sub(1, cursorPos - 1)..command:sub(cursorPos + 1)
-                    end
-                elseif event[3]:sub(1, 1) == "\x1b" then
-                    --Escape Sequence
-                elseif event[3] ~= "\t" and #event[3] == 1 then
-                    --Standard Character
-                    command = command:sub(1, cursorPos - 1)..event[3]..command:sub(cursorPos + 1)
+    local history = 0
+
+    while true do
+        local key=syscall.read(0)
+        if key then
+            if key == "[" then --TODO: REPLACE WITH LEFT ARROW
+                if cursorPos > 1 then
+                    cursorPos = cursorPos - 1
+                end
+            elseif key == "\\" then --TODO: REPLACE WITH RIGHT ARROW
+                if cursorPos <= #input then
                     cursorPos = cursorPos + 1
                 end
+            elseif key == "=" then --TODO: REPLACE WITH UP ARROW
+                if history < #commandHistory then
+                    history = history + 1
+                    input = commandHistory[#commandHistory - history + 1]
+                    cursorPos = #input + 1
+                end
+            elseif key == "]" then --TODO: REPLACE WITH DOWN ARROW
+                if history > 1 then
+                    history = history - 1
+                    input = commandHistory[#commandHistory - history + 1]
+                    cursorPos = #input + 1
+                elseif history == 1 then
+                    history = 0
+                    input = ""
+                    cursorPos = 1
+                end
+            elseif key == "\b" then
+                if cursorPos > 1 then
+                    input = string.sub(input, 1, cursorPos-2)..string.sub(input, cursorPos)
+                    cursorPos = cursorPos - 1
+                end
+            elseif key == "\n" then
+                syscall.devctl(1,"spos",curOffsetX,curOffsetY)
+                print(input.." ")
+                return input
+            else
+                input = string.sub(input, 1, cursorPos-1)..key..string.sub(input, cursorPos)
+                cursorPos = cursorPos + 1
             end
         end
-        local _, cursorY = syscall.TTY_getCursorPos()
-        syscall.TTY_setCursorPos(1, cursorY)
-        printInline(preCommandText..command.." ")
-        syscall.TTY_setCursorPos(#preCommandText + cursorPos, cursorY)
+        syscall.devctl(1,"spos",curOffsetX,curOffsetY)
+        printInline(string.sub(input, 1, cursorPos-1))
+        if blinkState then
+            syscall.devctl(1,"sfgc",16)
+            syscall.devctl(1,"sbgc",1)
+        end
+        if cursorPos > #input then
+            printInline(" ")
+        else
+            printInline(string.sub(input, cursorPos, cursorPos))
+        end
+        syscall.devctl(1,"sfgc",1)
+        syscall.devctl(1,"sbgc",16)
+        printInline(string.sub(input, cursorPos+1))
+        printInline((" "):rep(200))
+        local curBlink = ((math.floor(syscall.getUptime() / 500) % 2) == 0)
+        if curBlink ~= blinkState then
+            blinkState = curBlink
+        end
     end
+end
+
+function runCommand(command)
+    terminate = false
+    local args = string.split(command, " ")
+    local cmdPath = ""
+    if string.find(args[1], "/") then
+        if fs.exists(args[1]) then
+            cmdPath = args[1]
+        end
+    else
+        local paths = string.split(syscall.getEnviron("PATH"), ":")
+        for _, path in pairs(paths) do
+            if fs.exists(path..args[1]) then
+                cmdPath = path..args[1]
+                break
+            end
+        end
+    end
+
+    if cmdPath == "" then
+        print(args[1]..": Command not found")
+        return
+    end
+
+    local progName = string.sub(cmdPath, #cmdPath - string.find(string.reverse(cmdPath), "/") + 2)
+    
+    local text = fs.readAllText(cmdPath)
+    local program, err = load(text, progName)
+    if not program then
+        local errSL = string.sub(err, string.find(err, ":") + 1)
+        syscall.devctl(1,"sfgc",2)
+        printInline(progName..": Program load error on line ")
+        print(string.sub(errSL, 1, string.find(errSL, ":") - 1))
+        syscall.devctl(1,"sfgc",1)
+        print(string.sub(errSL, string.find(errSL, ":") + 1))
+        return
+    end
+
+    local proc = syscall.spawn(function(...)
+        syscall.open("/dev/tty/TTY1","r")
+        syscall.open("/dev/tty/TTY1","w")
+        syscall.open("/dev/null","w")
+        local success, err = pcall(program, ...)
+        if not success then
+            local errSL = string.sub(err, string.find(err, ":") + 1)
+            syscall.devctl(1,"sfgc",2)
+            printInline(progName..": Program runtime error on line ")
+            print(string.sub(errSL, 1, string.find(errSL, ":") - 1))
+            syscall.devctl(1,"sfgc",1)
+            print(string.sub(errSL, string.find(errSL, ":") + 1))
+        end
+    end, progName, nil, {table.unpack(args, 2)})
+
+    while true do
+        local exited, code = syscall.collect(proc)
+        if exited then
+            if code then
+                print("\nTask exited with code:\n"..tostring(code))
+            end
+            return
+        end
+        if terminate then
+            local success, err = syscall.kill(proc)
+            terminate = false
+            break
+        end
+        sleep(0.05)
+    end
+end
+
+while true do
+    local command = getUserInput()
+    if command ~= "" then
+        table.insert(commandHistory, command)
+        runCommand(command)
+    end
+end
+
+
+--ERROR HANDLING
+end, debug.traceback)
+
+if not success then
+    syscall.log("Error running shell: "..errorMsg, "ERROR")
+    syscall.devctl(1,"sfgc",2)
+    syscall.devctl(1,"sbgc",16)
+    print()
+    print("Error running shell: ")
+    print(errorMsg)
 end
