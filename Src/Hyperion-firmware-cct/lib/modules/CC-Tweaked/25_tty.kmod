@@ -234,7 +234,7 @@ end
 kernel.devfs.data.tty={}
 local ctrl,alt = false, false
 
-local function s(bool)
+local function serializeBool(bool)
     if bool then
         return "T"
     else
@@ -290,7 +290,7 @@ local function newtty(obj, id, ev)
                     return icolors[obj.getBackgroundColor()]
                 end,
                 gctrl=function()
-                    return s(ctrl)..";"..s(alt)
+                    return serializeBool(ctrl)..";"..serializeBool(alt)
                 end
             }
             if mode=="rw" then

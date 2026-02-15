@@ -593,7 +593,7 @@ end
 function vfs.devctl(fd, method, ...)
     if not kernel.currentTask.fd[fd] then error("EBADF") end
     if not kernel.currentTask.fd[fd].handle[method] then error("EINVAL") end
-    kernel.currentTask.fd[fd].handle[method](...)
+    return kernel.currentTask.fd[fd].handle[method](...)
 end
 
 -- Export syscalls
