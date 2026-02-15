@@ -7,7 +7,7 @@ HyperionOS is a modular, hybrid kernel operating system written entirely in Lua.
 ## Features
 
 - Functionality is split into kernel modules (`.kmod`)
-- Task-based lightweight thread/task scheduler with process isolation and IPC support
+- Task-based lightweight thread/task preemptive scheduler with process isolation and IPC support
 - Virtual filesystem unified interface for disk, RAM, and virtual filesystems
 - TTY & Shell
 
@@ -24,14 +24,7 @@ You can add your own `.kmod` files to extend kernel functionality without modify
 ## Debugging & Logging
 
 The kernel logs to `/var/log/syslog.log` during runtime.
-You can also view real-time loading logs during boot if `showModLoad` in boot.cfg is enabled.
-
-To trigger a panic (for testing):
-```lua
-kernel.PANIC("Test panic message")
-OR
-kernel.log("Test log message")
-```
+you can add to it by doing `syscall.log(text, tag, color)`
 
 ---
 
