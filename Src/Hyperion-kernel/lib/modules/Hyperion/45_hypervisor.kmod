@@ -234,6 +234,10 @@ kernel._G.sleep = function(...) coroutine.yield("syscall", "sleep", ...) end
 local function reapDeadTasks()
     for pid, task in pairs(tasks) do
         if task.status == "Z" and not task.reapTime then
+            kernel.currentTask = task
+            kernel.username = task.username
+            kernel.uid = task.uid
+            kernel.process = task.name
             task.coro = nil
             task.ivs = nil
             task.vs = nil
@@ -302,7 +306,7 @@ function kernel.main()
                 kernel.uid = task.uid
                 kernel.process = task.name
                 N = N + 1
-                
+
                 -- assign adaptive time slice
                 task.timeSlice = math.min(Tmax, math.max(Tmin, B / (N ^ alpha)))
 

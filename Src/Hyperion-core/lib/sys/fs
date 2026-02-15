@@ -15,8 +15,7 @@ function fs.open(path, mode)
         end,
         flush=function()
             -- close and reopen file to flush buffers
-            syscall.close(fd)
-            fd=syscall.open(path,mode)
+            syscall.fsync(fd)
         end
     }
     if mode=="r" then

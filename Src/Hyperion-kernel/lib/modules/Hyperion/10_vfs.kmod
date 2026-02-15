@@ -339,7 +339,6 @@ end
 
 -- Write
 function vfs.write(fd, content)
-    kernel.log(tostring(fd).."|"..content)
     local task = kernel.currentTask
     local file = task.fd[fd]
     if not file then error("EBADF") end
