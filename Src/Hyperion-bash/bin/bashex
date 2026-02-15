@@ -59,7 +59,7 @@ while true do
                         proc = syscall.spawn(function(...)
                             syscall.open("/dev/tty/TTY1","r")
                             syscall.open("/dev/tty/TTY1","w")
-                            syscall.open("/dev/null","r")
+                            syscall.open("/dev/null","w")
                             program(...)
                         end, path, nil, {table.unpack(split, 2)})
                     end
