@@ -17,9 +17,10 @@ print("HyperionOS Bash Shell")
 local userhost = (syscall.getUsername() or "Unknown").."@"..(syscall.getHostname() or "Unknown")
 local commandHistory = {}
 local terminate = false
-syscall.setEnviron("SHELL","indevbash")
+syscall.setEnviron("SHELL","rtbash")
 syscall.setEnviron("PATH","/bin/")
 syscall.chdir("/")
+local oldWD = ""
 
 for i = 1, 16 do
     syscall.devctl(1,"sbgc",i)
@@ -32,6 +33,42 @@ syscall.sigcatch(function(sig)
         terminate = true
     end
 end)
+
+local builtinCmds = {}
+
+builtinCmds.cd = function(path)
+    local cwd = syscall.getcwd()
+    local dirIn = (path or "")
+    if dirIn == "-" then
+        if oldWD == "" then
+            print("bash-cd: No previous working directory set.")
+        else
+            print(oldWD)
+            syscall.chdir(oldWD)
+            oldWD = cwd
+        end
+        return
+    end
+    local dirInMod = dirIn
+    if dirIn:sub(1, 1) ~= "/" then dirInMod = cwd .. "/" .. dirIn end
+    local parts = {}
+    for part in dirInMod:gmatch("[^/]+") do
+        if part == ".." then
+            if #parts > 0 then table.remove(parts) end
+        elseif part ~= "." and part ~= "" then
+            table.insert(parts, part)
+        end
+    end
+    local normDir =  "/" .. table.concat(parts, "/")
+    if normDir:sub(#normDir, #normDir) ~= "/" then normDir = normDir .. "/" end 
+
+    if not fs.isDir(normDir) then
+        print("bash-cd: "..dirIn..": No such directory.")
+        return
+    end
+    oldWD = cwd
+    syscall.chdir(normDir)
+end
 
 
 function getUserInput()
@@ -138,6 +175,19 @@ end
 function runCommand(command)
     terminate = false
     local args = string.split(command, " ")
+    if builtinCmds[args[1]] then
+        local success, msg = pcall(builtinCmds[args[1]], table.unpack(args, 2))
+        if not success then
+            local errSL = string.sub(msg, string.find(msg, "]") + 2)
+            syscall.devctl(1,"sfgc",2)
+            printInline(args[1]..": Program runtime error on line ")
+            print(string.sub(errSL, 1, string.find(errSL, ":") - 1))
+            syscall.devctl(1,"sfgc",1)
+            print(string.sub(errSL, string.find(errSL, ":") + 1))
+        end
+        return
+    end
+
     local cmdPath = ""
     if string.find(args[1], "/") then
         if fs.exists(args[1]) then
@@ -176,9 +226,9 @@ function runCommand(command)
         syscall.open("/dev/tty/TTY1","r")
         syscall.open("/dev/tty/TTY1","w")
         syscall.open("/dev/null","w")
-        local success, err = pcall(program, ...)
+        local success, msg = pcall(program, ...)
         if not success then
-            local errSL = string.sub(err, string.find(err, ":") + 1)
+            local errSL = string.sub(msg, string.find(msg, ":") + 1)
             syscall.devctl(1,"sfgc",2)
             printInline(progName..": Program runtime error on line ")
             print(string.sub(errSL, 1, string.find(errSL, ":") - 1))
@@ -212,7 +262,9 @@ end
 while true do
     local command = getUserInput()
     if command ~= "" then
-        table.insert(commandHistory, command)
+        if command ~= commandHistory[#commandHistory] then
+            table.insert(commandHistory, command)
+        end
         runCommand(command)
     end
 end

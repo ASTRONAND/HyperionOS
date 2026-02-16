@@ -1,5 +1,0 @@
-print("Todo: Make this lol")
-while true do
-    print("hiello")
-    sleep(10)
-end
