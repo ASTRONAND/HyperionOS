@@ -1,50 +1,149 @@
---:Minify:--
-print("HyperionOS lua")
-local str=""
-local stopInput=false
-local timeout=false
-local luaEnv=setmetatable({},{__index=_ENV})
-printInline("> ")
-while true do
-    local input=syscall.read(0)
-    if input then
-        if input=="\b" then
-            if #str>0 then
-                str=str:sub(1,#str-1)
-                printInline("\b")
-            end
-        elseif input=="\n" then
-            print("")
-            stopInput=true
-            if str == "" then
-                printInline("> ")
-                stopInput=false
-            elseif str == "exit()" then
-                break
-            else
-                local func=load(str,"@Lua","t",luaEnv)
-                local ok,err = xpcall(func, debug.traceback)
-                if not ok then
-                    print(err)
+syscall.devctl(1,"sfgc",7)
+print("HyperionOS Lua prompt.")
+print("Call exit() to exit.")
+
+local commandHistory = {}
+local luaEnv=setmetatable({
+    ["exit"] = setmetatable({}, {
+        __tostring = function() return "Call exit() to exit." end,
+        __call = function() syscall.exit() end,
+    }),
+    ["_echo"] = function(...)
+        return ...
+    end,
+},{__index=_ENV})
+
+local function getUserInput()
+    syscall.devctl(1,"sfgc",1)
+    printInline("lua> ")
+    local curOffsetStr = syscall.devctl(1, "gpos")
+    local curOffsetX = tonumber(curOffsetStr:sub(1, curOffsetStr:find(";")-1))
+    local curOffsetY = tonumber(curOffsetStr:sub(curOffsetStr:find(";")+1))
+
+    local input = ""
+    local blinkState = false 
+    local cursorPos = 1
+    local history = 0
+
+    while true do
+        local key=syscall.read(0)
+        if key then
+            if key == "\19" then --TODO: REPLACE WITH LEFT ARROW
+                if cursorPos > 1 then
+                    cursorPos = cursorPos - 1
                 end
-                printInline("\n> ")
-                str=""
+            elseif key == "\20" then --TODO: REPLACE WITH RIGHT ARROW
+                if cursorPos <= #input then
+                    cursorPos = cursorPos + 1
+                end
+            elseif key == "\17" then --TODO: REPLACE WITH UP ARROW
+                if history < #commandHistory then
+                    syscall.devctl(1,"spos",curOffsetX,curOffsetY)
+                    printInline((" "):rep(#input + 1))
+                    history = history + 1
+                    input = commandHistory[#commandHistory - history + 1]
+                    cursorPos = #input + 1
+                end
+            elseif key == "\18" then --TODO: REPLACE WITH DOWN ARROW
+                if history > 1 then
+                    syscall.devctl(1,"spos",curOffsetX,curOffsetY)
+                    printInline((" "):rep(#input + 1))
+                    history = history - 1
+                    input = commandHistory[#commandHistory - history + 1]
+                    cursorPos = #input + 1
+                elseif history == 1 then
+                    syscall.devctl(1,"spos",curOffsetX,curOffsetY)
+                    printInline((" "):rep(#input + 1))
+                    history = 0
+                    input = ""
+                    cursorPos = 1
+                end
+            elseif key == "\b" then
+                if cursorPos > 1 then
+                    syscall.devctl(1,"spos",curOffsetX,curOffsetY)
+                    printInline((" "):rep(#input + 1))
+                    input = string.sub(input, 1, cursorPos-2)..string.sub(input, cursorPos)
+                    cursorPos = cursorPos - 1
+                end
+            elseif key == "\n" then
+                syscall.devctl(1,"spos",curOffsetX,curOffsetY)
+                print(input.." ")
+                return input
+            else
+                input = string.sub(input, 1, cursorPos-1)..key..string.sub(input, cursorPos)
+                cursorPos = cursorPos + 1
             end
-            str=""
-        else
-            str=str..input
-            printInline(input)
+            local screenSizeStr = syscall.devctl(1, "size")
+            local sizeX = tonumber(screenSizeStr:sub(1, screenSizeStr:find(";")-1))
+            local sizeY = tonumber(screenSizeStr:sub(screenSizeStr:find(";")+1))
+            local totalChars = sizeX * sizeY
+            local eocCharNum = ((curOffsetY - 1) * sizeX) + curOffsetX + #input
+            if eocCharNum >= totalChars then
+                syscall.devctl(1,"spos",sizeX,sizeY)
+                printInline(" ")
+                curOffsetY = curOffsetY - 1
+            end
         end
-        timeout=false
-    else
-        timeout=true
+        syscall.devctl(1,"spos",curOffsetX,curOffsetY)
+        printInline(string.sub(input, 1, cursorPos-1))
+        if blinkState then
+            syscall.devctl(1,"sfgc",16)
+            syscall.devctl(1,"sbgc",1)
+        end
+        if cursorPos > #input then
+            printInline(" ")
+        else
+            printInline(string.sub(input, cursorPos, cursorPos))
+        end
+        syscall.devctl(1,"sfgc",1)
+        syscall.devctl(1,"sbgc",16)
+        printInline(string.sub(input, cursorPos+1))
+        if cursorPos <= #input then
+            printInline(" ")
+        end
+        local curBlink = ((math.floor(syscall.getUptime() / 500) % 2) == 0)
+        if curBlink ~= blinkState then
+            blinkState = curBlink
+        end
+    end
+end
+
+local function runCode(code)
+    local func, err = load(code, "@lua", "t", luaEnv)
+    local isReturn = false
+    if load("return "..code) then
+        func, err = load("return _echo("..code.."\n)", "@lua", "t", luaEnv)
+        isReturn = true
+    end
+    if not func then
+        local errSL = string.sub(err, string.find(err, ":") + 1)
+        syscall.devctl(1,"sfgc",2)
+        printInline("@lua: Load error on line ")
+        print(string.sub(errSL, 1, string.find(errSL, ":") - 1))
+        syscall.devctl(1,"sfgc",1)
+        print(string.sub(errSL, string.find(errSL, ":") + 1))
+        return
     end
 
-    if timeout then
-        if stopInput then
-            sleep(.5)
-        else
-            sleep(.05)
+    local success, msg = xpcall(func, debug.traceback)
+    if not success then
+        local errSL = string.sub(msg, string.find(msg, ":") + 1)
+        syscall.devctl(1,"sfgc",2)
+        printInline("@lua: Runtime error on line ")
+        print(string.sub(errSL, 1, string.find(errSL, ":") - 1))
+        syscall.devctl(1,"sfgc",1)
+        print(string.sub(errSL, string.find(errSL, ":") + 1))
+    elseif isReturn then
+        print(tostring(msg))
+    end
+end
+
+while true do
+    local code = getUserInput()
+    if code ~= "" then
+        if code ~= commandHistory[#commandHistory] then
+            table.insert(commandHistory, code)
         end
+        runCode(code)
     end
 end

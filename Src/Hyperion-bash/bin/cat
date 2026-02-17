@@ -1,7 +1,22 @@
 local args = {...}
-local file = syscall.open(args[1], "r")
+local name = syscall.getTask(syscall.getpid()).name
+local fs = require("sys.fs")
+local filePath = (args[1] or "")
+if filePath:sub(1, 1) ~= "/" then
+    filePath = syscall.getcwd().."/"..filePath
+end
+
+if not fs.exists(filePath) and args[1] then
+    print(name..": Cannot access '"..args[1].."': No such file.")
+    return
+end
+
+local file = 0
+if args[1] then
+    file = syscall.open(filePath, "r")
+end
 local content=""
-while content~=nil do
+while content~=nil or file == 0 do
     content=syscall.read(file, 1024)
     printInline(content)
 end

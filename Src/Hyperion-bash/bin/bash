@@ -71,7 +71,7 @@ builtinCmds.cd = function(path)
 end
 
 
-function getUserInput()
+local function getUserInput()
     syscall.devctl(1,"sfgc",3)
     printInline(userhost)
     syscall.devctl(1,"sfgc",1)
@@ -92,15 +92,15 @@ function getUserInput()
     while true do
         local key=syscall.read(0)
         if key then
-            if key == "[" then --TODO: REPLACE WITH LEFT ARROW
+            if key == "\19" then --TODO: REPLACE WITH LEFT ARROW
                 if cursorPos > 1 then
                     cursorPos = cursorPos - 1
                 end
-            elseif key == "\\" then --TODO: REPLACE WITH RIGHT ARROW
+            elseif key == "\20" then --TODO: REPLACE WITH RIGHT ARROW
                 if cursorPos <= #input then
                     cursorPos = cursorPos + 1
                 end
-            elseif key == "=" then --TODO: REPLACE WITH UP ARROW
+            elseif key == "\17" then --TODO: REPLACE WITH UP ARROW
                 if history < #commandHistory then
                     syscall.devctl(1,"spos",curOffsetX,curOffsetY)
                     printInline((" "):rep(#input + 1))
@@ -108,7 +108,7 @@ function getUserInput()
                     input = commandHistory[#commandHistory - history + 1]
                     cursorPos = #input + 1
                 end
-            elseif key == "]" then --TODO: REPLACE WITH DOWN ARROW
+            elseif key == "\18" then --TODO: REPLACE WITH DOWN ARROW
                 if history > 1 then
                     syscall.devctl(1,"spos",curOffsetX,curOffsetY)
                     printInline((" "):rep(#input + 1))
@@ -172,7 +172,7 @@ function getUserInput()
     end
 end
 
-function runCommand(command)
+local function runCommand(command)
     terminate = false
     local args = string.split(command, " ")
     if builtinCmds[args[1]] then
@@ -248,6 +248,7 @@ function runCommand(command)
         if terminate then
             local success, err = syscall.kill(proc)
             if success then
+                syscall.devctl(1,"sbgc",16)
                 syscall.devctl(1,"sfgc",2)
                 print("\nProgram Terminated.")
                 syscall.devctl(1,"sfgc",1)

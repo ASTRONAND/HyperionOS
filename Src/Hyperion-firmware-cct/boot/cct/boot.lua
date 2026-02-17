@@ -107,7 +107,11 @@ local ok, err = xpcall(function()
     local acekeys={
         [apis.keys.enter]="\n",
         [apis.keys.tab]="\t",
-        [apis.keys.backspace]="\b"
+        [apis.keys.backspace]="\b",
+        [apis.keys.up]="\17",
+        [apis.keys.down]="\18",
+        [apis.keys.left]="\19",
+        [apis.keys.right]="\20",
     }
 
     function sleep(time)
