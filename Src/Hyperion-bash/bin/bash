@@ -173,6 +173,17 @@ local function getUserInput()
 end
 
 local function runCommand(command)
+    do
+        local func = load("return " .. command, "@equation", "t", {})
+        if func then
+            local success, result = pcall(func)
+            if success and type(result) == "number" then
+                print(result)
+                return
+            end
+        end
+    end
+
     terminate = false
     local args = string.split(command, " ")
     if builtinCmds[args[1]] then
