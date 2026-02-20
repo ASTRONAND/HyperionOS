@@ -21,3 +21,4 @@ while content~=nil or file == 0 do
     printInline(content)
 end
 syscall.close(file)
+print("")

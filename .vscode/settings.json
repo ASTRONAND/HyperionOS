@@ -4,6 +4,7 @@
         "isEqualToAll",
         "syscall",
         "printf",
-        "printInline"
+        "printInline",
+        "toHex"
     ]
 }

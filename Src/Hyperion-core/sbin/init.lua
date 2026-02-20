@@ -25,7 +25,6 @@ for i,v in ipairs(files) do
             kernel.log("Error loading startup script '" .. filepath .. "': " .. err, "ERROR")
         else
             syscall.spawn(function()
-                syscall.setUsername("User")
                 syscall.setuid(1)
                 local status, err = pcall(startupFunc)
                 if not status then
