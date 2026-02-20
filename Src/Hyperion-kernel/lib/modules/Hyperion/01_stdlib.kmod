@@ -205,6 +205,10 @@ function string.replace(s, target, repl)
     return table.concat(result)
 end
 
+function toHex(num)
+    return string.format("%X", num)
+end
+
 syscall = setmetatable({}, {
     __index = function(self, name)
         return function(...)

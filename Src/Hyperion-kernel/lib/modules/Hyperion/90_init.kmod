@@ -24,7 +24,6 @@ kernel.tasks["1"] = {
     status = "R",
     pid = 1,
     tgid = 1,
-    username = "root",
     uid = 0,
     fd = {},
     envars = {},

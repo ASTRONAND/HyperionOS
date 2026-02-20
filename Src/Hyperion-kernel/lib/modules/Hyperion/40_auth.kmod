@@ -1,8 +1,22 @@
 --:Minify:--
 local kernel = ...
-local pam = {}
-kernel.pam = pam
-local loggedIn = {}
+local auth = {}
+kernel.auth = auth
+
+-- @SPSF work here
+
+-- needed
+
+-- login           -- sets the current proccess to the specifyed user id
+-- setPassword     -- sets the password for specifiyed user id
+-- setUsername     -- sets 
+-- newUser         -- sets 
+
+-- PASSWD FILE FORMAT
+-- uid:gid:username:homedir:shell
+
+-- SHADOW FILE FORMAT
+-- uid:salt:hash
 
 local function getFile(path)
     local file = kernel.vfs.open(path, "r")
@@ -13,7 +27,6 @@ local function getFile(path)
 end
 
 local blake2s
-
 do
     local MOD32 = 2^32
     local function norm(x)
@@ -187,9 +200,10 @@ end
 if not blake2s then error("Failed to load blake2s") end
 
 if not kernel.vfs.exists("/etc/pam.d/secret") then
+    kernel.log("PAM SECRET REGENERATING PLEASE USE ROOT")
     local key = ""
     for i=1, 256 do
-        key=key..string.char(math.random(1,255))
+        key=key..string.char(math.random(0,255))
     end
     local handle = kernel.vfs.open("/etc/pam.d/secret", "w")
     kernel.vfs.write(handle, key)
@@ -197,41 +211,22 @@ if not kernel.vfs.exists("/etc/pam.d/secret") then
 end
 
 local pepper = getFile("/etc/pam.d/secret")
+local passwdFile = getFile("/etc/passwd")
+local shadowFile = getFile("/etc/shadow")
+local passwdLines = string.split(passwdFile,"\n")
+local shadowLines = string.split(shadowFile,"\n")
+local passwd,shadow={},{}
 
-function pam.authenticate(username, password)
-    local fpasswd = getFile("/etc/passwd")
-    local fshadow = getFile("/etc/shadow")
-
-    local passwdLines = string.split(fpasswd, "\n")
-    local shadowLines = string.split(fshadow, "\n")
-
-    local passwd = {}
-    local shadow = {}
-    for _, line in ipairs(passwdLines) do
-        local fields = string.split(line, ":")
-        passwd[fields[1]] = fields
-    end
-    for _, line in ipairs(shadowLines) do
-        local fields = string.split(line, ":")
-        shadow[fields[1]] = fields
-    end
-
-    for user, fields in pairs(passwd) do
-        if user == username then
-            local shadowPasswd = string.split(shadow[user][2], "$")
-            local salt = shadowPasswd[2]
-            local hashedPassword = blake2s(password .. salt, pepper)
-            if hashedPassword == shadowPasswd[3] then
-                loggedIn[username] = kernel.newUUID()
-                return loggedIn[username]
-            else
-                return false
-            end
-        end
-    end
+for _,v in ipairs(passwdLines) do
+    passwd[#passwd+1]=string.split(v,":")
 end
 
-function pam.authToken(username, token)
-    return loggedIn[username] == token
+for _,v in ipairs(shadowLines) do
+    shadow[#shadow+1]=string.split(v,":")
 end
+
+for i,v in pairs(passwd) do
+    kernel.users[tonumber(v[1])]=v[3]
+end
+kernel.passwd=passwd
 

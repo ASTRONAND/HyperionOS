@@ -11,15 +11,14 @@ function sys.spawn(func, name, envars, args, tgid)
 
     tasks[tostring(id)] = {
         coro = coroutine.create(function()
-            local ok, err = xpcall(func, debug.traceback,
-                                   table.unpack(args or {}))
+            local ok, err = xpcall(func, debug.traceback, table.unpack(args or {}))
             if not ok then
                 if kernel.config.logTaskExit then
                     kernel.log(
                         "Task " .. tostring(id) .. " exited with err: " ..
                             tostring(err), "ERROR", 2)
                 end
-                tasks[tostring(id)].status = "Z"
+
                 if type(err) == "number" then
                     tasks[tostring(id)].exit = err
                 end
@@ -34,11 +33,14 @@ function sys.spawn(func, name, envars, args, tgid)
                                        " exited without code", "INFO")
                     end
                 end
-                tasks[tostring(id)].status = "Z"
+                
                 if type(err) == "number" then
                     tasks[tostring(id)].exit = err
                 end
             end
+            for v, _ in ipairs(tasks[tostring(id)].fd) do pcall(kernel.vfs.close,v) end
+            tasks[tostring(id)].status = "Z"
+
         end),
         name = name or ("task" .. tostring(id)),
         envars = envars or kernel.currentTask.envars,
@@ -46,7 +48,6 @@ function sys.spawn(func, name, envars, args, tgid)
         status = "R",
         pid = id,
         tgid = tgid or kernel.currentTask.tgid,
-        username = kernel.username,
         uid = kernel.uid,
         fd = {},
         sleep = 0,
@@ -87,7 +88,7 @@ function sys.getTask(pid)
             status = task.status,
             pid = task.pid,
             tgid = task.tgid,
-            username = task.username,
+            username = kernel.users[task.uid],
             uid = task.uid,
             exit = task.exit,
             sleep = task.sleep,
@@ -235,7 +236,6 @@ local function reapDeadTasks()
     for pid, task in pairs(tasks) do
         if task.status == "Z" and not task.reapTime then
             kernel.currentTask = task
-            kernel.username = task.username
             kernel.uid = task.uid
             kernel.process = task.name
             task.coro = nil
@@ -250,7 +250,6 @@ local function reapDeadTasks()
             task.timeSlice = nil
             task.syscallReturn = nil
             task.sleep = nil
-            for v, _ in ipairs(task.fd) do pcall(kernel.vfs.close,v) end
             task.fd = nil
             task.reapTime = kernel.computer:time() + 30000
 
@@ -302,7 +301,6 @@ function kernel.main()
             end
             if task.status == "R" then
                 kernel.currentTask = task
-                kernel.username = task.username
                 kernel.uid = task.uid
                 kernel.process = task.name
                 N = N + 1

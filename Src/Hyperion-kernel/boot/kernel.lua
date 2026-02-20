@@ -10,7 +10,7 @@ local kernel = {}
 kernel.LOG_Text=""
 kernel.version="HyperionOS V1.0.0"
 kernel.process = "Kernel"
-kernel.username = "root"
+kernel.users={[0]="root",[1]="User"}
 kernel.hostname = "hyperion"
 kernel.groups = {}
 kernel.uid = 0
@@ -27,15 +27,15 @@ local windowsExp = false
 
 function kernel.log(msg, level, c)
     c=c or 12
-    kernel.LOG_Text = kernel.LOG_Text..tostring(computer:time()).." "..kernel.username.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
+    kernel.LOG_Text = kernel.LOG_Text..tostring(computer:time()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
     if kernel.status == "start" then
         screen:setTextColor(c)
-        screen:print(tostring(computer:time()).." "..kernel.username.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
-    elseif kernel.status == "init" then
+        screen:print(string.format("%X",c-1).." "..tostring(computer:time()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
+    elseif kernel.status == "term" then
         kernel.standbyTask=kernel.currentTask
         kernel.currentTask=kernel.kernelTask
         kernel.vfs.devctl(1,"sfgc",c)
-        kernel.vfs.write(1,tostring(computer:time()).." "..kernel.username.." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
+        kernel.vfs.write(1,string.format("%X",c-1).." "..tostring(computer:time()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n")
         kernel.currentTask=kernel.standbyTask
     end
 end
@@ -204,7 +204,6 @@ kernel.kernelTask = {
     status="R",
     pid=0,
     tgid=0,
-    username="root",
     uid=0,
     fd={},
     exit="",
@@ -232,12 +231,11 @@ end
 kernel.syscalls["time"]=function() return kernel.computer:time() end
 kernel.syscalls["log"]=kernel.log
 kernel.syscalls["getUptime"]=function() return kernel.computer:clock() end
-kernel.syscalls["getUsername"]=function() return kernel.username end
+kernel.syscalls["getUsername"]=function(uid) return kernel.users[uid or kernel.uid] end
 kernel.syscalls["getHostname"]=function() return kernel.hostname end
 kernel.syscalls["getHost"]=function() return kernel.apis._HOST end
 kernel.syscalls["version"]=function() return kernel.version end
 kernel.syscalls["setHostname"]=function(name) if kernel.uid~=0 then error("Permission denied") end kernel.hostname=name end
-kernel.syscalls["setUsername"]=function(user) if kernel.uid~=0 then error("Permission denied") end kernel.currentTask.username=user end
 kernel.syscalls["arch"]=function() return arch end
 kernel.syscalls["sysdump"]=function()
     local rv={}
