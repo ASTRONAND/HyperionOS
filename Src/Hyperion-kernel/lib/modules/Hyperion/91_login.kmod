@@ -1,0 +1,16 @@
+--:Minify:--
+local kernel = ...
+
+-- It runs at uid 0 so it can call setuid() to drop privileges to the logged in user
+kernel.processes.login = function()
+    local handle = kernel.vfs.open("/bin/login", "r")
+    local text = kernel.vfs.read(handle, 1024 * 1024)
+    kernel.vfs.close(handle)
+
+    local fn, err = load(text, "@/bin/login", "t", kernel._U)
+    if not fn then
+        kernel.log("Failed to load /bin/login: " .. tostring(err), "ERROR", 2)
+        return
+    end
+    fn()
+end

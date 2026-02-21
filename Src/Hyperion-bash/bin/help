@@ -1,0 +1,292 @@
+--:Minify:--
+-- help: display command reference with paged scrolling
+
+local COMMANDS = {
+    -- {name, usage, description, {flags...}}
+    -- flags: {flag, desc}
+    {
+        name = "cat",
+        usage = "cat [file]",
+        desc = "Print file contents to stdout. Reads from stdin if no file given.",
+        flags = {}
+    },
+    {
+        name = "cd",
+        usage = "cd [dir]",
+        desc = "Change working directory. Use '-' to return to previous directory.",
+        flags = {}
+    },
+    {
+        name = "clear",
+        usage = "clear",
+        desc = "Clear the terminal screen.",
+        flags = {}
+    },
+    {
+        name = "echo",
+        usage = "echo [text...]",
+        desc = "Print arguments to stdout.",
+        flags = {}
+    },
+    {
+        name = "hfetch",
+        usage = "hfetch",
+        desc = "Display system information in a neofetch-style layout.",
+        flags = {}
+    },
+    {
+        name = "id",
+        usage = "id [username]",
+        desc = "Print user identity (uid, gid). Defaults to current user.",
+        flags = {}
+    },
+    {
+        name = "login",
+        usage = "login",
+        desc = "System login prompt. Launched automatically at boot.",
+        flags = {}
+    },
+    {
+        name = "ls",
+        usage = "ls [-alh] [dir]",
+        desc = "List directory contents.",
+        flags = {
+            {"-a", "Show hidden files (starting with .)"},
+            {"-l", "Long format: permissions, owner, size"},
+            {"-h", "Human-readable file sizes"},
+        }
+    },
+    {
+        name = "lsusers",
+        usage = "lsusers",
+        desc = "List all user accounts with uid, gid, home, and shell.",
+        flags = {}
+    },
+    {
+        name = "lua",
+        usage = "lua",
+        desc = "Interactive Lua REPL prompt.",
+        flags = {}
+    },
+    {
+        name = "mkdir",
+        usage = "mkdir <dir>",
+        desc = "Create a directory.",
+        flags = {}
+    },
+    {
+        name = "passwd",
+        usage = "passwd [username]",
+        desc = "Change a user password. Non-root must verify current password first.",
+        flags = {}
+    },
+    {
+        name = "ps",
+        usage = "ps",
+        desc = "List running tasks with pid, user, name, and status.",
+        flags = {}
+    },
+    {
+        name = "pwd",
+        usage = "pwd",
+        desc = "Print current working directory.",
+        flags = {}
+    },
+    {
+        name = "su",
+        usage = "su [username]",
+        desc = "Switch user. Defaults to root. Root can switch without a password.",
+        flags = {}
+    },
+    {
+        name = "sudo",
+        usage = "sudo [-u user] <command> [args...]",
+        desc = "Run a command as another user (default root). Authenticates as current user.",
+        flags = {
+            {"-u user", "Run as the specified user (name or uid)"},
+        }
+    },
+    {
+        name = "sysdump",
+        usage = "sysdump",
+        desc = "List all registered kernel syscalls.",
+        flags = {}
+    },
+    {
+        name = "useradd",
+        usage = "useradd [-p pw] [-g gid] [-d home] [-s shell] [-M] <username>",
+        desc = "Create a new user account.",
+        flags = {
+            {"-p pw",    "Set password (prompted interactively if omitted)"},
+            {"-g gid",   "Set primary group id"},
+            {"-d home",  "Set home directory (default: /home/username)"},
+            {"-s shell", "Set login shell (default: /bin/hysh)"},
+            {"-M",       "Do not create home directory"},
+        }
+    },
+    {
+        name = "userdel",
+        usage = "userdel [-r] <username>",
+        desc = "Delete a user account.",
+        flags = {
+            {"-r", "Also recursively remove the user's home directory"},
+        }
+    },
+    {
+        name = "usermod",
+        usage = "usermod [-l name] [-p pw] [-g gid] [-d home] [-s shell] [-L] [-U] <username>",
+        desc = "Modify an existing user account.",
+        flags = {
+            {"-l name",  "Rename the user"},
+            {"-p pw",    "Set new password"},
+            {"-g gid",   "Change primary group id"},
+            {"-d home",  "Change home directory"},
+            {"-s shell", "Change login shell"},
+            {"-L",       "Lock the account (disable login)"},
+            {"-U",       "Unlock the account"},
+        }
+    },
+    {
+        name = "whoami",
+        usage = "whoami",
+        desc = "Print the current username.",
+        flags = {}
+    },
+    {
+        name = "yes",
+        usage = "yes [text]",
+        desc = "Repeatedly print 'y' (or given text) until interrupted with Ctrl+C.",
+        flags = {}
+    },
+}
+
+-- Build lines to display
+local C_HEAD  = 7   -- yellow  (section headers)
+local C_CMD   = 5   -- cyan    (command name)
+local C_USAGE = 1   -- white   (usage line)
+local C_DESC  = 13  -- grey    (description)
+local C_FLAG  = 3   -- green   (flag name)
+local C_DIM   = 12  -- dark grey
+
+-- Each entry is {text, color}
+local lines = {}
+local function push(text, col) lines[#lines+1] = {text, col or 1} end
+
+push("HyperionOS Command Reference", C_HEAD)
+push(string.rep("=", 50), C_DIM)
+push("", 1)
+
+local args = {...}
+local filter = args[1]  -- optional: help <command>
+
+local function addCmd(cmd)
+    push(cmd.name, C_CMD)
+    push("  Usage: " .. cmd.usage, C_USAGE)
+    push("  " .. cmd.desc, C_DESC)
+    if #cmd.flags > 0 then
+        for _, f in ipairs(cmd.flags) do
+            push("    " .. f[1], C_FLAG)
+            push("        " .. f[2], C_DESC)
+        end
+    end
+    push("", 1)
+end
+
+if filter then
+    local found = false
+    for _, cmd in ipairs(COMMANDS) do
+        if cmd.name == filter then addCmd(cmd); found = true; break end
+    end
+    if not found then
+        push("help: unknown command '" .. filter .. "'", 2)
+        push("Run 'help' with no arguments for the full list.", C_DESC)
+    end
+else
+    push("Run 'help <command>' for details on a specific command.", C_DESC)
+    push("", 1)
+    for _, cmd in ipairs(COMMANDS) do addCmd(cmd) end
+end
+
+-- Pager
+local sizeStr = syscall.devctl(1, "size")
+local screenW = tonumber(sizeStr:sub(1, sizeStr:find(";")-1)) or 51
+local screenH = tonumber(sizeStr:sub(sizeStr:find(";")+1)) or 19
+local pageSize = screenH - 2  -- reserve bottom row for status bar
+
+local scroll = 0
+local totalLines = #lines
+local dirty = true
+
+local function render()
+    syscall.devctl(1, "clear")
+    syscall.devctl(1, "spos", 1, 1)
+    for row = 1, pageSize do
+        local li = scroll + row
+        if li <= totalLines then
+            local text, col = lines[li][1], lines[li][2]
+            syscall.devctl(1, "sfgc", col)
+            -- truncate to screen width
+            if #text > screenW then text = text:sub(1, screenW) end
+            syscall.write(1, text .. "\n")
+        else
+            syscall.write(1, "\n")
+        end
+    end
+    -- status bar
+    syscall.devctl(1, "sfgc", 16)
+    syscall.devctl(1, "sbgc", 13)
+    local pct = math.floor(math.min(100, (scroll + pageSize) / totalLines * 100))
+    local status = string.format(" help -- line %d/%d (%d%%)  [up/down: scroll  q: quit] ",
+        scroll + 1, totalLines, pct)
+    if #status > screenW then status = status:sub(1, screenW) end
+    syscall.devctl(1, "spos", 1, screenH)
+    syscall.write(1, status .. string.rep(" ", screenW - #status))
+    syscall.devctl(1, "sfgc", 1)
+    syscall.devctl(1, "sbgc", 16)
+    dirty = false
+end
+
+-- If output fits on one screen, just print without pager
+if totalLines <= pageSize then
+    syscall.devctl(1, "clear")
+    syscall.devctl(1, "spos", 1, 1)
+    for _, line in ipairs(lines) do
+        syscall.devctl(1, "sfgc", line[2])
+        syscall.write(1, line[1] .. "\n")
+    end
+    syscall.devctl(1, "sfgc", 1)
+    return
+end
+
+render()
+while true do
+    local ch = syscall.read(0)
+    if not ch or ch == "" then
+        -- idle
+    elseif ch == "q" or ch == "Q" then
+        break
+    elseif ch == "\17" then  -- up arrow
+        if scroll > 0 then
+            scroll = scroll - 1
+            dirty = true
+        end
+    elseif ch == "\18" then  -- down arrow
+        if scroll + pageSize < totalLines then
+            scroll = scroll + 1
+            dirty = true
+        end
+    elseif ch == "\19" then  -- left / page up (reuse left arrow)
+        scroll = math.max(0, scroll - pageSize)
+        dirty = true
+    elseif ch == "\20" then  -- right / page down
+        scroll = math.min(totalLines - pageSize, scroll + pageSize)
+        dirty = true
+    end
+    if dirty then render() end
+end
+
+-- Restore screen
+syscall.devctl(1, "clear")
+syscall.devctl(1, "spos", 1, 1)
+syscall.devctl(1, "sfgc", 1)
+syscall.devctl(1, "sbgc", 16)

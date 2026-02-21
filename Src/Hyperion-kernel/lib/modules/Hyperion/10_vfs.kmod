@@ -334,7 +334,7 @@ function vfs.read(fd, count)
     local file = task.fd[fd]
     if not file then error("EBADF") end
     if not file.handle.read then error("EBADF") end
-    return file.handle.read(count or 1)
+    return file.handle.read(count or 1) or ""
 end
 
 -- Write
@@ -354,7 +354,7 @@ function vfs.pread(fd, count, offset)
     if not file.handle.read then error("EBADF") end
     if not file.handle.seek then error("EBADF") end
     file.handle.seek("set", offset)
-    return file.handle.read(count or 1)
+    return file.handle.read(count or 1) or ""
 end
 
 function vfs.pwrite(fd, content, offset)

@@ -1,5 +1,4 @@
 --:Minify:--
-sleep(1)
 local BOOT_DRIVE_PATH=({...})[1] or "/$"
 -- UnBIOS by JackMacWindows
 -- This will undo most of the changes/additions made in the BIOS, but some things may remain wrapped if `debug` is unavailable

@@ -3,102 +3,66 @@ local kernel = ...
 local auth = {}
 kernel.auth = auth
 
--- @SPSF work here
-
--- needed
-
--- login           -- sets the current proccess to the specifyed user id
--- setPassword     -- sets the password for specifiyed user id
--- setUsername     -- sets 
--- newUser         -- sets 
-
--- PASSWD FILE FORMAT
--- uid:gid:username:homedir:shell
-
--- SHADOW FILE FORMAT
--- uid:salt:hash
+-- PASSWD FILE FORMAT: uid:gid:username:homedir:shell
+-- SHADOW FILE FORMAT: uid:salt:hash
 
 local function getFile(path)
     local file = kernel.vfs.open(path, "r")
-    if not file then error("Failed to open file: "..path) end
+    if not file then error("Failed to open file: " .. path) end
     local content = kernel.vfs.read(file, 1024000)
     kernel.vfs.close(file)
     return content
 end
 
+local function writeFile(path, content)
+    local file = kernel.vfs.open(path, "w")
+    if not file then error("Failed to open file for writing: " .. path) end
+    kernel.vfs.write(file, content)
+    kernel.vfs.close(file)
+end
+
 local blake2s
 do
     local MOD32 = 2^32
-    local function norm(x)
-        return x % MOD32
-    end
-
+    local function norm(x) return x % MOD32 end
     local function tobits(x)
         x = norm(x)
         local t = {}
-        for i = 0, 31 do
-            local b = x % 2
-            t[i] = b
-            x = (x - b) / 2
-        end
+        for i = 0, 31 do local b = x % 2; t[i] = b; x = (x - b) / 2 end
         return t
     end
-
     local function frombits(t)
-        local x = 0
-        local p = 1
-        for i = 0, 31 do
-            if t[i] == 1 then
-                x = x + p
-            end
-            p = p * 2
-        end
+        local x, p = 0, 1
+        for i = 0, 31 do if t[i] == 1 then x = x + p end; p = p * 2 end
         return norm(x)
     end
-
     local function bor(...)
         local args = {...}
         if #args == 0 then return 0 end
         local bits = tobits(args[1])
         for i = 2, #args do
             local b = tobits(args[i])
-            for j = 0, 31 do
-                bits[j] = (bits[j] == 1 or b[j] == 1) and 1 or 0
-            end
+            for j = 0, 31 do bits[j] = (bits[j] == 1 or b[j] == 1) and 1 or 0 end
         end
         return frombits(bits)
     end
-
     local function bxor(...)
         local args = {...}
         if #args == 0 then return 0 end
         local bits = tobits(args[1])
         for i = 2, #args do
             local b = tobits(args[i])
-            for j = 0, 31 do
-                bits[j] = (bits[j] ~= b[j]) and 1 or 0
-            end
+            for j = 0, 31 do bits[j] = (bits[j] ~= b[j]) and 1 or 0 end
         end
         return frombits(bits)
     end
-
-    local function lshift(x, n)
-        return norm(norm(x) * 2^n)
-    end
-
-    local function rshift(x, n)
-        return math.floor(norm(x) / 2^n)
-    end
-
-    local function rotr(x, n)
-        return bor(rshift(x, n), lshift(x, 32 - n))
-    end
-
+    local function lshift(x, n) return norm(norm(x) * 2^n) end
+    local function rshift(x, n) return math.floor(norm(x) / 2^n) end
+    local function rotr(x, n) return bor(rshift(x, n), lshift(x, 32 - n)) end
     local IV = {
         0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A,
         0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19
     }
-
     local SIGMA = {
         {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15},
         {14,10,4,8,9,15,13,6,1,12,0,2,11,7,5,3},
@@ -111,7 +75,6 @@ do
         {6,15,14,9,11,3,0,8,12,2,13,7,1,4,10,5},
         {10,2,8,4,7,6,1,5,15,11,9,14,3,12,13,0}
     }
-
     local function G(v, a, b, c, d, x, y)
         v[a] = (v[a] + v[b] + x) % MOD32
         v[d] = rotr(bxor(v[d], v[a]), 16)
@@ -122,27 +85,20 @@ do
         v[c] = (v[c] + v[d]) % MOD32
         v[b] = rotr(bxor(v[b], v[c]), 7)
     end
-
     local function compress(h, block, t, last)
         local v = {}
         for i = 1, 8 do v[i] = h[i] end
         for i = 1, 8 do v[i + 8] = IV[i] end
-
         v[13] = bxor(v[13], t)
-        if last then
-            v[15] = bxor(v[15], 0xFFFFFFFF)
-        end
-
+        if last then v[15] = bxor(v[15], 0xFFFFFFFF) end
         local m = {}
         for i = 0, 15 do
             local p = i * 4 + 1
-            m[i] =
-                (block:byte(p) or 0) +
-                ((block:byte(p + 1) or 0) * 0x100) +
-                ((block:byte(p + 2) or 0) * 0x10000) +
-                ((block:byte(p + 3) or 0) * 0x1000000)
+            m[i] = (block:byte(p) or 0)
+                 + ((block:byte(p+1) or 0) * 0x100)
+                 + ((block:byte(p+2) or 0) * 0x10000)
+                 + ((block:byte(p+3) or 0) * 0x1000000)
         end
-
         for r = 1, 10 do
             local s = SIGMA[r]
             G(v,1,5,9,13,  m[s[1]],  m[s[2]])
@@ -154,45 +110,28 @@ do
             G(v,3,8,9,14,  m[s[13]], m[s[14]])
             G(v,4,5,10,15, m[s[15]], m[s[16]])
         end
-
-        for i = 1, 8 do
-            h[i] = bxor(h[i], v[i], v[i + 8])
-        end
+        for i = 1, 8 do h[i] = bxor(h[i], v[i], v[i+8]) end
     end
-
     function blake2s(msg, key)
         key = key or ""
-
         local h = {}
         for i = 1, 8 do h[i] = IV[i] end
-
-        local outlen = 32 -- bytes
-        h[1] = bxor(
-            h[1],
-            0x01010000 + lshift(#key, 8) + outlen
-        )
-
+        local outlen = 32
+        h[1] = bxor(h[1], 0x01010000 + lshift(#key, 8) + outlen)
         local t = 0
-
         if #key > 0 then
             local block = key .. string.rep("\0", 64 - #key)
             t = #key
             compress(h, block, t, false)
         end
-
         for i = 1, #msg, 64 do
             local block = msg:sub(i, i + 63)
-            if #block < 64 then
-                block = block .. string.rep("\0", 64 - #block)
-            end
+            if #block < 64 then block = block .. string.rep("\0", 64 - #block) end
             t = t + math.min(64, #msg - i + 1)
             compress(h, block, t, i + 64 > #msg)
         end
-
         local out = ""
-        for i = 1, 8 do
-            out = out .. string.format("%08x", h[i])
-        end
+        for i = 1, 8 do out = out .. string.format("%08x", h[i]) end
         return out
     end
 end
@@ -202,31 +141,485 @@ if not blake2s then error("Failed to load blake2s") end
 if not kernel.vfs.exists("/etc/pam.d/secret") then
     kernel.log("PAM SECRET REGENERATING PLEASE USE ROOT")
     local key = ""
-    for i=1, 256 do
-        key=key..string.char(math.random(0,255))
-    end
+    for i = 1, 256 do key = key .. string.char(math.random(0, 255)) end
     local handle = kernel.vfs.open("/etc/pam.d/secret", "w")
     kernel.vfs.write(handle, key)
     kernel.vfs.close(handle)
 end
 
 local pepper = getFile("/etc/pam.d/secret")
+
+local function genSalt()
+    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./"
+    local s = ""
+    for i = 1, 16 do
+        s = s .. chars:sub(math.random(1, #chars), math.random(1, #chars))
+    end
+    return s
+end
+
+local function hashPassword(password, salt)
+    local key = (pepper .. salt):sub(1, 32)
+    return blake2s(password, key)
+end
+
 local passwdFile = getFile("/etc/passwd")
 local shadowFile = getFile("/etc/shadow")
-local passwdLines = string.split(passwdFile,"\n")
-local shadowLines = string.split(shadowFile,"\n")
-local passwd,shadow={},{}
 
-for _,v in ipairs(passwdLines) do
-    passwd[#passwd+1]=string.split(v,":")
+local passwdLines = string.split(passwdFile, "\n")
+local shadowLines = string.split(shadowFile, "\n")
+
+local passwd, shadow = {}, {}
+for _, v in ipairs(passwdLines) do
+    local fields = string.split(v, ":")
+    if fields[1] and fields[1] ~= "" then
+        passwd[#passwd + 1] = fields
+    end
+end
+for _, v in ipairs(shadowLines) do
+    local fields = string.split(v, ":")
+    if fields[1] and fields[1] ~= "" then
+        shadow[#shadow + 1] = fields
+    end
 end
 
-for _,v in ipairs(shadowLines) do
-    shadow[#shadow+1]=string.split(v,":")
+for _, v in ipairs(passwd) do
+    local uid = tonumber(v[1])
+    if uid then kernel.users[uid] = v[3] end
 end
 
-for i,v in pairs(passwd) do
-    kernel.users[tonumber(v[1])]=v[3]
-end
-kernel.passwd=passwd
+kernel.passwd = passwd
 
+local function flushPasswd()
+    local lines = {}
+    for _, v in ipairs(passwd) do
+        lines[#lines + 1] = table.concat(v, ":")
+    end
+    writeFile("/etc/passwd", table.concat(lines, "\n"))
+end
+
+local function flushShadow()
+    local lines = {}
+    for _, v in ipairs(shadow) do
+        lines[#lines + 1] = table.concat(v, ":")
+    end
+    writeFile("/etc/shadow", table.concat(lines, "\n"))
+end
+
+local function getPasswdByUID(uid)
+    for _, v in ipairs(passwd) do
+        if tonumber(v[1]) == uid then return v end
+    end
+    return nil
+end
+
+local function getShadowByUID(uid)
+    for _, v in ipairs(shadow) do
+        if tonumber(v[1]) == uid then return v end
+    end
+    return nil
+end
+
+local function getPasswdByUsername(username)
+    for _, v in ipairs(passwd) do
+        if v[3] == username then return v end
+    end
+    return nil
+end
+
+local function nextUID()
+    local max = 999
+    for _, v in ipairs(passwd) do
+        local uid = tonumber(v[1])
+        if uid and uid >= 1000 and uid > max then max = uid end
+    end
+    return max + 1
+end
+
+function auth.login(username, password)
+    if type(username) ~= "string" or type(password) ~= "string" then
+        return nil, "Authentication failure"
+    end
+
+    local entry = getPasswdByUsername(username)
+    if not entry then
+        -- timing attack resistance
+        hashPassword(password, "aaaaaaaaaaaaaaaa")
+        return nil, "Authentication failure"
+    end
+
+    local uid = tonumber(entry[1])
+    local sEntry = getShadowByUID(uid)
+    if not sEntry then
+        hashPassword(password, "aaaaaaaaaaaaaaaa")
+        return nil, "Authentication failure"
+    end
+
+    local salt = sEntry[2]
+    local storedHash = sEntry[3]
+
+    local computed = hashPassword(password, salt)
+    if computed ~= storedHash then
+        return nil, "Authentication failure"
+    end
+
+    kernel.currentUID = uid
+    if kernel.currentProcess then
+        kernel.currentProcess.uid  = uid
+        kernel.currentProcess.euid = uid
+        kernel.currentProcess.gid  = tonumber(entry[2]) or uid
+        kernel.currentProcess.egid = tonumber(entry[2]) or uid
+    end
+
+    kernel.log("AUTH: login uid=" .. tostring(uid) .. " (" .. username .. ")")
+    return true
+end
+
+function auth.setPassword(uid, newPassword)
+    uid = tonumber(uid)
+    if not uid then return nil, "Invalid uid" end
+
+    local callerUID = (kernel.currentProcess and kernel.currentProcess.euid)
+                   or kernel.currentUID or 0
+
+    if callerUID ~= 0 and callerUID ~= uid then
+        return nil, "Permission denied"
+    end
+
+    if type(newPassword) ~= "string" or #newPassword == 0 then
+        return nil, "Password may not be empty"
+    end
+
+    if #newPassword < 6 then
+        return nil, "Password is too short (minimum 6 characters)"
+    end
+
+    local salt = genSalt()
+    local hash = hashPassword(newPassword, salt)
+
+    local sEntry = getShadowByUID(uid)
+    if sEntry then
+        sEntry[2] = salt
+        sEntry[3] = hash
+    else
+        shadow[#shadow + 1] = { tostring(uid), salt, hash }
+    end
+
+    flushShadow()
+    kernel.log("AUTH: password changed for uid=" .. tostring(uid))
+    return true
+end
+
+function auth.setUsername(uid, newUsername)
+    uid = tonumber(uid)
+    if not uid then return nil, "Invalid uid" end
+
+    local callerUID = (kernel.currentProcess and kernel.currentProcess.euid)
+                   or kernel.currentUID or 0
+
+    if callerUID ~= 0 then
+        return nil, "Permission denied (root only)"
+    end
+
+    if type(newUsername) ~= "string" or #newUsername == 0 then
+        return nil, "Invalid username"
+    end
+
+    if not newUsername:match("^[a-z_][a-z0-9_%-]*$") or #newUsername > 32 then
+        return nil, "Invalid username format"
+    end
+
+    if getPasswdByUsername(newUsername) then
+        return nil, "Username already taken"
+    end
+
+    local entry = getPasswdByUID(uid)
+    if not entry then return nil, "No such user" end
+
+    local oldName = entry[3]
+    entry[3] = newUsername
+    kernel.users[uid] = newUsername
+
+    flushPasswd()
+    kernel.log("AUTH: uid=" .. tostring(uid) .. " renamed '" .. oldName .. "' → '" .. newUsername .. "'")
+    return true
+end
+
+function auth.newUser(username, password, gid, homedir, shell)
+    local callerUID = (kernel.currentProcess and kernel.currentProcess.euid)
+                   or kernel.currentUID or 0
+
+    if callerUID ~= 0 then
+        return nil, "Permission denied (root only)"
+    end
+
+    if type(username) ~= "string" or #username == 0 then
+        return nil, "Invalid username"
+    end
+
+    if not username:match("^[a-z_][a-z0-9_%-]*$") or #username > 32 then
+        return nil, "Invalid username format"
+    end
+
+    if getPasswdByUsername(username) then
+        return nil, "Username already exists"
+    end
+
+    if type(password) ~= "string" or #password < 6 then
+        return nil, "Password is too short (minimum 6 characters)"
+    end
+
+    local uid  = nextUID()
+    gid        = tonumber(gid) or uid
+    homedir    = homedir or ("/home/" .. username)
+    shell      = shell   or "/bin/sh"
+
+    passwd[#passwd + 1] = {
+        tostring(uid),
+        tostring(gid),
+        username,
+        homedir,
+        shell
+    }
+    kernel.users[uid] = username
+
+    local salt = genSalt()
+    local hash = hashPassword(password, salt)
+    shadow[#shadow + 1] = { tostring(uid), salt, hash }
+
+    flushPasswd()
+    flushShadow()
+
+    if kernel.vfs.mkdir and not kernel.vfs.exists(homedir) then
+        kernel.vfs.mkdir(homedir)
+    end
+
+    kernel.log("AUTH: new user '" .. username .. "' uid=" .. tostring(uid))
+    return uid
+end
+
+function auth.whoami()
+    local uid = (kernel.currentProcess and kernel.currentProcess.euid)
+             or kernel.currentUID
+    if not uid then return nil, "Not logged in" end
+    return kernel.users[uid] or ("uid=" .. tostring(uid))
+end
+
+function auth.getUID(username)
+    local entry = getPasswdByUsername(username)
+    if entry then return tonumber(entry[1]) end
+    return nil
+end
+
+function auth.getPasswd(uid)
+    uid = tonumber(uid)
+    local entry = getPasswdByUID(uid)
+    if not entry then return nil end
+    return {
+        uid     = tonumber(entry[1]),
+        gid     = tonumber(entry[2]),
+        username = entry[3],
+        homedir  = entry[4],
+        shell    = entry[5],
+    }
+end
+
+function auth.deleteUser(uid)
+    uid = tonumber(uid)
+    if not uid then return nil, "Invalid uid" end
+
+    local callerUID = kernel.uid or 0
+    if callerUID ~= 0 then return nil, "Permission denied (root only)" end
+    if uid == 0 then return nil, "Cannot delete root" end
+
+    local entry = getPasswdByUID(uid)
+    if not entry then return nil, "No such user" end
+    local username = entry[3]
+
+    -- Remove from passwd
+    for i, v in ipairs(passwd) do
+        if tonumber(v[1]) == uid then table.remove(passwd, i); break end
+    end
+    -- Remove from shadow
+    for i, v in ipairs(shadow) do
+        if tonumber(v[1]) == uid then table.remove(shadow, i); break end
+    end
+    kernel.users[uid] = nil
+
+    flushPasswd()
+    flushShadow()
+    kernel.log("AUTH: deleted user '" .. username .. "' uid=" .. tostring(uid))
+    return true
+end
+
+function auth.lockUser(uid)
+    uid = tonumber(uid)
+    if not uid then return nil, "Invalid uid" end
+
+    local callerUID = kernel.uid or 0
+    if callerUID ~= 0 then return nil, "Permission denied (root only)" end
+    if uid == 0 then return nil, "Cannot lock root" end
+
+    local sEntry = getShadowByUID(uid)
+    if not sEntry then return nil, "No shadow entry for uid" end
+
+    -- Prefix hash with ! to lock (standard Linux convention)
+    if sEntry[3]:sub(1,1) ~= "!" then
+        sEntry[3] = "!" .. sEntry[3]
+    end
+    flushShadow()
+    kernel.log("AUTH: locked uid=" .. tostring(uid))
+    return true
+end
+
+function auth.unlockUser(uid)
+    uid = tonumber(uid)
+    if not uid then return nil, "Invalid uid" end
+
+    local callerUID = kernel.uid or 0
+    if callerUID ~= 0 then return nil, "Permission denied (root only)" end
+
+    local sEntry = getShadowByUID(uid)
+    if not sEntry then return nil, "No shadow entry for uid" end
+
+    if sEntry[3]:sub(1,1) == "!" then
+        sEntry[3] = sEntry[3]:sub(2)
+    end
+    flushShadow()
+    kernel.log("AUTH: unlocked uid=" .. tostring(uid))
+    return true
+end
+
+function auth.listUsers()
+    local result = {}
+    for _, v in ipairs(passwd) do
+        local uid = tonumber(v[1])
+        local sEntry = getShadowByUID(uid)
+        local locked = sEntry and sEntry[3]:sub(1,1) == "!"
+        result[#result+1] = {
+            uid     = uid,
+            gid     = tonumber(v[2]),
+            username = v[3],
+            homedir  = v[4],
+            shell    = v[5],
+            locked   = locked or false,
+        }
+    end
+    return result
+end
+
+function auth.setShell(uid, shell)
+    uid = tonumber(uid)
+    if not uid then return nil, "Invalid uid" end
+
+    local callerUID = kernel.uid or 0
+    if callerUID ~= 0 and callerUID ~= uid then
+        return nil, "Permission denied"
+    end
+
+    if type(shell) ~= "string" or #shell == 0 then
+        return nil, "Invalid shell"
+    end
+
+    local entry = getPasswdByUID(uid)
+    if not entry then return nil, "No such user" end
+    entry[5] = shell
+
+    flushPasswd()
+    kernel.log("AUTH: uid=" .. tostring(uid) .. " shell -> " .. shell)
+    return true
+end
+
+function auth.setHomedir(uid, homedir)
+    uid = tonumber(uid)
+    if not uid then return nil, "Invalid uid" end
+
+    local callerUID = kernel.uid or 0
+    if callerUID ~= 0 then return nil, "Permission denied (root only)" end
+
+    if type(homedir) ~= "string" or #homedir == 0 then
+        return nil, "Invalid homedir"
+    end
+
+    local entry = getPasswdByUID(uid)
+    if not entry then return nil, "No such user" end
+    entry[4] = homedir
+
+    flushPasswd()
+    kernel.log("AUTH: uid=" .. tostring(uid) .. " homedir -> " .. homedir)
+    return true
+end
+
+function auth.setGID(uid, gid)
+    uid = tonumber(uid)
+    gid = tonumber(gid)
+    if not uid or not gid then return nil, "Invalid uid or gid" end
+
+    local callerUID = kernel.uid or 0
+    if callerUID ~= 0 then return nil, "Permission denied (root only)" end
+
+    local entry = getPasswdByUID(uid)
+    if not entry then return nil, "No such user" end
+    entry[2] = tostring(gid)
+
+    flushPasswd()
+    kernel.log("AUTH: uid=" .. tostring(uid) .. " gid -> " .. tostring(gid))
+    return true
+end
+
+-- Elevate the calling task to targetUid after verifying targetUsername's password.
+-- This is the kernel-side primitive for su/sudo — it bypasses the kernel.uid==0
+-- check in sys.setuid because the auth module itself is trusted kernel code.
+function auth.elevate(targetUsername, password)
+    if type(targetUsername) ~= "string" or type(password) ~= "string" then
+        return nil, "Authentication failure"
+    end
+
+    local entry = getPasswdByUsername(targetUsername)
+    if not entry then
+        hashPassword(password, "aaaaaaaaaaaaaaaa") -- timing resistance
+        return nil, "Authentication failure"
+    end
+
+    local uid = tonumber(entry[1])
+    local sEntry = getShadowByUID(uid)
+    if not sEntry then
+        hashPassword(password, "aaaaaaaaaaaaaaaa")
+        return nil, "Authentication failure"
+    end
+
+    local computed = hashPassword(password, sEntry[2])
+    if computed ~= sEntry[3] then
+        return nil, "Authentication failure"
+    end
+
+    -- Directly set the calling task's uid — trusted kernel path
+    local task = kernel.currentTask
+    local prevUid = task.uid
+    task.uid  = uid
+    task.euid = uid
+    task.gid  = tonumber(entry[2]) or uid
+    task.egid = tonumber(entry[2]) or uid
+    kernel.uid = uid
+
+    kernel.log("AUTH: elevate uid=" .. tostring(prevUid) .. " -> " .. tostring(uid) .. " (" .. targetUsername .. ")")
+    return true, uid
+end
+
+if kernel.syscalls then
+    kernel.syscalls["auth_login"]       = auth.login
+    kernel.syscalls["auth_setpassword"] = auth.setPassword
+    kernel.syscalls["auth_setusername"] = auth.setUsername
+    kernel.syscalls["auth_newuser"]     = auth.newUser
+    kernel.syscalls["auth_whoami"]      = auth.whoami
+    kernel.syscalls["auth_getuid"]      = auth.getUID
+    kernel.syscalls["auth_getpasswd"]   = auth.getPasswd
+    kernel.syscalls["auth_elevate"]     = auth.elevate
+    kernel.syscalls["auth_deleteuser"]  = auth.deleteUser
+    kernel.syscalls["auth_lockuser"]    = auth.lockUser
+    kernel.syscalls["auth_unlockuser"]  = auth.unlockUser
+    kernel.syscalls["auth_listusers"]   = auth.listUsers
+    kernel.syscalls["auth_setshell"]    = auth.setShell
+    kernel.syscalls["auth_sethomedir"]  = auth.setHomedir
+    kernel.syscalls["auth_setgid"]      = auth.setGID
+end

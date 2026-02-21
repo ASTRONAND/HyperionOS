@@ -1,0 +1,104 @@
+--:Minify:--
+-- Color indices (sfgc):
+-- 1=white, 2=red, 3=green, 4=blue, 5=cyan, 6=magenta, 7=yellow
+-- 8=orange, 9=lime, 10=lightcyan, 11=brown, 12=darkgrey, 13=lightgrey, 14=purple, 15=chartreuse, 16=black
+
+local C_LOGO  = 5  -- cyan
+local C_WHITE = 1  -- white
+local C_LABEL = 13 -- light grey  (key names)
+local C_SEP   = 12 -- dark grey   (---- separator)
+local C_USER  = 3  -- green       (user@host)
+
+local function c(col) syscall.devctl(1, "sfgc", col) end
+
+local username = syscall.getUsername() or "Unknown"
+local hostname = syscall.getHostname() or "Unknown"
+local userhost = username .. "@" .. hostname
+
+local function formatUptime(ms)
+    local s = math.floor(ms / 1000)
+    local m = math.floor(s / 60)
+    local h = math.floor(m / 60)
+    local d = math.floor(h / 24)
+    s = s % 60; m = m % 60; h = h % 24
+    local parts = {}
+    if d > 0 then parts[#parts+1] = d .. "d" end
+    if h > 0 then parts[#parts+1] = h .. "h" end
+    if m > 0 then parts[#parts+1] = m .. "m" end
+    parts[#parts+1] = s .. "s"
+    return table.concat(parts, " ")
+end
+
+local host_str = syscall.getHost() or "Unknown"
+local cc_ver   = host_str:match("ComputerCraft ([%d%.]+)") or host_str
+
+local info = {
+    -- {label, value}  label=nil means print value as-is (userhost / separator)
+    {nil,        userhost},
+    {nil,        string.rep("-", #userhost)},
+    {"OS",       syscall.version() or "Unknown"},
+    {"Host",     cc_ver},
+    {"Arch",     syscall.arch() or "Unknown"},
+    {"Uptime",   formatUptime(syscall.getUptime() or 0)},
+    {"Tasks",    tostring(#(syscall.getTasks() or {}))},
+    {"Shell",    syscall.getEnviron("SHELL") or "Unknown"},
+    {"Terminal", "TTY1"},
+    {"UID",      tostring(syscall.getuid())},
+    {"Packages", "n/a (spm)"},
+}
+
+local logo = {
+    "..               *.              .. ",
+    " *=             +@*             +*  ",
+    " .@#.          -@@@=          :#@.  ",
+    "  =@@+         *@@@#         +@@=   ",
+    "   %@@%:       *@@@#       -%@@%    ",
+    "   :@@@@+      *@@@#     .*@@@@:    ",
+    "    :*@@@%-    *@@@#    -@@@@*:     ",
+    "       =%@@#.  *@@@#  .#@@%=        ",
+    "     :=. :*@@= *@@@# =@@+: .=:      ",
+    "      %@#=..*# +@@@# #*..=#@#       ",
+    "      .@@@@+=# .%@%: #=+@@@@.       ",
+    "       .....=#  -@=  *+...:.        ",
+    "        -*%*-@=  -  =@-*%*-         ",
+    "        -@*. -@%. :%@- :*@-         ",
+    "              .#@#@*                ",
+    "                -#-                 ",
+    "                                    ",
+}
+
+local lines = math.max(#logo, #info)
+for i = 1, lines do
+    local logo_str = logo[i] or string.rep(" ", 36)
+
+    -- print logo segment in cyan
+    c(C_LOGO)
+    printInline(logo_str)
+
+    -- print separator pipe
+    c(C_LABEL)
+    printInline("| ")
+
+    -- print info segment
+    local row = info[i]
+    if row then
+        if row[1] == nil and i == 1 then
+            -- user@host line
+            c(C_USER)
+            printInline(row[2])
+        elseif row[1] == nil and i == 2 then
+            -- separator line
+            c(C_SEP)
+            printInline(row[2])
+        elseif row[1] then
+            -- label: value
+            c(C_LABEL)
+            printInline(row[1] .. ": ")
+            c(C_WHITE)
+            printInline(row[2])
+        end
+    end
+
+    c(C_WHITE)
+    print("")
+end

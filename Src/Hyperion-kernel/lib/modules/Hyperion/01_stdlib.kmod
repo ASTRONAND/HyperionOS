@@ -17,6 +17,7 @@ function string.delim(str, ...) return table.concat(table.pack(...), str) end
 
 function string.split(str, delim, maxResultCountOrNil)
     assert(#delim == 1, "only delim len 1 supported for now")
+    if not str then return false end
     maxResultCountOrNil = (maxResultCountOrNil or 0) - 1
     local rv = {}
     local buf = ""

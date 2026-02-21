@@ -1,0 +1,49 @@
+--:Minify:--
+local args = {...}
+local removeHome = false
+local username = nil
+
+for _, a in ipairs(args) do
+    if a == "-r" then removeHome = true
+    elseif a:sub(1,1) ~= "-" then username = a
+    else print("userdel: unknown option: " .. a); syscall.exit(1); return end
+end
+
+if not username then
+    print("Usage: userdel [-r] <username>")
+    syscall.exit(1); return
+end
+
+local uid = syscall.auth_getuid(username)
+if not uid then
+    print("userdel: user '" .. username .. "' does not exist")
+    syscall.exit(1); return
+end
+
+local pwent = syscall.auth_getpasswd(uid)
+
+local ok, err = syscall.auth_deleteuser(uid)
+if not ok then
+    print("userdel: " .. tostring(err))
+    syscall.exit(1); return
+end
+
+if removeHome and pwent and pwent.homedir then
+    local fs = require("sys.fs")
+    local ok2, err2 = pcall(function()
+        local function rmdir(path)
+            for _, f in ipairs(fs.list(path) or {}) do
+                local full = path .. "/" .. f
+                if fs.isDir(full) then rmdir(full)
+                else syscall.remove(full) end
+            end
+            syscall.remove(path)
+        end
+        if fs.exists(pwent.homedir) then rmdir(pwent.homedir) end
+    end)
+    if not ok2 then
+        print("userdel: warning: could not remove home: " .. tostring(err2))
+    end
+end
+
+print("userdel: deleted user '" .. username .. "'")

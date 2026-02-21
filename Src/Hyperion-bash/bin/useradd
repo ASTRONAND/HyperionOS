@@ -1,0 +1,67 @@
+--:Minify:--
+local args = {...}
+local i = 1
+local opt = { createHome = true }
+
+while i <= #args do
+    local a = args[i]
+    if a == "-p" then i=i+1; opt.password = args[i]
+    elseif a == "-g" then i=i+1; opt.gid = tonumber(args[i])
+    elseif a == "-d" then i=i+1; opt.homedir = args[i]
+    elseif a == "-s" then i=i+1; opt.shell = args[i]
+    elseif a == "-M" then opt.createHome = false
+    elseif a:sub(1,1) ~= "-" then opt.username = a
+    else print("useradd: unknown option: " .. a); return end
+    i = i + 1
+end
+
+if not opt.username then
+    print("Usage: useradd [-p password] [-g gid] [-d homedir] [-s shell] [-M] <username>")
+    syscall.exit(1); return
+end
+
+local password = opt.password
+if not password then
+    printInline("New password: ")
+    password = ""
+    while true do
+        local ch = syscall.read(0)
+        if not ch or ch == "" then
+        elseif ch == "\n" then syscall.write(1,"\n"); break
+        elseif ch == "\b" then
+            if #password > 0 then password=password:sub(1,-2); syscall.write(1,"\b \b") end
+        else password=password..ch; syscall.write(1,"*") end
+    end
+    printInline("Confirm password: ")
+    local pw2 = ""
+    while true do
+        local ch = syscall.read(0)
+        if not ch or ch == "" then
+        elseif ch == "\n" then syscall.write(1,"\n"); break
+        elseif ch == "\b" then
+            if #pw2 > 0 then pw2=pw2:sub(1,-2); syscall.write(1,"\b \b") end
+        else pw2=pw2..ch; syscall.write(1,"*") end
+    end
+    if password ~= pw2 then
+        print("useradd: passwords do not match")
+        syscall.exit(1); return
+    end
+end
+
+local uid, err = syscall.auth_newuser(
+    opt.username, password, opt.gid, opt.homedir, opt.shell or "/bin/hysh"
+)
+if not uid then
+    print("useradd: " .. tostring(err))
+    syscall.exit(1); return
+end
+
+if opt.createHome then
+    local home = opt.homedir or ("/home/" .. opt.username)
+    local ok, e = pcall(syscall.mkdir, home)
+    if not ok then
+        print("useradd: warning: could not create home " .. home .. ": " .. tostring(e))
+    end
+end
+
+print("useradd: created user '" .. opt.username .. "' with uid=" .. tostring(uid))

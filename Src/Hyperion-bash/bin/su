@@ -1,0 +1,72 @@
+--:Minify:--
+local fs = require("sys.fs")
+
+local targetUser = ({...})[1] or "root"
+
+local currentUid = syscall.getuid()
+local currentUser = syscall.getUsername(currentUid) or tostring(currentUid)
+
+local targetUid = syscall.auth_getuid(targetUser)
+if not targetUid then
+    print("su: user '" .. targetUser .. "' does not exist")
+    syscall.exit(1)
+    return
+end
+
+local ok, err
+if currentUid == 0 then
+    ok = true
+else
+    printInline("Password: ")
+    local pw = ""
+    while true do
+        local ch = syscall.read(0)
+        if not ch or ch == "" then
+        elseif ch == "\n" then
+            syscall.write(1, "\n")
+            break
+        elseif ch == "\b" then
+            if #pw > 0 then pw = pw:sub(1, -2); syscall.write(1, "\b \b") end
+        else
+            pw = pw .. ch
+            syscall.write(1, "*")
+        end
+    end
+
+    ok, err = syscall.auth_elevate(targetUser, pw)
+    if not ok then
+        sleep(1)
+        print("su: Authentication failure")
+        syscall.exit(1)
+        return
+    end
+end
+
+if currentUid == 0 then
+    syscall.setuid(targetUid)
+end
+
+local pwent = syscall.auth_getpasswd(targetUid)
+local shell   = (pwent and pwent.shell)   or "/bin/hysh"
+local homedir = (pwent and pwent.homedir) or "/"
+
+syscall.chdir(homedir)
+syscall.setEnviron("HOME",  homedir)
+syscall.setEnviron("USER",  targetUser)
+syscall.setEnviron("SHELL", shell)
+
+local shellText = fs.readAllText(shell)
+if not shellText then
+    print("su: shell not found: " .. shell)
+    syscall.exit(1)
+    return
+end
+
+local shellFn, loadErr = load(shellText, "@" .. shell)
+if not shellFn then
+    print("su: cannot load shell: " .. tostring(loadErr))
+    syscall.exit(1)
+    return
+end
+
+shellFn()

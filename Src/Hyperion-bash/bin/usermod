@@ -1,0 +1,49 @@
+--:Minify:--
+local args = {...}
+local i = 1
+local opt = {}
+
+while i <= #args do
+    local a = args[i]
+    if a == "-l" then i=i+1; opt.newname = args[i]
+    elseif a == "-p" then i=i+1; opt.password = args[i]
+    elseif a == "-g" then i=i+1; opt.gid = tonumber(args[i])
+    elseif a == "-d" then i=i+1; opt.homedir = args[i]
+    elseif a == "-s" then i=i+1; opt.shell = args[i]
+    elseif a == "-L" then opt.lock = true
+    elseif a == "-U" then opt.unlock = true
+    elseif a:sub(1,1) ~= "-" then opt.username = a
+    else print("usermod: unknown option: " .. a); syscall.exit(1); return end
+    i = i + 1
+end
+
+if not opt.username then
+    print("Usage: usermod [-l newname] [-p password] [-g gid] [-d homedir] [-s shell] [-L] [-U] <username>")
+    syscall.exit(1); return
+end
+
+if opt.lock and opt.unlock then
+    print("usermod: -L and -U are mutually exclusive")
+    syscall.exit(1); return
+end
+
+local uid = syscall.auth_getuid(opt.username)
+if not uid then
+    print("usermod: user '" .. opt.username .. "' does not exist")
+    syscall.exit(1); return
+end
+
+local function apply(fn, ...)
+    local ok, err = fn(...)
+    if not ok then print("usermod: " .. tostring(err)); syscall.exit(1) end
+end
+
+if opt.newname  then apply(syscall.auth_setusername, uid, opt.newname) end
+if opt.password then apply(syscall.auth_setpassword, uid, opt.password) end
+if opt.gid      then apply(syscall.auth_setgid,      uid, opt.gid) end
+if opt.homedir  then apply(syscall.auth_sethomedir,  uid, opt.homedir) end
+if opt.shell    then apply(syscall.auth_setshell,     uid, opt.shell) end
+if opt.lock     then apply(syscall.auth_lockuser,     uid) end
+if opt.unlock   then apply(syscall.auth_unlockuser,   uid) end
+
+print("usermod: updated user '" .. opt.username .. "'")
