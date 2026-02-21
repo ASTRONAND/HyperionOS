@@ -1,6 +1,5 @@
 --:Minify:--
 local fs = require("sys.fs")
-
 local targetUser = ({ ... })[1] or "root"
 
 local currentUid = syscall.getuid()
@@ -72,6 +71,10 @@ if not shellFn then
     return
 end
 
-syscall.kill(syscall.getppid())
-syscall.spawn(shellFn, targetUser .. ":" .. shell, syscall.getEnviron())
-syscall.exit(0)
+local success, err = syscall.kill(syscall.getppid())
+if success then
+    syscall.spawn(shellFn, targetUser .. ":" .. shell, syscall.getEnviron())
+    syscall.exit(0)
+else
+    print("su: "..err)
+end
