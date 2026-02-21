@@ -27,7 +27,7 @@ if opt.lock and opt.unlock then
     syscall.exit(1); return
 end
 
-local uid = syscall.auth_getuid(opt.username)
+local uid = syscall.getuid(opt.username)
 if not uid then
     print("usermod: user '" .. opt.username .. "' does not exist")
     syscall.exit(1); return
@@ -38,12 +38,12 @@ local function apply(fn, ...)
     if not ok then print("usermod: " .. tostring(err)); syscall.exit(1) end
 end
 
-if opt.newname  then apply(syscall.auth_setusername, uid, opt.newname) end
-if opt.password then apply(syscall.auth_setpassword, uid, opt.password) end
-if opt.gid      then apply(syscall.auth_setgid,      uid, opt.gid) end
-if opt.homedir  then apply(syscall.auth_sethomedir,  uid, opt.homedir) end
-if opt.shell    then apply(syscall.auth_setshell,     uid, opt.shell) end
-if opt.lock     then apply(syscall.auth_lockuser,     uid) end
-if opt.unlock   then apply(syscall.auth_unlockuser,   uid) end
+if opt.newname  then apply(syscall.setusername, uid, opt.newname) end
+if opt.password then apply(syscall.setpassword, uid, opt.password) end
+if opt.gid      then apply(syscall.setgid,      uid, opt.gid) end
+if opt.homedir  then apply(syscall.sethomedir,  uid, opt.homedir) end
+if opt.shell    then apply(syscall.setshell,     uid, opt.shell) end
+if opt.lock     then apply(syscall.lockuser,     uid) end
+if opt.unlock   then apply(syscall.unlockuser,   uid) end
 
 print("usermod: updated user '" .. opt.username .. "'")

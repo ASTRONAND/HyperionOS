@@ -48,7 +48,7 @@ if not password then
     end
 end
 
-local uid, err = syscall.auth_newuser(
+local uid, err = syscall.newuser(
     opt.username, password, opt.gid, opt.homedir, opt.shell or "/bin/hysh"
 )
 if not uid then

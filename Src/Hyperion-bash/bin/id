@@ -3,7 +3,7 @@ local args = {...}
 local uid
 
 if args[1] then
-    uid = syscall.auth_getuid(args[1])
+    uid = syscall.getuid(args[1])
     if not uid then
         print("id: user '" .. args[1] .. "' does not exist")
         syscall.exit(1); return
@@ -12,7 +12,7 @@ else
     uid = syscall.getuid()
 end
 
-local pwent = syscall.auth_getpasswd(uid)
+local pwent = syscall.getpasswd(uid)
 local name = (pwent and pwent.username) or tostring(uid)
 local gid  = (pwent and pwent.gid) or uid
 

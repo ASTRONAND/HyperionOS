@@ -54,7 +54,7 @@ local function firstBoot()
             syscall.write(1, "Password too short (minimum 6 characters).\n\n")
             syscall.devctl(1, "sfgc", 1)
         else
-            local ok, err = syscall.auth_setpassword(0, pw1)
+            local ok, err = syscall.setpassword(0, pw1)
             if ok then
                 syscall.devctl(1, "sfgc", 3)
                 syscall.write(1, "Root password set.\n\n")
@@ -124,10 +124,10 @@ local function doLogin()
         syscall.write(1, "Password: ")
         local password = readLine("*")
 
-        local ok, err = syscall.auth_login(username, password)
+        local ok, err = syscall.login(username, password)
         if ok then
-            local uid     = syscall.auth_getuid(username)
-            local pwent   = uid and syscall.auth_getpasswd(uid)
+            local uid     = syscall.getuid(username)
+            local pwent   = uid and syscall.getpasswd(uid)
             local shell   = (pwent and pwent.shell) or "/bin/hysh"
             local homedir = (pwent and pwent.homedir) or "/"
 

@@ -5,7 +5,7 @@ local targetUser = ({ ... })[1] or "root"
 local currentUid = syscall.getuid()
 local currentUser = syscall.getUsername(currentUid) or tostring(currentUid)
 
-local targetUid = syscall.auth_getuid(targetUser)
+local targetUid = syscall.getuid(targetUser)
 if not targetUid then
     print("su: user '" .. targetUser .. "' does not exist")
     syscall.exit(1)
@@ -34,7 +34,7 @@ else
         end
     end
 
-    ok, err = syscall.auth_elevate(targetUser, pw)
+    ok, err = syscall.elevate(targetUser, pw)
     if not ok then
         sleep(1)
         print("su: Authentication failure")
@@ -47,7 +47,7 @@ if currentUid == 0 then
     syscall.setuid(targetUid)
 end
 
-local pwent   = syscall.auth_getpasswd(targetUid)
+local pwent   = syscall.getpasswd(targetUid)
 local shell   = (pwent and pwent.shell) or "/bin/hysh"
 local homedir = (pwent and pwent.homedir) or "/"
 

@@ -10,7 +10,7 @@ if cmdArgs[i] == "-u" then
     local uarg = cmdArgs[i] or "root"
     local numUid = tonumber(uarg)
     if numUid then
-        local pwent = syscall.auth_getpasswd(numUid)
+        local pwent = syscall.getpasswd(numUid)
         targetUser = (pwent and pwent.username) or uarg
     else
         targetUser = uarg
@@ -31,7 +31,7 @@ for j = i + 1, #cmdArgs do restArgs[#restArgs + 1] = cmdArgs[j] end
 local currentUid = syscall.getuid()
 local currentUser = syscall.getUsername(currentUid) or tostring(currentUid)
 
-local targetUid = syscall.auth_getuid(targetUser)
+local targetUid = syscall.getuid(targetUser)
 if not targetUid then
     print("sudo: user '" .. targetUser .. "' does not exist")
     syscall.exit(1)
@@ -55,7 +55,7 @@ if currentUid ~= 0 then
         end
     end
 
-    local ok, err = syscall.auth_elevate(currentUser, pw)
+    local ok, err = syscall.elevate(currentUser, pw)
     if not ok then
         sleep(1)
         print("sudo: Authentication failure")
@@ -97,7 +97,7 @@ if not program then
     return
 end
 
-local pwent = syscall.auth_getpasswd(targetUid)
+local pwent = syscall.getpasswd(targetUid)
 if pwent and pwent.homedir then
     syscall.setEnviron("HOME", pwent.homedir)
 end

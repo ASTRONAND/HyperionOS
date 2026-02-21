@@ -14,15 +14,15 @@ if not username then
     syscall.exit(1); return
 end
 
-local uid = syscall.auth_getuid(username)
+local uid = syscall.getuid(username)
 if not uid then
     print("userdel: user '" .. username .. "' does not exist")
     syscall.exit(1); return
 end
 
-local pwent = syscall.auth_getpasswd(uid)
+local pwent = syscall.getpasswd(uid)
 
-local ok, err = syscall.auth_deleteuser(uid)
+local ok, err = syscall.deleteuser(uid)
 if not ok then
     print("userdel: " .. tostring(err))
     syscall.exit(1); return

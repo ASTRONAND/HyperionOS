@@ -1,5 +1,5 @@
 --:Minify:--
-local users = syscall.auth_listusers()
+local users = syscall.listusers()
 if not users or #users == 0 then
     print("No users found.")
     return
