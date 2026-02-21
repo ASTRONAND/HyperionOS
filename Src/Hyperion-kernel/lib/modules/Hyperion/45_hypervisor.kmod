@@ -129,9 +129,6 @@ function sys.kill(pid)
     if not tasks[tostring(pid)] then
         return false, "Task does not exist"
 
-    elseif not isEqualToAny(tasks[tostring(pid)].pid, table.unpack(children)) and kernel.uid ~= 0 then
-        return false, "You do not own this task"
-
     elseif tasks[tostring(pid)].status == "Z" then
         return false, "Task is already dead"
 
@@ -148,9 +145,6 @@ function sys.stop(pid)
     if not tasks[tostring(pid)] then
         return false, "Task does not exist"
 
-    elseif not isEqualToAny(tasks[tostring(pid)].pid, table.unpack(children)) and kernel.uid ~= 0 then
-        return false, "You do not own this task"
-
     elseif tasks[tostring(pid)].status ~= "R" then
         return false, "Cannot stop non running task"
 
@@ -165,9 +159,6 @@ function sys.continue(pid)
     for i, v in ipairs(kernel.currentTask.children) do children[i] = v.pid end
     if not tasks[tostring(pid)] then
         return false, "Task does not exist"
-
-    elseif not isEqualToAny(tasks[tostring(pid)].pid, table.unpack(children)) and kernel.uid ~= 0 then
-        return false, "You do not own this task"
 
     elseif tasks[tostring(pid)].status ~= "T" then
         return false, "Task is not stopped"

@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""
+Usage:
+    python build.py <target> [--arch cct|oc] [--release|--dev]
+
+Targets:
+    build
+    build-mini
+    build-test
+    build-mini-test
+    clean
+
+Arch flags:
+    --arch cct
+    --arch oc
+
+Release flags:
+    --release
+    --dev
+"""
+
+import sys
+import shutil
+import argparse
+import subprocess
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+SRC_ROOT     = PROJECT_ROOT / "Src"
+TEST_ROOT    = PROJECT_ROOT / "Test"
+BUILD_ROOT   = PROJECT_ROOT / "Build"
+
+ARCH_BOOT_DIR = {
+    "cct": Path("boot") / "cct",
+    "oc":  Path("boot") / "oc",
+}
+
+
+def clean():
+    if BUILD_ROOT.exists():
+        print(f"Removing {BUILD_ROOT} ...")
+        shutil.rmtree(BUILD_ROOT)
+    else:
+        print("Nothing to clean.")
+
+
+def process_root(src_root: Path, out_root: Path, minify: bool):
+    print(f"Building from {src_root}")
+    print(f"Output to      {out_root}")
+    print()
+
+    for pkg_dir in sorted(src_root.iterdir()):
+        if not pkg_dir.is_dir():
+            continue
+
+        print(f"== Package: {pkg_dir.name} ==")
+
+        for src in sorted(pkg_dir.rglob("*")):
+            if not src.is_file():
+                continue
+
+            rel = src.relative_to(pkg_dir)
+            dst = out_root / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+
+            print(f"  Processing: {src.relative_to(src_root)}")
+
+            if minify and has_minify_header(src):
+                print("    > Minifying")
+                result = subprocess.run(
+                    ["luamin", "-f", str(src)],
+                    capture_output=True, text=True
+                )
+                if result.returncode != 0:
+                    print(f"    ! luamin failed: {result.stderr.strip()}", file=sys.stderr)
+                    sys.exit(1)
+                dst.write_text(result.stdout, encoding="utf-8")
+            else:
+                print("    > Copying")
+                shutil.copy2(src, dst)
+
+        print()
+
+
+def install_bootloader(arch: str, release: bool):
+    boot_dir  = BUILD_ROOT / "$" / ARCH_BOOT_DIR[arch]
+    boot_lua  = boot_dir / "boot.lua"
+    eeprom    = boot_dir / "eeprom"
+
+    for src in (boot_lua, eeprom):
+        if not src.exists():
+            print(f"  ! Bootloader file not found: {src}", file=sys.stderr)
+            sys.exit(1)
+
+    print(f"  Installing: boot.lua -> Build/boot.lua")
+    shutil.copy2(boot_lua, BUILD_ROOT / "boot.lua")
+
+    eeprom_dst_name = "startup.lua" if release else "eeprom"
+    print(f"  Installing: eeprom -> Build/{eeprom_dst_name}")
+    shutil.copy2(eeprom, BUILD_ROOT / eeprom_dst_name)
+
+
+def has_minify_header(path: Path) -> bool:
+    try:
+        with path.open("r", encoding="utf-8", errors="ignore") as f:
+            for _ in range(3):
+                if "--:Minify:--" in f.readline():
+                    return True
+    except OSError:
+        pass
+    return False
+
+
+def run_build(minify: bool, include_test: bool, arch: str | None, release: bool):
+    clean()
+    BUILD_ROOT.mkdir()
+
+    out_root = BUILD_ROOT / "$" if arch else BUILD_ROOT
+
+    process_root(SRC_ROOT, out_root, minify)
+    if include_test:
+        process_root(TEST_ROOT, out_root, minify)
+
+    if arch:
+        print("Installing bootloader files ...")
+        install_bootloader(arch, release)
+        print()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="HyperionOS build script")
+    parser.add_argument("target", choices=["build", "build-mini", "build-test", "build-mini-test", "clean"])
+    parser.add_argument("--arch", choices=["cct", "oc"], default=None,
+                        help="Target architecture (cct or oc)")
+    parser.add_argument("--release", dest="release", action="store_true", default=True,
+                        help="Release build: eeprom placed as startup.lua (default)")
+    parser.add_argument("--dev", dest="release", action="store_false",
+                        help="Dev build: boot.lua and eeprom copied unchanged")
+
+    args = parser.parse_args()
+
+    if args.target == "clean":
+        clean()
+        return
+
+    minify       = "mini" in args.target
+    include_test = "test" in args.target
+
+    run_build(minify=minify, include_test=include_test, arch=args.arch, release=args.release)
+    print("Build complete.")
+
+
+if __name__ == "__main__":
+    main()

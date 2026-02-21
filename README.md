@@ -4,6 +4,12 @@ HyperionOS is a modular, hybrid kernel operating system written entirely in Lua.
 
 ---
 
+## Building
+
+See `building.md`.
+
+---
+
 ## Features
 
 - Functionality is split into kernel modules (`.kmod`)

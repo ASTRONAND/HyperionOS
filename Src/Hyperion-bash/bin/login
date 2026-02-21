@@ -1,7 +1,7 @@
 --:Minify:--
-syscall.open("/dev/tty/TTY1","r") --stdin  (fd 0)
-syscall.open("/dev/tty/TTY1","w") --stdout (fd 1)
-syscall.open("/dev/null","w")     --stderr (fd 2)
+syscall.open("/dev/tty/TTY1", "r") --stdin  (fd 0)
+syscall.open("/dev/tty/TTY1", "w") --stdout (fd 1)
+syscall.open("/dev/null", "w")    --stderr (fd 2)
 
 local fs = require("sys.fs")
 
@@ -78,21 +78,18 @@ local function spawnShell(username, uid, shell, homedir)
         return false
     end
 
-    -- Spawn a wrapper that loads and runs the shell, reporting any error back
-    -- via exit code channel so we can display it
     local errFifo = {}
 
     local proc = syscall.spawn(function()
         syscall.setuid(uid)
         syscall.chdir(homedir)
-        syscall.setEnviron("HOME",  homedir)
-        syscall.setEnviron("USER",  username)
+        syscall.setEnviron("HOME", homedir)
+        syscall.setEnviron("USER", username)
         syscall.setEnviron("SHELL", shell)
-        syscall.setEnviron("PATH",  "/bin/")
+        syscall.setEnviron("PATH", "/bin/")
 
         local shellFn, loadErr = load(shellText, "@" .. shell)
         if not shellFn then
-            -- Report load error via log and a recognizable exit code
             syscall.log("login: shell load error: " .. tostring(loadErr), "ERROR")
             syscall.exit(-1)
             return
@@ -103,21 +100,7 @@ local function spawnShell(username, uid, shell, homedir)
             syscall.log("login: shell runtime error: " .. tostring(runErr), "ERROR")
         end
     end, username .. ":shell")
-
-    while true do
-        local exited, code = syscall.collect(proc)
-        if exited then
-            if code then
-                syscall.devctl(1, "sfgc", 2)
-                syscall.write(1, "\nShell exited with code: " .. tostring(code) .. "\n")
-                syscall.write(1, "(Check /var/log/syslog.log for details)\n")
-                syscall.devctl(1, "sfgc", 1)
-                sleep(2)
-            end
-            return true
-        end
-        sleep(0.1)
-    end
+    syscall.exit(0)
 end
 
 local function doLogin()
@@ -145,7 +128,7 @@ local function doLogin()
         if ok then
             local uid     = syscall.auth_getuid(username)
             local pwent   = uid and syscall.auth_getpasswd(uid)
-            local shell   = (pwent and pwent.shell)   or "/bin/hysh"
+            local shell   = (pwent and pwent.shell) or "/bin/hysh"
             local homedir = (pwent and pwent.homedir) or "/"
 
             syscall.devctl(1, "sfgc", 3)
