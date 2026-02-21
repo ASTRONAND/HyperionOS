@@ -1,0 +1,23 @@
+local args = {...}
+local name = syscall.getTask(syscall.getpid()).name
+if #args == 0 then
+    print(name..": Missing operand.")
+    return
+end
+
+local fs = require("sys.fs")
+local newDir = args[1]
+if newDir:sub(1, 1) ~= "/" then
+    newDir = syscall.getcwd().."/"..newDir
+end
+
+if newDir:sub(#newDir, #newDir) ~= "/" then
+    newDir = newDir.."/"
+end
+
+if fs.isDir(newDir) then
+    print(name..": Cannot create directory '"..args[1].."': Directory already exists.")
+    return
+end
+
+fs.mkdir(newDir)
