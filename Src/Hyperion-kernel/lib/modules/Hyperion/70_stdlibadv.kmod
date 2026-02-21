@@ -9,13 +9,11 @@ function print(...)
 end
 
 function printf(fmt, ...)
-    coroutine.yield()
     local output = string.format(fmt, ...)
     syscall.write(1, output.."\n")
 end
 
 function printInline(...)
-    coroutine.yield()
     local args = {...}
     local output = ""
     for i = 1, #args do output = output .. tostring(args[i]) .. "\t" end
