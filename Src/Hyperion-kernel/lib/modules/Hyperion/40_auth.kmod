@@ -607,19 +607,19 @@ function auth.elevate(targetUsername, password)
 end
 
 if kernel.syscalls then
-    kernel.syscalls["auth_login"]       = auth.login
-    kernel.syscalls["auth_setpassword"] = auth.setPassword
-    kernel.syscalls["auth_setusername"] = auth.setUsername
-    kernel.syscalls["auth_newuser"]     = auth.newUser
-    kernel.syscalls["auth_whoami"]      = auth.whoami
-    kernel.syscalls["auth_getuid"]      = auth.getUID
-    kernel.syscalls["auth_getpasswd"]   = auth.getPasswd
-    kernel.syscalls["auth_elevate"]     = auth.elevate
-    kernel.syscalls["auth_deleteuser"]  = auth.deleteUser
-    kernel.syscalls["auth_lockuser"]    = auth.lockUser
-    kernel.syscalls["auth_unlockuser"]  = auth.unlockUser
-    kernel.syscalls["auth_listusers"]   = auth.listUsers
-    kernel.syscalls["auth_setshell"]    = auth.setShell
-    kernel.syscalls["auth_sethomedir"]  = auth.setHomedir
-    kernel.syscalls["auth_setgid"]      = auth.setGID
+    kernel.syscalls["login"]       = auth.login
+    kernel.syscalls["setpassword"] = auth.setPassword
+    kernel.syscalls["setusername"] = auth.setUsername
+    kernel.syscalls["newuser"]     = auth.newUser
+    kernel.syscalls["whoami"]      = auth.whoami
+    kernel.syscalls["getuid"]      = auth.getUID
+    kernel.syscalls["getpasswd"]   = auth.getPasswd
+    kernel.syscalls["elevate"]     = auth.elevate
+    kernel.syscalls["deleteuser"]  = auth.deleteUser
+    kernel.syscalls["lockuser"]    = auth.lockUser
+    kernel.syscalls["unlockuser"]  = auth.unlockUser
+    kernel.syscalls["listusers"]   = auth.listUsers
+    kernel.syscalls["setshell"]    = auth.setShell
+    kernel.syscalls["sethomedir"]  = auth.setHomedir
+    kernel.syscalls["setgid"]      = auth.setGID
 end
