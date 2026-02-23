@@ -1,44 +1,32 @@
+--:Minify:--
 local cloptions = {
-    a = false,
-    h = false,
-    l = false,
+    a    = false,
+    h    = false,
+    l    = false,
     help = false,
 }
+local inpArgs = { ... }
+local args    = {}
+local name    = syscall.getTask(syscall.getpid()).name
 
-local inpArgs = {...}
-local args = {}
-local name = syscall.getTask(syscall.getpid()).name
-
-local optToSet = false
 for _, v in pairs(inpArgs) do
-    if optToSet then
-        cloptions[optToSet] = v
-        optToSet = false
-    elseif v:sub(1, 2) == "--" then
+    if v:sub(1, 2) == "--" then
         local opt = v:sub(3)
         if cloptions[opt] == nil then
-            print(name..": unrecognized option '"..v.."'.")
-            if cloptions.help ~= nil then
-                print("try '"..name.." --help' for more information.")
-            end
+            print(name .. ": unrecognized option '" .. v .. "'.")
+            print("try '" .. name .. " --help' for more information.")
             return
-        elseif cloptions[opt] == false then
-            cloptions[opt] = true
-        else
-            optToSet = opt
         end
+        cloptions[opt] = true
     elseif v:sub(1, 1) == "-" then
         for i = 2, #v do
             local opt = v:sub(i, i)
             if cloptions[opt] == nil then
-                print(name..": invalid option '-"..opt.."'.")
-                if cloptions.help ~= nil then
-                    print("try '"..name.." --help' for more information.")
-                end
+                print(name .. ": invalid option '-" .. opt .. "'.")
+                print("try '" .. name .. " --help' for more information.")
                 return
-            else
-                cloptions[opt] = true
             end
+            cloptions[opt] = true
         end
     else
         table.insert(args, v)
@@ -46,100 +34,160 @@ for _, v in pairs(inpArgs) do
 end
 
 if cloptions.help then
-    print("Usage: "..name.." [OPTION]... [DIR]")
-    print("List all entries in the specified DIRectory, or cwd if not specified")
-    print("\nOptions:")
-    print(" -a                 Do not ignore entries starting with .")
-    print(" -h                 with -l, print sizes in a human readble format")
-    print(" -l                 Use a long listing format")
-    print(" --help         Display this help and exit")
+    print("Usage: " .. name .. " [OPTION]... [DIR]")
+    print("List all entries in the specified DIRectory, or cwd if not specified.")
+    print("")
+    print("Options:")
+    print("  -a          do not ignore entries starting with .")
+    print("  -h          with -l, print sizes in human readable format")
+    print("  -l          use a long listing format")
+    print("  --help      display this help and exit")
     return
 end
 
-local fs = require("sys.fs")
-local dir = (args[1] or "")
+local fs  = require("sys.fs")
+local dir = args[1] or ""
 if dir:sub(1, 1) ~= "/" then
-    dir = syscall.getcwd().."/"..dir
+    dir = syscall.getcwd() .. "/" .. dir
 end
-
-if dir:sub(#dir, #dir) ~= "/" then
-    dir = dir.."/"
-end
+if dir:sub(-1) ~= "/" then dir = dir .. "/" end
 
 if not fs.isDir(dir) then
-    print(name..": Cannot access '"..args[1].."': No such directory.")
+    print(name .. ": cannot access '" .. (args[1] or dir) .. "': no such directory")
     return
 end
 
+local function permStr(perms, etype)
+    local function b(n) return math.floor(perms / (2^n)) % 2 == 1 end
+    local t
+    if etype == 0x01 then t = "l"
+    elseif etype == nil then t = "-"
+    else t = "-" end
+
+    local ur = b(5) and "r" or "-"
+    local uw = b(4) and "w" or "-"
+    local ux = b(9) and (b(6) and "s" or "x") or (b(6) and "S" or "-")
+    local gr = b(3) and "r" or "-"
+    local gw = b(2) and "w" or "-"
+    local gx = b(8) and "x" or "-"
+    local wr = b(1) and "r" or "-"
+    local ww = b(0) and "w" or "-"
+    local wx = b(7) and "x" or "-"
+
+    return t .. ur .. uw .. ux .. gr .. gw .. gx .. wr .. ww .. wx
+end
+
+local sizePrefixes = { "K", "M", "G", "T" }
+local function humanSize(size)
+    local scale = 0
+    while size >= 1024 and scale < #sizePrefixes do
+        size  = size / 1024
+        scale = scale + 1
+    end
+    if scale == 0 then return tostring(size) end
+    if size < 10 then
+        return string.format("%.1f%s", size, sizePrefixes[scale])
+    end
+    return math.floor(size) .. sizePrefixes[scale]
+end
 
 local screenSizeStr = syscall.devctl(1, "size")
-local sizeX = tonumber(screenSizeStr:sub(1, screenSizeStr:find(";")-1))
-local sizeY = tonumber(screenSizeStr:sub(screenSizeStr:find(";")+1))
+local sizeX = tonumber(screenSizeStr:match("^(%d+)")) or 80
 
 local list = fs.list(dir)
 if not cloptions.a then
     for i = #list, 1, -1 do
-        if list[i]:sub(1, 1) == "." then
-            table.remove(list, i)
-        end
+        if list[i]:sub(1, 1) == "." then table.remove(list, i) end
     end
+end
+table.sort(list)
+
+if #list == 0 then return end
+
+if cloptions.l then
+    for _, v in ipairs(list) do
+        local fullPath = dir .. v
+        local stat = syscall.lstat and syscall.lstat(fullPath) or syscall.stat(fullPath)
+        local isDir  = fs.isDir(fullPath)
+        local isSym  = stat and stat.etype == 0x01
+
+        local typeChar
+        if isSym    then typeChar = "l"
+        elseif isDir then typeChar = "d"
+        else              typeChar = "-" end
+
+        local pstr
+        if stat and stat.perms then
+            pstr = permStr(stat.perms, stat.etype)
+        else
+            pstr = typeChar .. "---------"
+        end
+
+        local size = (stat and stat.size) or 0
+        local sizeStr = cloptions.h and humanSize(size) or tostring(size)
+
+        local mtime = (stat and stat.modified) and math.floor(stat.modified / 1000) or 0
+
+        local owner = (stat and tostring(stat.owner)) or "0"
+        local group = (stat and tostring(stat.group)) or "0"
+
+        printInline(pstr .. " " .. owner .. " " .. group .. " ")
+        printInline(string.format("%6s", sizeStr) .. " ")
+        printInline(tostring(mtime) .. " ")
+
+        if isSym then
+            syscall.devctl(1, "sfgc", 6)
+            printInline(v)
+            syscall.devctl(1, "sfgc", 1)
+            local ok, target = pcall(syscall.readlink, fullPath)
+            if ok then
+                printInline(" -> ")
+                local targetExists = pcall(syscall.stat, fullPath)
+                syscall.devctl(1, "sfgc", targetExists and 6 or 2)
+                printInline(target)
+                syscall.devctl(1, "sfgc", 1)
+            end
+        elseif isDir then
+            syscall.devctl(1, "sfgc", 4)
+            printInline(v)
+            syscall.devctl(1, "sfgc", 1)
+        else
+            local isExec = stat and stat.perms and (math.floor(stat.perms / (2^9)) % 2 == 1)
+            syscall.devctl(1, "sfgc", isExec and 3 or 1)
+            printInline(v)
+            syscall.devctl(1, "sfgc", 1)
+        end
+        print("")
+    end
+    return
 end
 
 local colWidth = 0
-local numCols = 1
-if not cloptions.l then
-    for _, item in pairs(list) do
-        if #item + 2 > colWidth then
-            colWidth = #item + 2
-        end
-    end
-    numCols = math.floor(sizeX / colWidth)
+for _, v in ipairs(list) do
+    if #v + 2 > colWidth then colWidth = #v + 2 end
 end
+local numCols = math.max(1, math.floor(sizeX / colWidth))
 
-local sizePrefixes = {"K", "M", "G"}
+for i, v in ipairs(list) do
+    local fullPath = dir .. v
+    local isDir    = fs.isDir(fullPath)
+    local stat     = syscall.lstat and syscall.lstat(fullPath) or syscall.stat(fullPath)
+    local isSym    = stat and stat.etype == 0x01
 
-for i,v in ipairs(list) do
-    local fileStats = syscall.stat(dir..v)
-    local isDir = fs.isDir(dir..v)
-    if cloptions.l then
-        if isDir then
-            printInline("d")
-        else
-            printInline("-")
-        end
-        printInline("------ ")
-        printInline(fileStats.owner.." ")
-        printInline(fileStats.group.." ")
-        local size = fileStats.size
-        if cloptions.h then
-            local scale = 0
-            while size > 1024 do
-                size = size / 1024
-                scale = scale + 1
-            end
-            if scale > 0 then
-                if size < 10 then
-                    size = math.floor(size).."."..math.floor((size * 10) % 10)..sizePrefixes[scale]
-                else
-                    size = math.floor(size)..sizePrefixes[scale]
-                end
-            end
-        end
-        printInline(size.." ")
-        printInline(math.floor(fileStats.modified / 1000).." ")
-    end
-    if isDir then
-        syscall.devctl(1,"sfgc",4)
+    if isSym then
+        syscall.devctl(1, "sfgc", 6)
+    elseif isDir then
+        syscall.devctl(1, "sfgc", 4)
     else
-        syscall.devctl(1,"sfgc",1)
+        local isExec = stat and stat.perms and (math.floor(stat.perms / (2^9)) % 2 == 1)
+        syscall.devctl(1, "sfgc", isExec and 3 or 1)
     end
+
     printInline(v)
+    syscall.devctl(1, "sfgc", 1)
     printInline((" "):rep(colWidth - #v))
-    syscall.devctl(1,"sfgc",1)
-    if i % numCols == 0 then
-        print("")
-    end
+
+    if i % numCols == 0 then print("") end
 end
-if #list % numCols ~= 0 then
-    print("")
-end
+
+if #list % numCols ~= 0 then print("") end

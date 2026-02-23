@@ -1,0 +1,152 @@
+--:Minify:--
+-- Usage:
+--   mount                       list all current mounts
+--   mount <id> <mountpoint>     mount loop device id at mountpoint
+--   mount -o loop <src> <dest>  attach <src> as loop device and mount at <dest>
+--   mount --help
+
+local name = syscall.getTask(syscall.getpid()).name
+local args, opts = {}, { help=false, o=nil }
+
+local i = 1
+local rawArgs = {...}
+while i <= #rawArgs do
+    local v = rawArgs[i]
+    if v:sub(1,2) == "--" then
+        local o = v:sub(3)
+        if o == "help" then opts.help = true
+        else print(name..": unrecognised option '"..v.."'")
+             print("try '"..name.." --help' for more information.")
+             syscall.exit(1); return end
+    elseif v == "-o" then
+        i = i + 1
+        opts.o = rawArgs[i]
+    elseif v:sub(1,1) == "-" then
+        local rest = v:sub(2)
+        if rest:sub(1,1) == "o" then
+            if #rest > 1 then opts.o = rest:sub(2)
+            else i = i + 1; opts.o = rawArgs[i] end
+        else
+            print(name..": invalid option '"..v.."'")
+            print("try '"..name.." --help' for more information.")
+            syscall.exit(1); return
+        end
+    else
+        table.insert(args, v)
+    end
+    i = i + 1
+end
+
+if opts.help then
+    print("Usage: "..name)
+    print("       "..name.." <id> <mountpoint>")
+    print("       "..name.." -o loop <source> <mountpoint>")
+    print("")
+    print("Mount a loop device or filesystem.")
+    print("")
+    print("  (no args)               list all active mount points")
+    print("  <id> <mountpoint>       mount an already-attached loop device")
+    print("  -o loop <src> <dest>    attach src as loop device and mount at dest")
+    print("                          src can be a directory (bind) or .hfs image")
+    print("")
+    print("Requires root for all operations except listing.")
+    return
+end
+
+if #args == 0 and not opts.o then
+    local ok, mounts = pcall(syscall.mounts or function()
+        error("ENOSYS")
+    end)
+
+    local loDevs = {}
+    local lok, ld = pcall(syscall.lolist)
+    if lok then
+        for id, info in pairs(ld) do
+            local path = (type(info)=="table" and info.path) or tostring(info)
+            local mode = (type(info)=="table" and info.mode) or "bind"
+            loDevs[id] = { path=path, mode=mode }
+        end
+    end
+
+    if next(loDevs) == nil then
+        syscall.devctl(1, "sfgc", 14)
+        print("(no loop devices attached)")
+        syscall.devctl(1, "sfgc", 1)
+        return
+    end
+
+    for id, info in pairs(loDevs) do
+        local colour = info.mode == "image" and 5 or 4
+        syscall.devctl(1, "sfgc", colour)
+        printInline(info.mode.." "..id)
+        syscall.devctl(1, "sfgc", 1)
+        print(" on "..info.path)
+    end
+    return
+end
+
+if opts.o and opts.o:lower() == "loop" then
+    if #args < 2 then
+        print(name..": -o loop requires <source> and <mountpoint>")
+        print("try '"..name.." --help' for more information.")
+        syscall.exit(1); return
+    end
+
+    local src   = args[1]
+    local dest  = args[2]
+
+    if src:sub(1,1) ~= "/" then src = syscall.getcwd().."/"..src end
+    if dest:sub(1,1) ~= "/" then dest = syscall.getcwd().."/"..dest end
+
+    local ok, loopId = pcall(syscall.losetup, src)
+    if not ok then
+        local msg = tostring(loopId)
+        if msg:find("EPERM")  then msg = "Permission denied"
+        elseif msg:find("EINVAL") then msg = "'"..args[1].."': not a directory or .hfs image"
+        elseif msg:find("EIO")    then msg = "'"..args[1].."': I/O error reading image"
+        end
+        print(name..": losetup: "..msg); syscall.exit(1); return
+    end
+
+    local ok2, merr = pcall(syscall.mount, dest, loopId)
+    if not ok2 then
+        pcall(syscall.lodetach, loopId)
+        local msg = tostring(merr)
+        if msg:find("EPERM")  then msg = "Permission denied"
+        elseif msg:find("EBUSY") then msg = "'"..dest.."' is already a mount point"
+        elseif msg:find("ENODEV") then msg = "loop device not found (internal error)"
+        end
+        print(name..": mount: "..msg); syscall.exit(1); return
+    end
+
+    syscall.devctl(1, "sfgc", 10)
+    print(name..": "..loopId.." mounted at "..dest)
+    syscall.devctl(1, "sfgc", 1)
+    return
+end
+
+if #args == 2 then
+    local loopId = args[1]
+    local dest   = args[2]
+    if dest:sub(1,1) ~= "/" then dest = syscall.getcwd().."/"..dest end
+
+    local ok, err = pcall(syscall.mount, dest, loopId)
+    if not ok then
+        local msg = tostring(err)
+        if msg:find("EPERM")  then msg = "Permission denied"
+        elseif msg:find("ENODEV") then msg = "'"..loopId.."': no such device - use losetup first"
+        elseif msg:find("EBUSY")  then msg = "'"..dest.."' is already a mount point"
+        elseif msg:find("EINVAL") then msg = "invalid arguments"
+        end
+        print(name..": "..msg); syscall.exit(1); return
+    end
+
+    syscall.devctl(1, "sfgc", 10)
+    print(name..": "..loopId.." mounted at "..dest)
+    syscall.devctl(1, "sfgc", 1)
+    return
+end
+
+print(name..": wrong number of arguments")
+print("try '"..name.." --help' for more information.")
+syscall.exit(1)

@@ -264,11 +264,13 @@ function auth.login(username, password)
     end
 
     kernel.currentUID = uid
-    if kernel.currentProcess then
-        kernel.currentProcess.uid  = uid
-        kernel.currentProcess.euid = uid
-        kernel.currentProcess.gid  = tonumber(entry[2]) or uid
-        kernel.currentProcess.egid = tonumber(entry[2]) or uid
+
+    local _task = kernel.currentTask
+    if _task then
+        _task.uid  = uid
+        _task.euid = uid
+        _task.gid  = tonumber(entry[2]) or uid
+        _task.egid = tonumber(entry[2]) or uid
     end
 
     kernel.log("AUTH: login uid=" .. tostring(uid) .. " (" .. username .. ")")
@@ -372,7 +374,7 @@ function auth.newUser(username, password, gid, homedir, shell)
     local uid  = nextUID()
     gid        = tonumber(gid) or uid
     homedir    = homedir or ("/home/" .. username)
-    shell      = shell   or "/bin/sh"
+    shell      = shell   or "/bin/hysh"
 
     passwd[#passwd + 1] = {
         tostring(uid),
@@ -436,11 +438,9 @@ function auth.deleteUser(uid)
     if not entry then return nil, "No such user" end
     local username = entry[3]
 
-    -- Remove from passwd
     for i, v in ipairs(passwd) do
         if tonumber(v[1]) == uid then table.remove(passwd, i); break end
     end
-    -- Remove from shadow
     for i, v in ipairs(shadow) do
         if tonumber(v[1]) == uid then table.remove(shadow, i); break end
     end
@@ -463,7 +463,6 @@ function auth.lockUser(uid)
     local sEntry = getShadowByUID(uid)
     if not sEntry then return nil, "No shadow entry for uid" end
 
-    -- Prefix hash with ! to lock (standard Linux convention)
     if sEntry[3]:sub(1,1) ~= "!" then
         sEntry[3] = "!" .. sEntry[3]
     end
@@ -567,9 +566,6 @@ function auth.setGID(uid, gid)
     return true
 end
 
--- Elevate the calling task to targetUid after verifying targetUsername's password.
--- This is the kernel-side primitive for su/sudo — it bypasses the kernel.uid==0
--- check in sys.setuid because the auth module itself is trusted kernel code.
 function auth.elevate(targetUsername, password)
     if type(targetUsername) ~= "string" or type(password) ~= "string" then
         return nil, "Authentication failure"
@@ -593,7 +589,6 @@ function auth.elevate(targetUsername, password)
         return nil, "Authentication failure"
     end
 
-    -- Directly set the calling task's uid — trusted kernel path
     local task = kernel.currentTask
     local prevUid = task.uid
     task.uid  = uid
@@ -612,7 +607,7 @@ if kernel.syscalls then
     kernel.syscalls["setusername"] = auth.setUsername
     kernel.syscalls["newuser"]     = auth.newUser
     kernel.syscalls["whoami"]      = auth.whoami
-    kernel.syscalls["getuid"]      = auth.getUID
+    kernel.syscalls["getuidbyname"]= auth.getUID
     kernel.syscalls["getpasswd"]   = auth.getPasswd
     kernel.syscalls["elevate"]     = auth.elevate
     kernel.syscalls["deleteuser"]  = auth.deleteUser

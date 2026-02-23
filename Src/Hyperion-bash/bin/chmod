@@ -1,0 +1,262 @@
+--:Minify:--
+local name = syscall.getTask(syscall.getpid()).name
+local cloptions = { R = false, help = false }
+local args = {}
+
+for _, v in ipairs({ ... }) do
+    if v:sub(1, 2) == "--" then
+        local opt = v:sub(3)
+        if cloptions[opt] == nil then
+            print(name .. ": unrecognized option '" .. v .. "'")
+            print("try '" .. name .. " --help' for more information.")
+            syscall.exit(1); return
+        end
+        cloptions[opt] = true
+    elseif v:sub(1, 1) == "-" then
+        for i = 2, #v do
+            local opt = v:sub(i, i)
+            if cloptions[opt] == nil then
+                print(name .. ": invalid option '-" .. opt .. "'")
+                print("try '" .. name .. " --help' for more information.")
+                syscall.exit(1); return
+            end
+            cloptions[opt] = true
+        end
+    else
+        table.insert(args, v)
+    end
+end
+
+if cloptions.help then
+    print("Usage: " .. name .. " [OPTION]... MODE FILE...")
+    print("Change the file mode bits of each FILE to MODE.")
+    print("")
+    print("MODE may be octal (e.g. 755) or symbolic (e.g. u+x, go-w, a=r).")
+    print("")
+    print("Octal bit layout (Hyperion):")
+    print("  owner: r=32 w=16 x=512   group: r=8 w=4 x=256")
+    print("  world: r=2  w=1  x=128   suid=64")
+    print("  Common: 644=rw-r--r--  755=rwxr-xr-x  700=rwx------")
+    print("")
+    print("Symbolic: [ugoa][+-=][rwxs]  (comma-separated list)")
+    print("")
+    print("Options:")
+    print("  -R          change files and directories recursively")
+    print("  --help      display this help and exit")
+    return
+end
+
+if #args < 2 then
+    print(name .. ": missing operand")
+    print("try '" .. name .. " --help' for more information.")
+    syscall.exit(1); return
+end
+
+local modeArg = args[1]
+
+local P = {
+    OWNER_R = 32, OWNER_W = 16, OWNER_X = 512,
+    GROUP_R = 8,  GROUP_W = 4,  GROUP_X = 256,
+    WORLD_R = 2,  WORLD_W = 1,  WORLD_X = 128,
+    SUID    = 64,
+}
+
+local function bit_is_set(num, bit)
+    return math.floor(num / (2 ^ bit)) % 2 == 1
+end
+
+local function parseOctal(s)
+    local n = tonumber(s, 8)
+    if not n then return nil end
+
+    local result = 0
+    if bit_is_set(n, 8) then result = result + P.OWNER_R end  -- 0400
+    if bit_is_set(n, 7) then result = result + P.OWNER_W end  -- 0200
+    if bit_is_set(n, 6) then result = result + P.OWNER_X end  -- 0100
+
+    if bit_is_set(n, 5) then result = result + P.GROUP_R end  -- 040
+    if bit_is_set(n, 4) then result = result + P.GROUP_W end  -- 020
+    if bit_is_set(n, 3) then result = result + P.GROUP_X end  -- 010
+
+    if bit_is_set(n, 2) then result = result + P.WORLD_R end  -- 004
+    if bit_is_set(n, 1) then result = result + P.WORLD_W end  -- 002
+    if bit_is_set(n, 0) then result = result + P.WORLD_X end  -- 001
+
+    if bit_is_set(n, 11) then result = result + P.SUID end
+
+    return result
+end
+
+local function applySymbolic(modeStr, existingPerms)
+    local perms = existingPerms
+
+    for clause in (modeStr .. ","):gmatch("([^,]+),") do
+        local who_str, rest = clause:match("^([ugoa]*)([+%-=].+)$")
+        if not who_str then
+            print(name .. ": invalid mode: '" .. clause .. "'")
+            syscall.exit(1); return nil
+        end
+        if who_str == "" or who_str == "a" then who_str = "ugo" end
+
+        local op   = rest:sub(1, 1)
+        local bits_str = rest:sub(2)
+
+        local mask = 0
+        for i = 1, #bits_str do
+            local c = bits_str:sub(i, i)
+            for j = 1, #who_str do
+                local w = who_str:sub(j, j)
+                if c == "r" then
+                    if w == "u" then mask = mask + P.OWNER_R
+                    elseif w == "g" then mask = mask + P.GROUP_R
+                    elseif w == "o" then mask = mask + P.WORLD_R end
+                elseif c == "w" then
+                    if w == "u" then mask = mask + P.OWNER_W
+                    elseif w == "g" then mask = mask + P.GROUP_W
+                    elseif w == "o" then mask = mask + P.WORLD_W end
+                elseif c == "x" then
+                    if w == "u" then mask = mask + P.OWNER_X
+                    elseif w == "g" then mask = mask + P.GROUP_X
+                    elseif w == "o" then mask = mask + P.WORLD_X end
+                elseif c == "s" then
+                    if w == "u" then mask = mask + P.SUID end
+                end
+            end
+        end
+
+        if op == "+" then
+            perms = perms + (mask - (perms % (mask + 1) - perms % mask > 0 and 0 or 0))
+
+            perms = perms - (perms % 1)
+            local function bor(a, b)
+                local result, bit = 0, 1
+                while a > 0 or b > 0 do
+                    if (a % 2 == 1) or (b % 2 == 1) then result = result + bit end
+                    a = math.floor(a / 2); b = math.floor(b / 2); bit = bit * 2
+                end
+                return result
+            end
+            perms = bor(perms, mask)
+        elseif op == "-" then
+            local function band(a, b)
+                local result, bit = 0, 1
+                while a > 0 and b > 0 do
+                    if (a % 2 == 1) and (b % 2 == 1) then result = result + bit end
+                    a = math.floor(a / 2); b = math.floor(b / 2); bit = bit * 2
+                end
+                return result
+            end
+            local function bxor(a, b)
+                local result, bit = 0, 1
+                while a > 0 or b > 0 do
+                    if (a % 2 == 1) ~= (b % 2 == 1) then result = result + bit end
+                    a = math.floor(a / 2); b = math.floor(b / 2); bit = bit * 2
+                end
+                return result
+            end
+            perms = bxor(perms, band(perms, mask))
+        elseif op == "=" then
+            local clearMask = 0
+            for j = 1, #who_str do
+                local w = who_str:sub(j, j)
+                if w == "u" then clearMask = clearMask + P.OWNER_R + P.OWNER_W + P.OWNER_X + P.SUID
+                elseif w == "g" then clearMask = clearMask + P.GROUP_R + P.GROUP_W + P.GROUP_X
+                elseif w == "o" then clearMask = clearMask + P.WORLD_R + P.WORLD_W + P.WORLD_X end
+            end
+            local function bxor(a, b)
+                local result, bit = 0, 1
+                while a > 0 or b > 0 do
+                    if (a % 2 == 1) ~= (b % 2 == 1) then result = result + bit end
+                    a = math.floor(a / 2); b = math.floor(b / 2); bit = bit * 2
+                end
+                return result
+            end
+            local function band(a, b)
+                local result, bit = 0, 1
+                while a > 0 and b > 0 do
+                    if (a % 2 == 1) and (b % 2 == 1) then result = result + bit end
+                    a = math.floor(a / 2); b = math.floor(b / 2); bit = bit * 2
+                end
+                return result
+            end
+            local function bor(a, b)
+                local result, bit = 0, 1
+                while a > 0 or b > 0 do
+                    if (a % 2 == 1) or (b % 2 == 1) then result = result + bit end
+                    a = math.floor(a / 2); b = math.floor(b / 2); bit = bit * 2
+                end
+                return result
+            end
+            perms = bxor(perms, band(perms, clearMask))
+            perms = bor(perms, mask)
+        else
+            print(name .. ": invalid operator in mode: '" .. clause .. "'")
+            syscall.exit(1); return nil
+        end
+    end
+
+    return perms
+end
+
+local function resolveMode(modeStr, existingPerms)
+    if modeStr:match("^[0-7]+$") then
+        local p = parseOctal(modeStr)
+        if p then return p end
+    end
+
+    return applySymbolic(modeStr, existingPerms)
+end
+
+local function chmodPath(path)
+    local stat, err = pcall(syscall.stat, path)
+    local existingPerms = 0
+    if stat then
+        local s = syscall.stat(path)
+        existingPerms = s and s.perms or 0
+    end
+
+    local newPerms = resolveMode(modeArg, existingPerms)
+    if newPerms == nil then return false end
+
+    local ok, cerr = pcall(syscall.chmod, path, newPerms)
+    if not ok then
+        print(name .. ": cannot change permissions of '" .. path .. "': " .. tostring(cerr))
+        return false
+    end
+    return true
+end
+
+local function chmodRecursive(path)
+    if not chmodPath(path) then return end
+    if syscall.type(path) == "directory" then
+        local ok, list = pcall(syscall.listdir, path)
+        if ok then
+            for _, entry in ipairs(list) do
+                local child = path
+                if child:sub(-1) ~= "/" then child = child .. "/" end
+                chmodRecursive(child .. entry)
+            end
+        end
+    end
+end
+
+local cwd = syscall.getcwd()
+local function absPath(p)
+    if p:sub(1,1) ~= "/" then p = cwd .. "/" .. p end
+    return p
+end
+
+local exitCode = 0
+for i = 2, #args do
+    local path = absPath(args[i])
+    if not syscall.exists(path) then
+        print(name .. ": cannot access '" .. args[i] .. "': No such file or directory")
+        exitCode = 1
+    elseif cloptions.R then
+        chmodRecursive(path)
+    else
+        if not chmodPath(path) then exitCode = 1 end
+    end
+end
+
+syscall.exit(exitCode)

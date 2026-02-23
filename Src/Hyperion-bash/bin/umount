@@ -1,0 +1,111 @@
+--:Minify:--
+-- Usage:
+--   umount <mountpoint>        unmount; auto-detach loop device if one is found
+--   umount -l <id>             detach loop device without unmounting (force)
+--   umount --no-detach <mpt>   unmount but leave loop device attached
+--   umount --help
+
+local name = syscall.getTask(syscall.getpid()).name
+local args, opts = {}, { l=false, ["no-detach"]=false, help=false }
+
+for _, v in ipairs({...}) do
+    if v:sub(1,2) == "--" then
+        local o = v:sub(3)
+        if opts[o] ~= nil then opts[o] = true
+        else print(name..": unrecognised option '"..v.."'")
+             print("try '"..name.." --help' for more information.")
+             syscall.exit(1); return end
+    elseif v:sub(1,1) == "-" then
+        for i = 2, #v do
+            local c = v:sub(i,i)
+            if opts[c] ~= nil then opts[c] = true
+            else print(name..": invalid option '-"..c.."'")
+                 print("try '"..name.." --help' for more information.")
+                 syscall.exit(1); return end
+        end
+    else
+        table.insert(args, v)
+    end
+end
+
+if opts.help then
+    print("Usage: "..name.." <mountpoint>")
+    print("       "..name.." --no-detach <mountpoint>")
+    print("       "..name.." -l <loopid>")
+    print("")
+    print("Unmount a filesystem mounted at <mountpoint>.")
+    print("")
+    print("  <mountpoint>          unmount and auto-detach any loop device")
+    print("  --no-detach           unmount but keep the loop device attached")
+    print("  -l <loopid>           forcibly detach a loop device (no unmount)")
+    print("")
+    print("Requires root.")
+    return
+end
+
+if opts.l then
+    if #args < 1 then
+        print(name..": -l requires a loop device id")
+        print("try '"..name.." --help' for more information.")
+        syscall.exit(1); return
+    end
+    local id = args[1]
+    local ok, err = pcall(syscall.lodetach, id)
+    if not ok then
+        local msg = tostring(err)
+        if msg:find("EPERM")  then msg = "Permission denied"
+        elseif msg:find("ENXIO")  then msg = "no such loop device '"..id.."'"
+        elseif msg:find("EBUSY")  then msg = "'"..id.."' is still mounted - unmount first or omit -l"
+        end
+        print(name..": "..msg); syscall.exit(1); return
+    end
+    syscall.devctl(1, "sfgc", 10)
+    print(name..": detached "..id)
+    syscall.devctl(1, "sfgc", 1)
+    return
+end
+
+if #args < 1 then
+    print(name..": missing mount point operand")
+    print("try '"..name.." --help' for more information.")
+    syscall.exit(1); return
+end
+
+local mpt = args[1]
+if mpt:sub(1,1) ~= "/" then mpt = syscall.getcwd().."/"..mpt end
+
+local loopIdToDetach = nil
+if not opts["no-detach"] then
+    local lok, devs = pcall(syscall.lolist)
+    if lok then
+        loopIdToDetach = {}
+        for id in pairs(devs) do
+            loopIdToDetach[#loopIdToDetach + 1] = id
+        end
+    end
+end
+
+local ok, err = pcall(syscall.umount, mpt)
+if not ok then
+    local msg = tostring(err)
+    if msg:find("EPERM")  then msg = "Permission denied"
+    elseif msg:find("EINVAL") then msg = "'"..args[1].."' is not a mount point"
+    elseif msg:find("EBUSY")  then msg = "'"..args[1].."' is busy - close open files first"
+    end
+    print(name..": "..msg); syscall.exit(1); return
+end
+
+syscall.devctl(1, "sfgc", 10)
+print(name..": unmounted "..mpt)
+syscall.devctl(1, "sfgc", 1)
+
+if loopIdToDetach then
+    for _, id in ipairs(loopIdToDetach) do
+        local dok = pcall(syscall.lodetach, id)
+        if dok then
+            syscall.devctl(1, "sfgc", 14)
+            print(name..": auto-detached "..id)
+            syscall.devctl(1, "sfgc", 1)
+        end
+    end
+end

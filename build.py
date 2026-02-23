@@ -23,7 +23,11 @@ import sys
 import shutil
 import argparse
 import subprocess
+import hashlib
+import random
+import string
 from pathlib import Path
+from typing import Union
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 SRC_ROOT     = PROJECT_ROOT / "Src"
@@ -111,7 +115,7 @@ def has_minify_header(path: Path) -> bool:
     return False
 
 
-def run_build(minify: bool, include_test: bool, arch: str | None, release: bool):
+def run_build(minify: bool, include_test: bool, arch: Union[str, None], release: bool):
     clean()
     BUILD_ROOT.mkdir()
 
@@ -136,8 +140,20 @@ def main():
                         help="Release build: eeprom placed as startup.lua (default)")
     parser.add_argument("--dev", dest="release", action="store_false",
                         help="Dev build: boot.lua and eeprom copied unchanged")
+    parser.add_argument(
+        "--makeuser", metavar=("USERNAME", "PASSWORD"), nargs=2, action="append",
+        default=[],
+        help=(
+            "Pre-create a user on first boot (dev builds only). "
+            "May be specified multiple times. "
+            "Example: --makeuser root secretpass --makeuser alice alicepass"
+        ),
+    )
 
     args = parser.parse_args()
+
+    if args.makeuser and args.release:
+        parser.error("--makeuser is only allowed with --dev builds")
 
     if args.target == "clean":
         clean()
@@ -147,7 +163,62 @@ def main():
     include_test = "test" in args.target
 
     run_build(minify=minify, include_test=include_test, arch=args.arch, release=args.release)
+
+    if args.makeuser:
+        print("Injecting first-boot user setup ...")
+        inject_makeusers(args.makeuser, args.arch)
+        print()
+
     print("Build complete.")
+
+def _make_firstboot_kmod(users):
+    lines = []
+    lines.append("local kernel = ...")
+    lines.append("local auth = kernel.auth")
+    lines.append("")
+
+    for username, password in users:
+        u = username.replace("\\", "\\\\").replace("'", "\\'")
+        p = password.replace("\\", "\\\\").replace("'", "\\'")
+
+        if username == "root":
+            lines.append("do")
+            lines.append("  local ok, err = auth.setPassword(0, '" + p + "')")
+            lines.append("  if ok then")
+            lines.append("    kernel.log('FIRSTBOOT: root password set')")
+            lines.append("  else")
+            lines.append("    kernel.log('FIRSTBOOT: root password error: ' .. tostring(err), 'ERROR')")
+            lines.append("  end")
+            lines.append("end")
+        else:
+            lines.append("do")
+            lines.append("  local uid, err = auth.newUser('" + u + "', '" + p + "')")
+            lines.append("  if uid then")
+            lines.append("    kernel.log('FIRSTBOOT: created user " + u + " uid=' .. tostring(uid))")
+            lines.append("  else")
+            lines.append("    kernel.log('FIRSTBOOT: failed to create user " + u + ": ' .. tostring(err), 'ERROR')")
+            lines.append("  end")
+            lines.append("end")
+        lines.append("")
+
+    lines.append("do")
+    lines.append("  local ok, err = pcall(function()")
+    lines.append("    kernel.vfs.remove('/lib/modules/Hyperion/50_firstboot_users.kmod')")
+    lines.append("  end)")
+    lines.append("  if not ok then")
+    lines.append("    kernel.log('FIRSTBOOT: could not self-delete: ' .. tostring(err), 'WARN')")
+    lines.append("  end")
+    lines.append("end")
+
+    return "\n".join(lines) + "\n"
+
+
+def inject_makeusers(users, arch):
+    base = BUILD_ROOT / "$" if arch else BUILD_ROOT
+    kmod_path = base / "lib" / "modules" / "Hyperion" / "50_firstboot_users.kmod"
+    kmod_path.parent.mkdir(parents=True, exist_ok=True)
+    kmod_path.write_text(_make_firstboot_kmod(users), encoding="utf-8")
+    print("  Wrote first-boot user setup -> " + str(kmod_path.relative_to(BUILD_ROOT)))
 
 
 if __name__ == "__main__":

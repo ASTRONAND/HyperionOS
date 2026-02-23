@@ -1,0 +1,83 @@
+--:Minify:--
+local name = syscall.getTask(syscall.getpid()).name
+local args = {}
+local cloptions = { help = false }
+
+for _, v in ipairs({ ... }) do
+    if v:sub(1, 2) == "--" then
+        local opt = v:sub(3)
+        if opt == "help" then
+            cloptions.help = true
+        else
+            print(name .. ": unrecognized option '" .. v .. "'")
+            print("try '" .. name .. " --help' for more information.")
+            syscall.exit(1); return
+        end
+    elseif v:sub(1, 1) == "-" then
+        print(name .. ": invalid option '" .. v .. "'")
+        print("try '" .. name .. " --help' for more information.")
+        syscall.exit(1); return
+    else
+        table.insert(args, v)
+    end
+end
+
+if cloptions.help then
+    print("Usage: " .. name .. " NEWROOT [COMMAND [ARG]...]")
+    print("Run COMMAND with root directory set to NEWROOT.")
+    print("If COMMAND is omitted, runs the current user's shell.")
+    print("")
+    print("Requires root (uid 0).")
+    return
+end
+
+if #args < 1 then
+    print(name .. ": missing operand")
+    print("try '" .. name .. " --help' for more information.")
+    syscall.exit(1); return
+end
+
+local euid = syscall.geteuid and syscall.geteuid() or syscall.getuid()
+if euid ~= 0 then
+    print(name .. ": cannot change root directory: Permission denied")
+    syscall.exit(1); return
+end
+
+local newRoot = args[1]
+if newRoot:sub(1,1) ~= "/" then
+    newRoot = syscall.getcwd() .. "/" .. newRoot
+end
+
+if not syscall.exists(newRoot) then
+    print(name .. ": cannot change root directory to '" .. args[1] .. "': No such file or directory")
+    syscall.exit(1); return
+end
+
+if syscall.type(newRoot) ~= "directory" then
+    print(name .. ": '" .. args[1] .. "': Not a directory")
+    syscall.exit(1); return
+end
+
+local ok, err = pcall(syscall.chroot, newRoot)
+if not ok then
+    print(name .. ": cannot change root directory to '" .. args[1] .. "': " .. tostring(err))
+    syscall.exit(1); return
+end
+
+local shell
+if #args >= 2 then
+    shell = args[2]
+else
+    local uid  = syscall.getuid()
+    local pwent = syscall.getpasswd(uid)
+    shell = (pwent and pwent.shell) or "/bin/hysh"
+end
+
+local execArgs = {}
+for i = 3, #args do table.insert(execArgs, args[i]) end
+
+local execOk, execErr = pcall(syscall.exec, shell, execArgs)
+if not execOk then
+    print(name .. ": failed to run command '" .. shell .. "': " .. tostring(execErr))
+    syscall.exit(127)
+end

@@ -1,0 +1,129 @@
+--:Minify:--
+-- Usage:
+--   losetup <path>          attach directory or .hfs image; print loop id
+--   losetup -d <id>         detach loop device
+--   losetup -l              list attached loop devices
+--   losetup -i <path>       force image mode (even without .hfs extension)
+--   losetup --help
+
+local name = syscall.getTask(syscall.getpid()).name
+local args, opts = {}, { d=false, l=false, i=false, help=false }
+
+for _, v in ipairs({...}) do
+    if v:sub(1,2) == "--" then
+        local o = v:sub(3)
+        if o == "help" then opts.help = true
+        else print(name..": unrecognised option '"..v.."'")
+             print("try '"..name.." --help' for more information.")
+             syscall.exit(1); return end
+    elseif v:sub(1,1) == "-" then
+        for i = 2, #v do
+            local c = v:sub(i,i)
+            if opts[c] ~= nil then opts[c] = true
+            else print(name..": invalid option '-"..c.."'")
+                 print("try '"..name.." --help' for more information.")
+                 syscall.exit(1); return end
+        end
+    else
+        table.insert(args, v)
+    end
+end
+
+if opts.help then
+    print("Usage: "..name.." <path>")
+    print("       "..name.." -i <path>")
+    print("       "..name.." -d <id>")
+    print("       "..name.." -l")
+    print("")
+    print("Manage loop devices.")
+    print("")
+    print("  <path>      attach a directory (bind) or .hfs image file")
+    print("  -i <path>   force image mode for the given file")
+    print("  -d <id>     detach loop device by id (must be unmounted first)")
+    print("  -l          list all currently attached loop devices")
+    print("")
+    print("Requires root. Loop device ids look like loop0, loop1, …")
+    return
+end
+
+if opts.l then
+    local ok, devs = pcall(syscall.lolist)
+    if not ok then
+        print(name..": "..tostring(devs)); syscall.exit(1); return
+    end
+    local any = false
+    local ids = {}
+    for id in pairs(devs) do ids[#ids+1] = id end
+    table.sort(ids)
+    for _, id in ipairs(ids) do
+        any = true
+        local info   = devs[id]
+        local mode   = (type(info) == "table" and info.mode) or "bind"
+        local path   = (type(info) == "table" and info.path) or tostring(info)
+        local colour = mode == "image" and 5 or 4
+        syscall.devctl(1, "sfgc", 3)
+        printInline(string.format("%-10s", id))
+        syscall.devctl(1, "sfgc", colour)
+        printInline(string.format("%-7s", "["..mode.."]"))
+        syscall.devctl(1, "sfgc", 1)
+        print(" "..path)
+    end
+    if not any then
+        syscall.devctl(1, "sfgc", 14)
+        print(name..": no loop devices attached")
+        syscall.devctl(1, "sfgc", 1)
+    end
+    return
+end
+
+if opts.d then
+    if #args < 1 then
+        print(name..": -d requires a loop device id")
+        print("try '"..name.." --help' for more information.")
+        syscall.exit(1); return
+    end
+    local id = args[1]
+    local ok, err = pcall(syscall.lodetach, id)
+    if not ok then
+        local msg = tostring(err)
+        if     msg:find("EPERM")  then msg = "Permission denied"
+        elseif msg:find("ENXIO")  then msg = "no such loop device '"..id.."'"
+        elseif msg:find("EBUSY")  then msg = "device '"..id.."' is still mounted, unmount first"
+        end
+        print(name..": "..msg); syscall.exit(1); return
+    end
+    syscall.devctl(1, "sfgc", 10)
+    print(name..": detached "..id)
+    syscall.devctl(1, "sfgc", 1)
+    return
+end
+
+if #args < 1 then
+    print(name..": missing path operand")
+    print("try '"..name.." --help' for more information.")
+    syscall.exit(1); return
+end
+
+local path = args[1]
+if path:sub(1,1) ~= "/" then
+    path = syscall.getcwd().."/"..path
+end
+
+local ftype = syscall.type and syscall.type(path)
+if not (ftype == "file" or ftype == "directory") then
+    print(name..": '"..args[1].."': no such file or directory")
+    syscall.exit(1); return
+end
+
+local ok, result = pcall(syscall.losetup, path, opts.i or nil)
+if not ok then
+    local msg = tostring(result)
+    if     msg:find("EPERM")   then msg = "Permission denied"
+    elseif msg:find("ENOENT")  then msg = "'"..args[1].."': no such file"
+    elseif msg:find("EINVAL")  then msg = "'"..args[1].."': not a directory or .hfs image"
+    elseif msg:find("EIO")     then msg = "'"..args[1].."': I/O error reading image"
+    end
+    print(name..": "..msg); syscall.exit(1); return
+end
+
+print(result)

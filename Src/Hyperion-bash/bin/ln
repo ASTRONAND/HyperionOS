@@ -1,0 +1,96 @@
+--:Minify:--
+local name = syscall.getTask(syscall.getpid()).name
+local cloptions = { s = false, f = false, help = false }
+local args = {}
+
+for _, v in ipairs({ ... }) do
+    if v:sub(1, 2) == "--" then
+        local opt = v:sub(3)
+        if cloptions[opt] == nil then
+            print(name .. ": unrecognized option '" .. v .. "'")
+            print("try '" .. name .. " --help' for more information.")
+            syscall.exit(1); return
+        end
+        cloptions[opt] = true
+    elseif v:sub(1, 1) == "-" then
+        for i = 2, #v do
+            local opt = v:sub(i, i)
+            if cloptions[opt] == nil then
+                print(name .. ": invalid option '-" .. opt .. "'")
+                print("try '" .. name .. " --help' for more information.")
+                syscall.exit(1); return
+            end
+            cloptions[opt] = true
+        end
+    else
+        table.insert(args, v)
+    end
+end
+
+if cloptions.help then
+    print("Usage: " .. name .. " [OPTION]... TARGET LINK_NAME")
+    print("       " .. name .. " [OPTION]... TARGET... DIRECTORY")
+    print("Create links between files.")
+    print("")
+    print("Options:")
+    print("  -s          make symbolic links instead of hard links")
+    print("  -f          remove existing destination files")
+    print("  --help      display this help and exit")
+    print("")
+    print("With no -s, hard links are not supported (filesystem limitation).")
+    print("Use -s for symbolic links.")
+    return
+end
+
+if #args < 2 then
+    print(name .. ": missing operand")
+    print("try '" .. name .. " --help' for more information.")
+    syscall.exit(1); return
+end
+
+if not cloptions.s then
+    print(name .. ": hard links are not supported; use -s for symbolic links")
+    syscall.exit(1); return
+end
+
+local dest    = args[#args]
+local destDir = syscall.type(dest) == "directory"
+
+local function cwd()
+    local d = syscall.getcwd()
+    if d:sub(-1) ~= "/" then d = d .. "/" end
+    return d
+end
+
+local function absPath(p)
+    if p:sub(1,1) ~= "/" then p = cwd() .. p end
+    return p
+end
+
+for i = 1, #args - 1 do
+    local target   = args[i]
+    local linkPath
+
+    if destDir then
+        local basename = target:match("[^/]+$") or target
+        linkPath = absPath(dest)
+        if linkPath:sub(-1) ~= "/" then linkPath = linkPath .. "/" end
+        linkPath = linkPath .. basename
+    else
+        linkPath = absPath(dest)
+    end
+
+    if cloptions.f and syscall.exists(linkPath) then
+        local ok, err = pcall(syscall.remove, linkPath)
+        if not ok then
+            print(name .. ": cannot remove '" .. linkPath .. "': " .. tostring(err))
+            syscall.exit(1); return
+        end
+    end
+
+    local ok, err = pcall(syscall.symlink, target, linkPath)
+    if not ok then
+        print(name .. ": failed to create symlink '" .. linkPath .. "' -> '" .. target .. "': " .. tostring(err))
+        syscall.exit(1); return
+    end
+end

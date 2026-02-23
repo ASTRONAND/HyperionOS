@@ -1,0 +1,157 @@
+--:Minify:--
+-- Usage:
+--   loimgcreate <srcdir> <image.hfs>    create image from directory
+--   loimgcreate -x <image.hfs> <dest>   extract image back to a directory
+--   loimgcreate --help
+
+local name = syscall.getTask(syscall.getpid()).name
+local args, opts = {}, { x=false, help=false }
+
+for _, v in ipairs({...}) do
+    if v:sub(1,2) == "--" then
+        local o = v:sub(3)
+        if o == "help" then opts.help = true
+        else print(name..": unrecognised option '"..v.."'")
+             print("try '"..name.." --help' for more information.")
+             syscall.exit(1); return end
+    elseif v:sub(1,1) == "-" then
+        for i = 2, #v do
+            local c = v:sub(i,i)
+            if opts[c] ~= nil then opts[c] = true
+            else print(name..": invalid option '-"..c.."'")
+                 print("try '"..name.." --help' for more information.")
+                 syscall.exit(1); return end
+        end
+    else
+        table.insert(args, v)
+    end
+end
+
+if opts.help then
+    print("Usage: "..name.." <srcdir> <image.hfs>")
+    print("       "..name.." -x <image.hfs> <destdir>")
+    print("")
+    print("Pack a directory into a portable HFS image file, or extract one.")
+    print("")
+    print("  <srcdir> <image.hfs>     recursively pack srcdir into image.hfs")
+    print("  -x <image.hfs> <dest>    extract image.hfs into dest (created if needed)")
+    print("")
+    print("HFS images can be mounted with:")
+    print("  mount -o loop /path/to/image.hfs /mnt/point")
+    print("")
+    print("Requires root.")
+    return
+end
+
+local fs = require("sys.fs")
+
+if opts.x then
+    if #args < 2 then
+        print(name..": -x requires <image.hfs> and <destdir>")
+        print("try '"..name.." --help' for more information.")
+        syscall.exit(1); return
+    end
+
+    local imgPath  = args[1]
+    local destPath = args[2]
+    if imgPath:sub(1,1)  ~= "/" then imgPath  = syscall.getcwd().."/"..imgPath  end
+    if destPath:sub(1,1) ~= "/" then destPath = syscall.getcwd().."/"..destPath end
+
+    local tmpMnt = "/tmp/._loimgcreate_"..tostring(math.random(100000,999999))
+
+    local ok1, loopId = pcall(syscall.losetup, imgPath, true)
+    if not ok1 then
+        print(name..": losetup: "..tostring(loopId)); syscall.exit(1); return
+    end
+
+    local ok2, merr = pcall(syscall.mount, tmpMnt, loopId)
+    if not ok2 then
+        pcall(syscall.lodetach, loopId)
+        print(name..": mount: "..tostring(merr)); syscall.exit(1); return
+    end
+
+    if not fs.isDir(destPath) then
+        local ok3, derr = pcall(syscall.mkdir, destPath)
+        if not ok3 then
+            pcall(syscall.umount, tmpMnt); pcall(syscall.lodetach, loopId)
+            print(name..": mkdir '"..args[2].."': "..tostring(derr))
+            syscall.exit(1); return
+        end
+    end
+
+    local count = 0
+    local function copyTree(src, dst)
+        local entries = fs.list(src)
+        if not entries then return end
+        for _, ent in ipairs(entries) do
+            local srcFull = src:gsub("/$","").."/"..ent
+            local dstFull = dst:gsub("/$","").."/"..ent
+            if fs.isDir(srcFull) then
+                pcall(syscall.mkdir, dstFull)
+                copyTree(srcFull, dstFull)
+            else
+                local ok, rfd = pcall(syscall.open, srcFull, "r")
+                if ok then
+                    local ok2, wfd = pcall(syscall.open, dstFull, "w")
+                    if ok2 then
+                        local ok3, data = pcall(syscall.read, rfd, 65536*16)
+                        if ok3 and data then pcall(syscall.write, wfd, data) end
+                        pcall(syscall.close, wfd)
+                        count = count + 1
+                    end
+                    pcall(syscall.close, rfd)
+                end
+            end
+        end
+    end
+
+    copyTree(tmpMnt, destPath)
+
+    pcall(syscall.umount, tmpMnt)
+    pcall(syscall.lodetach, loopId)
+
+    syscall.devctl(1, "sfgc", 10)
+    print(name..": extracted "..count.." file(s) to "..destPath)
+    syscall.devctl(1, "sfgc", 1)
+    return
+end
+
+if #args < 2 then
+    print(name..": missing operands — need <srcdir> and <image.hfs>")
+    print("try '"..name.." --help' for more information.")
+    syscall.exit(1); return
+end
+
+local srcPath  = args[1]
+local imgPath  = args[2]
+if srcPath:sub(1,1) ~= "/" then srcPath = syscall.getcwd().."/"..srcPath end
+if imgPath:sub(1,1) ~= "/" then imgPath = syscall.getcwd().."/"..imgPath end
+
+if not fs.isDir(srcPath) then
+    print(name..": '"..args[1].."': not a directory")
+    syscall.exit(1); return
+end
+
+local ok, imgStr = pcall(syscall.loimgcreate, srcPath)
+if not ok then
+    local msg = tostring(imgStr)
+    if msg:find("EPERM") then msg = "Permission denied"
+    elseif msg:find("ENOTDIR") then msg = "'"..args[1].."': not a directory" end
+    print(name..": "..msg); syscall.exit(1); return
+end
+
+local ok2, werr = pcall(syscall.loimgwrite, imgStr, imgPath)
+if not ok2 then
+    print(name..": write '"..args[2].."': "..tostring(werr))
+    syscall.exit(1); return
+end
+
+local lineCount = 0
+for _ in imgStr:gmatch("\n") do lineCount = lineCount + 1 end
+local byteCount = #imgStr
+
+syscall.devctl(1, "sfgc", 10)
+print(name..": image written to "..imgPath)
+syscall.devctl(1, "sfgc", 14)
+print(string.format("  %d records, %d bytes", lineCount - 1, byteCount))
+syscall.devctl(1, "sfgc", 1)

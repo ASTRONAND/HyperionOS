@@ -254,7 +254,6 @@ local ok, err = xpcall(function()
         if not ok then displaySuperBadError(err) end
     end)
 
-    -- time is in milliseconds
     function coroutine.resumeWithTimeout(co, timeout, ...)
         local startTime = computer.time()
         debug.sethook(co, function()
@@ -294,6 +293,14 @@ local ok, err = xpcall(function()
                 queueEvent("componentAdded", "disk")
             elseif event[1] == "disk_eject" then
                 queueEvent("componentRemoved", "disk")
+            elseif event[1] == "modem_message" then
+                queueEvent("modem_message", table.unpack(event, 2))
+            elseif event[1] == "rednet_message" then
+                queueEvent("rednet_message", table.unpack(event, 2))
+            elseif event[1] == "http_success" then
+                queueEvent("http_success", table.unpack(event, 2))
+            elseif event[1] == "http_failure" then
+                queueEvent("http_failure", table.unpack(event, 2))
             elseif event[1] == "NoSleep" then
                 exit = true
             end

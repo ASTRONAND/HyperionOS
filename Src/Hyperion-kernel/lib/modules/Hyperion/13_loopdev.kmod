@@ -1,0 +1,540 @@
+-- :Minify:--
+-- Loop device driver:
+--
+--   BIND  (directory)  - re-routes VFS calls into a host directory subtree.
+--                        Identical to the original behaviour.
+--
+--   IMAGE (*.hfs file) - mounts a Hyperion Filesystem Image.  The image is
+--                        loaded entirely into memory; reads and writes operate
+--                        on the in-memory tree, so the image file is only
+--                        touched on attach/detach.
+--
+-- BHFS v1 - Binary Hyperion Filesystem Image format:
+--
+--   File header (8 bytes):
+--     [0-3]  magic:   0x42 0x48 0x46 0x53  ("BHFS")
+--     [4]    version: 0x01
+--     [5]    flags:   bit0 = per-file deflate compression enabled
+--     [6-7]  reserved: 0x00 0x00
+--
+--   Records (repeated until END record):
+--     [0]    type:        0x01=file  0x02=dir  0x03=symlink  0xFF=end
+--     [1-4]  path_len     (uint32 LE) - byte length of the path string
+--     [5-8]  raw_size     (uint32 LE) - original uncompressed data size (0 for dirs)
+--     [9-12] stored_size  (uint32 LE) - bytes that follow in stream
+--                                       (< raw_size means deflate-compressed;
+--                                        = raw_size means stored as-is)
+--     [13 .. 13+path_len-1]           path bytes (no null terminator)
+--     [.. +stored_size]               data bytes
+--
+--     Dirs have raw_size=0, stored_size=0, zero data bytes.
+--     Symlinks store the target path as data; stored_size == raw_size (no compression).
+--
+-- Syscalls:
+--   id  = syscall.losetup(path)           attach dir OR .hfs image
+--   id  = syscall.losetup(path, true)     force image mode
+--         syscall.lodetach(id)            detach (must be unmounted first)
+--   tbl = syscall.lolist()                {id -> {path,mode}, ...}
+--   str = syscall.loimgcreate(srcdir)     serialise VFS dir -> BHFS binary string
+--         syscall.loimgwrite(str, dest)   write BHFS string to a file (binary)
+
+local kernel = ...
+
+local _deflate = nil
+local function getDeflate()
+    if _deflate == nil then
+        local ok, lib = pcall(require, "store.deflate")
+        _deflate = ok and lib or false
+    end
+    return _deflate or nil
+end
+
+local function pack32(n)
+    n = math.floor(n) % 4294967296
+    return string.char(
+        n % 256,
+        math.floor(n /       256) % 256,
+        math.floor(n /     65536) % 256,
+        math.floor(n / 16777216)  % 256
+    )
+end
+
+local function unpack32(s, i)
+    local a, b, c, d = s:byte(i, i + 3)
+    return (a or 0)
+         + (b or 0) * 256
+         + (c or 0) * 65536
+         + (d or 0) * 16777216
+end
+
+local BHFS_MAGIC        = "BHFS"
+local BHFS_VERSION      = "\001"
+local BHFS_FLAG_COMPRESS = 1
+
+local TYPE_FILE = "\001"
+local TYPE_DIR  = "\002"
+local TYPE_LINK = "\003"
+local TYPE_END  = "\255"
+
+local B64D = {}
+do
+    local a = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    for i = 1, #a do B64D[a:sub(i, i)] = i - 1 end
+end
+
+local function b64dec(s)
+    s = s:gsub("[^A-Za-z0-9+/=]", "")
+    local t, i = {}, 1
+    while i <= #s do
+        local c1 = B64D[s:sub(i,   i  )] or 0
+        local c2 = B64D[s:sub(i+1, i+1)] or 0
+        local c3 = B64D[s:sub(i+2, i+2)] or 0
+        local c4 = B64D[s:sub(i+3, i+3)] or 0
+        local n  = c1*262144 + c2*4096 + c3*64 + c4
+        t[#t+1] = string.char(math.floor(n/65536) % 256)
+        if s:sub(i+2, i+2) ~= "=" then t[#t+1] = string.char(math.floor(n/256) % 256) end
+        if s:sub(i+3, i+3) ~= "=" then t[#t+1] = string.char(n % 256) end
+        i = i + 4
+    end
+    return table.concat(t)
+end
+
+local loopDevs = {}
+local nextLoop = 0
+
+local function makeBindDisk(id, dirPath)
+    local disk = { address = id, isvirt = false }
+    disk.isReadOnly  = function() return false end
+    disk.spaceUsed   = function() return 0 end
+    disk.spaceTotal  = function() return 0 end
+    disk.setLabel    = function() end
+    disk.getLabel    = function() return id end
+
+    local function resolveBase()
+        local mp, mid = "/", "$"
+        for id2, m in pairs(kernel.vfs.mounts) do
+            if dirPath == m or (m == "/" and dirPath:sub(1,1) == "/")
+               or dirPath:sub(1, #m+1) == m.."/" then
+                if #m > #mp then mp = m; mid = id2 end
+            end
+        end
+        return kernel.vfs.disks[mid], dirPath:sub(#mp+1)
+    end
+
+    local function dp(path)
+        local hd, base = resolveBase()
+        local b = (base == "" or base == "/") and "" or base:gsub("^/+","")
+        local p = path:gsub("^/+","")
+        local c = ((b=="") and "/"..p or "/"..b.."/"..p):gsub("//+","/")
+        local r = c:sub(2); if r == "" then r = "/" end
+        return hd, r
+    end
+
+    function disk:open(path,mode)       local h,r=dp(path); return h:open(r,mode) end
+    function disk:type(path)            local h,r=dp(path); return h:type(r) end
+    function disk:list(path)            local h,r=dp(path); return h:list(r) end
+    function disk:fileExists(path)      local h,r=dp(path); return h:fileExists(r) end
+    function disk:attributes(path)      local h,r=dp(path); return h:attributes(r) end
+    function disk:makeDirectory(path)   local h,r=dp(path); return h:makeDirectory(r) end
+    function disk:remove(path)          local h,r=dp(path); return h:remove(r) end
+    return disk
+end
+
+local function makeImageDisk(id, imageStr)
+    local root = { kind="dir", children={} }
+
+    local function getNode(path, create)
+        local parts = {}
+        for p in path:gmatch("[^/]+") do parts[#parts+1] = p end
+        local node = root
+        for i = 1, #parts do
+            local name = parts[i]
+            if not node.children then
+                if not create then return nil end
+                node.children = {}
+            end
+            if not node.children[name] then
+                if not create then return nil end
+                node.children[name] = { kind="dir", children={} }
+            end
+            node = node.children[name]
+        end
+        return node
+    end
+
+    local function ensureParent(path)
+        local par = path:match("^(.*)/[^/]+$") or ""
+        if par ~= "" then
+            local n = getNode(par, true)
+            if not n.children then n.children = {} end
+        end
+    end
+
+    if imageStr:sub(1, 4) == BHFS_MAGIC then
+        local pos = 9
+
+        while pos <= #imageStr do
+            local rtype = imageStr:sub(pos, pos)
+            pos = pos + 1
+
+            if rtype == TYPE_END then break end
+
+            local path_len    = unpack32(imageStr, pos); pos = pos + 4
+            local raw_size    = unpack32(imageStr, pos); pos = pos + 4
+            local stored_size = unpack32(imageStr, pos); pos = pos + 4
+
+            local path        = imageStr:sub(pos, pos + path_len - 1)
+            pos = pos + path_len
+
+            local stored_data = imageStr:sub(pos, pos + stored_size - 1)
+            pos = pos + stored_size
+            local data = stored_data
+            if stored_size < raw_size then
+                local deflate = getDeflate()
+                if deflate then
+                    data = deflate.decompress(stored_data) or stored_data
+                end
+            end
+
+            if rtype == TYPE_DIR then
+                if path ~= "" and path ~= "/" then
+                    ensureParent(path)
+                    local n = getNode(path, true)
+                    n.kind = "dir"; n.children = n.children or {}
+                end
+            elseif rtype == TYPE_FILE then
+                ensureParent(path)
+                local n = getNode(path, true)
+                n.kind="file"; n.data=data; n.size=#data; n.children=nil
+            elseif rtype == TYPE_LINK then
+                ensureParent(path)
+                local n = getNode(path, true)
+                n.kind="link"; n.target=data; n.children=nil
+            end
+        end
+    else
+        for line in (imageStr.."\n"):gmatch("([^\n]*)\n") do
+            if line == "END" then
+                break
+            elseif line:sub(1,4) == "DIR " then
+                local p = line:sub(5):match("^%s*(.-)%s*$")
+                if p and p ~= "" and p ~= "/" then
+                    ensureParent(p)
+                    local n = getNode(p, true)
+                    n.kind = "dir"; n.children = n.children or {}
+                end
+            elseif line:sub(1,5) == "FILE " then
+                local p, sz, body = line:sub(6):match("^(%S+)%s+(%d+)%s*(.-)%s*$")
+                if p then
+                    ensureParent(p)
+                    local data = (tonumber(sz) or 0) > 0 and b64dec(body) or ""
+                    local n = getNode(p, true)
+                    n.kind="file"; n.data=data; n.size=#data; n.children=nil
+                end
+            elseif line:sub(1,5) == "LINK " then
+                local p, tgt = line:sub(6):match("^(%S+)%s+(.+)$")
+                if p then
+                    ensureParent(p)
+                    local n = getNode(p, true)
+                    n.kind="link"; n.target=tgt; n.children=nil
+                end
+            end
+        end
+    end
+
+    local disk = { address=id, isvirt=false }
+    disk.isReadOnly = function() return false end
+    disk.spaceTotal = function() return 1024*1024*64 end
+    disk.spaceUsed  = function()
+        local tot = 0
+        local function w(n)
+            if     n.kind=="file" then tot = tot + (n.size or 0)
+            elseif n.kind=="dir"  then for _,c in pairs(n.children or {}) do w(c) end end
+        end
+        w(root); return tot
+    end
+    disk.setLabel = function() end
+    disk.getLabel = function() return id end
+
+    local function norm(path)
+        return path:gsub("^/+",""):gsub("/+$","")
+    end
+
+    function disk:type(path)
+        local p = norm(path)
+        if p == "" then return "directory" end
+        local n = getNode(p)
+        if not n then return nil end
+        if n.kind == "dir" then return "directory" end
+        return "file"
+    end
+
+    function disk:fileExists(path)
+        local p = norm(path)
+        if p == "" then return true end
+        return getNode(p) ~= nil
+    end
+
+    function disk:list(path)
+        local p    = norm(path)
+        local node = (p=="") and root or getNode(p)
+        if not node or node.kind ~= "dir" then return {} end
+        local out = {}
+        for name in pairs(node.children or {}) do out[#out+1] = name end
+        return out
+    end
+
+    function disk:attributes(path)
+        local p    = norm(path)
+        local node = (p=="") and root or getNode(p)
+        if not node then return nil end
+        return {
+            size      = node.kind=="file" and (node.size or 0) or 0,
+            isDir     = node.kind=="dir",
+            isReadOnly = false,
+            created   = 0,
+            modified  = 0,
+        }
+    end
+
+    function disk:open(path, mode)
+        local p    = norm(path)
+        local node = getNode(p)
+
+        if mode == "r" then
+            if not node or node.kind ~= "file" then error("ENOENT: "..path) end
+            local data, pos = node.data or "", 1
+            return {
+                read = function(n)
+                    if pos > #data then return nil end
+                    local chunk = data:sub(pos, pos + (n or 1) - 1)
+                    pos = pos + #chunk; return chunk
+                end,
+                readAll = function()
+                    local all = data:sub(pos); pos = #data + 1; return all
+                end,
+                readLine = function()
+                    if pos > #data then return nil end
+                    local nl = data:find("\n", pos, true)
+                    local line
+                    if nl then line=data:sub(pos, nl-1); pos=nl+1
+                    else        line=data:sub(pos);      pos=#data+1 end
+                    return line
+                end,
+                seek = function(w, o)
+                    o = o or 0
+                    if     w == "set" then pos = o + 1
+                    elseif w == "cur" then pos = pos + o
+                    elseif w == "end" then pos = #data + 1 + o end
+                    return pos - 1
+                end,
+                close = function() end,
+            }
+
+        elseif mode == "w" or mode == "a" then
+            local buf  = (mode=="a" and node and node.kind=="file")
+                         and {node.data or ""} or {}
+            local done = false
+            local function commit()
+                if done then return end; done = true
+                local data = table.concat(buf)
+                if not node then ensureParent(p); node = getNode(p, true) end
+                node.kind="file"; node.data=data; node.size=#data; node.children=nil
+            end
+            return {
+                write     = function(s) buf[#buf+1] = tostring(s) end,
+                writeLine = function(s) buf[#buf+1] = tostring(s).."\n" end,
+                flush     = function() end,
+                close     = commit,
+            }
+        else
+            error("EINVAL: unknown mode: "..tostring(mode))
+        end
+    end
+
+    function disk:makeDirectory(path)
+        local p = norm(path)
+        if p == "" then return end
+        ensureParent(p)
+        local n = getNode(p, true)
+        n.kind="dir"; n.children=n.children or {}; n.data=nil; n.size=nil
+    end
+
+    function disk:remove(path)
+        local p    = norm(path)
+        if p == "" then error("EBUSY: cannot remove root") end
+        local par  = p:match("^(.*)/[^/]+$") or ""
+        local name = p:match("([^/]+)$")
+        local pn   = (par=="") and root or getNode(par)
+        if pn and pn.children then pn.children[name] = nil end
+    end
+
+    disk._root = root
+    return disk
+end
+
+local function serializeDir(srcPath)
+    local deflate     = getDeflate()
+    local useCompress = deflate ~= nil
+
+    local flags = useCompress and BHFS_FLAG_COMPRESS or 0
+    local parts = {
+        BHFS_MAGIC,
+        BHFS_VERSION,
+        string.char(flags),
+        "\0\0",
+    }
+
+    srcPath = srcPath:gsub("/$", "")
+
+    local MIN_COMPRESS = 64
+
+    local function walk(vpath)
+        local ftype = kernel.vfs.type(vpath)
+
+        if ftype == "directory" then
+            if vpath ~= srcPath then
+                local relPath = vpath:sub(#srcPath + 1)
+                parts[#parts+1] = TYPE_DIR
+                parts[#parts+1] = pack32(#relPath)
+                parts[#parts+1] = pack32(0)
+                parts[#parts+1] = pack32(0)
+                parts[#parts+1] = relPath
+            end
+            local ok, entries = pcall(kernel.vfs.listdir, vpath)
+            if ok and entries then
+                table.sort(entries)
+                for _, name in ipairs(entries) do
+                    walk(vpath:gsub("/$","").."/"..name)
+                end
+            end
+
+        elseif ftype == "file" then
+            local relPath = vpath:sub(#srcPath + 1)
+            local ok, fd  = pcall(kernel.vfs.open, vpath, "r")
+            if ok then
+                local rawData = ""
+                local ok2, content = pcall(kernel.vfs.read, fd, 1024*1024)
+                if ok2 then rawData = content or "" end
+                pcall(kernel.vfs.close, fd)
+
+                local storedData = rawData
+                if useCompress and #rawData >= MIN_COMPRESS then
+                    local compressed = deflate.compress(rawData)
+                    if compressed and #compressed < #rawData then
+                        storedData = compressed
+                    end
+                end
+
+                parts[#parts+1] = TYPE_FILE
+                parts[#parts+1] = pack32(#relPath)
+                parts[#parts+1] = pack32(#rawData)
+                parts[#parts+1] = pack32(#storedData)
+                parts[#parts+1] = relPath
+                parts[#parts+1] = storedData
+            end
+        end
+    end
+
+    walk(srcPath)
+
+    parts[#parts+1] = TYPE_END
+
+    return table.concat(parts)
+end
+
+kernel.syscalls["losetup"] = function(filePath, forceImage)
+    if not filePath then error("EINVAL") end
+    local task = kernel.currentTask
+    local euid = (task and (task.euid or task.uid)) or kernel.uid
+    if euid ~= 0 then error("EPERM") end
+
+    filePath = filePath:gsub("/$", "")
+    local id = "loop" .. tostring(nextLoop)
+    nextLoop = nextLoop + 1
+
+    local ftype = kernel.vfs.type(filePath)
+    local disk, mode
+
+    if not forceImage and ftype == "directory" then
+        disk = makeBindDisk(id, filePath)
+        mode = "bind"
+    elseif ftype == "file" or forceImage then
+        if ftype ~= "file" then error("ENOENT: not a file: "..filePath) end
+
+        local img
+        local ok, fd = pcall(kernel.vfs.open, filePath, "rb")
+        if ok then
+            local ok2, data = pcall(kernel.vfs.read, fd, 1024*1024*16)
+            pcall(kernel.vfs.close, fd)
+            if ok2 and data then img = data end
+        end
+        if not img then
+            local ok2, fd2 = pcall(kernel.vfs.open, filePath, "r")
+            if not ok2 then error("EIO: cannot open image: "..filePath) end
+            local ok3, data = pcall(kernel.vfs.read, fd2, 1024*1024*16)
+            pcall(kernel.vfs.close, fd2)
+            if not ok3 or not data then error("EIO: cannot read image: "..filePath) end
+            img = data
+        end
+
+        disk = makeImageDisk(id, img)
+        mode = "image"
+    else
+        error("EINVAL: path must be a directory or .hfs image file")
+    end
+
+    kernel.vfs.disks[id] = disk
+    loopDevs[id] = { path=filePath, disk=disk, mode=mode }
+    kernel.log("losetup: attached "..id.." ("..mode..") -> "..filePath, "INFO")
+    return id
+end
+
+kernel.syscalls["lodetach"] = function(id)
+    local task = kernel.currentTask
+    local euid = (task and (task.euid or task.uid)) or kernel.uid
+    if euid ~= 0 then error("EPERM") end
+
+    if not loopDevs[id] then error("ENXIO") end
+    for mid in pairs(kernel.vfs.mounts) do
+        if mid == id then error("EBUSY: loop device is still mounted") end
+    end
+    kernel.vfs.disks[id] = nil
+    loopDevs[id]         = nil
+    kernel.log("lodetach: detached "..id, "INFO")
+end
+
+kernel.syscalls["lolist"] = function()
+    local rv = {}
+    for id, info in pairs(loopDevs) do
+        rv[id] = { path=info.path, mode=info.mode }
+    end
+    return rv
+end
+
+kernel.syscalls["loimgcreate"] = function(srcPath)
+    local task = kernel.currentTask
+    local euid = (task and (task.euid or task.uid)) or kernel.uid
+    if euid ~= 0 then error("EPERM") end
+    if not srcPath then error("EINVAL") end
+    if kernel.vfs.type(srcPath) ~= "directory" then error("ENOTDIR: "..srcPath) end
+    return serializeDir(srcPath)
+end
+
+kernel.syscalls["loimgwrite"] = function(imgStr, destPath)
+    local task = kernel.currentTask
+    local euid = (task and (task.euid or task.uid)) or kernel.uid
+    if euid ~= 0 then error("EPERM") end
+    if not imgStr or not destPath then error("EINVAL") end
+
+    local ok, fd = pcall(kernel.vfs.open, destPath, "wb")
+    if not ok then
+        ok, fd = pcall(kernel.vfs.open, destPath, "w")
+        if not ok then error("EIO: cannot write: "..tostring(destPath)) end
+    end
+    local ok2, werr = pcall(kernel.vfs.write, fd, imgStr)
+    pcall(kernel.vfs.close, fd)
+    if not ok2 then error("EIO: write failed: "..tostring(werr)) end
+end
+
+kernel.log("Loop device driver loaded (bind + BHFS binary image + legacy HFS compat)")

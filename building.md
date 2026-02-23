@@ -53,12 +53,23 @@ Optional arguments:
 * **`--dev`**
 
   * Development mode
-  * Bootloader does not start automatically
+  * Bootloader does not start automatically. You must run `eeprom` in CraftOS to start Hyperion.
 
 * **`--release`** (default)
 
   * Release mode
   * Bootloader starts automatically
+  
+* **`--makeuser username password`**
+  Makes a username upon startup. Only works for `--dev` builds.
+  
+  * `--makeuser root rootpass`
+  
+  Makes the root account already exist on first boot with rootpass as password
+  
+  * `--makeuser root rootpass --makeuser alice alicepass`
+  
+  Makes the root account and alice account already exist on first boot with defined passwords
 
 **Examples**
 

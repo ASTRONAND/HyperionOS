@@ -1,174 +1,205 @@
 --:Minify:--
--- help: display command reference with paged scrolling
 
 local COMMANDS = {
-    -- {name, usage, description, {flags...}}
-    -- flags: {flag, desc}
-    {
-        name = "cat",
-        usage = "cat [file]",
-        desc = "Print file contents to stdout. Reads from stdin if no file given.",
-        flags = {}
-    },
-    {
-        name = "cd",
-        usage = "cd [dir]",
-        desc = "Change working directory. Use '-' to return to previous directory.",
-        flags = {}
-    },
-    {
-        name = "clear",
-        usage = "clear",
-        desc = "Clear the terminal screen.",
-        flags = {}
-    },
-    {
-        name = "echo",
-        usage = "echo [text...]",
-        desc = "Print arguments to stdout.",
-        flags = {}
-    },
-    {
-        name = "hfetch",
-        usage = "hfetch",
-        desc = "Display system information in a neofetch-style layout.",
-        flags = {}
-    },
-    {
-        name = "id",
-        usage = "id [username]",
-        desc = "Print user identity (uid, gid). Defaults to current user.",
-        flags = {}
-    },
-    {
-        name = "login",
-        usage = "login",
-        desc = "System login prompt. Launched automatically at boot.",
-        flags = {}
-    },
-    {
-        name = "ls",
-        usage = "ls [-alh] [dir]",
-        desc = "List directory contents.",
-        flags = {
-            {"-a", "Show hidden files (starting with .)"},
-            {"-l", "Long format: permissions, owner, size"},
-            {"-h", "Human-readable file sizes"},
-        }
-    },
-    {
-        name = "lsusers",
-        usage = "lsusers",
-        desc = "List all user accounts with uid, gid, home, and shell.",
-        flags = {}
-    },
-    {
-        name = "lua",
-        usage = "lua",
-        desc = "Interactive Lua REPL prompt.",
-        flags = {}
-    },
-    {
-        name = "mkdir",
-        usage = "mkdir <dir>",
-        desc = "Create a directory.",
-        flags = {}
-    },
-    {
-        name = "passwd",
-        usage = "passwd [username]",
-        desc = "Change a user password. Non-root must verify current password first.",
-        flags = {}
-    },
-    {
-        name = "ps",
-        usage = "ps",
-        desc = "List running tasks with pid, user, name, and status.",
-        flags = {}
-    },
-    {
-        name = "pwd",
-        usage = "pwd",
-        desc = "Print current working directory.",
-        flags = {}
-    },
-    {
-        name = "su",
-        usage = "su [username]",
-        desc = "Switch user. Defaults to root. Root can switch without a password.",
-        flags = {}
-    },
-    {
-        name = "sudo",
-        usage = "sudo [-u user] <command> [args...]",
-        desc = "Run a command as another user (default root). Authenticates as current user.",
-        flags = {
-            {"-u user", "Run as the specified user (name or uid)"},
-        }
-    },
-    {
-        name = "sysdump",
-        usage = "sysdump",
-        desc = "List all registered kernel syscalls.",
-        flags = {}
-    },
-    {
-        name = "useradd",
-        usage = "useradd [-p pw] [-g gid] [-d home] [-s shell] [-M] <username>",
-        desc = "Create a new user account.",
-        flags = {
-            {"-p pw",    "Set password (prompted interactively if omitted)"},
-            {"-g gid",   "Set primary group id"},
-            {"-d home",  "Set home directory (default: /home/username)"},
-            {"-s shell", "Set login shell (default: /bin/hysh)"},
-            {"-M",       "Do not create home directory"},
-        }
-    },
-    {
-        name = "userdel",
-        usage = "userdel [-r] <username>",
-        desc = "Delete a user account.",
-        flags = {
-            {"-r", "Also recursively remove the user's home directory"},
-        }
-    },
-    {
-        name = "usermod",
-        usage = "usermod [-l name] [-p pw] [-g gid] [-d home] [-s shell] [-L] [-U] <username>",
-        desc = "Modify an existing user account.",
-        flags = {
-            {"-l name",  "Rename the user"},
-            {"-p pw",    "Set new password"},
-            {"-g gid",   "Change primary group id"},
-            {"-d home",  "Change home directory"},
-            {"-s shell", "Change login shell"},
-            {"-L",       "Lock the account (disable login)"},
-            {"-U",       "Unlock the account"},
-        }
-    },
-    {
-        name = "whoami",
-        usage = "whoami",
-        desc = "Print the current username.",
-        flags = {}
-    },
-    {
-        name = "yes",
-        usage = "yes [text]",
-        desc = "Repeatedly print 'y' (or given text) until interrupted with Ctrl+C.",
-        flags = {}
-    },
+    { name="cd",       usage="cd [dir]",              desc="Change working directory. Use '-' to return to previous directory.", flags={} },
+    { name="pwd",      usage="pwd",                   desc="Print current working directory.", flags={} },
+    { name="ls",       usage="ls [-alh] [dir]",       desc="List directory contents. Coloured by type: dirs=blue, symlinks=cyan, executables=green.", flags={
+        {"-a","Show hidden files (starting with .)"},
+        {"-l","Long format: permissions, owner, group, size, mtime, name"},
+        {"-h","Human-readable file sizes (with -l)"},
+        {"--help","Display help and exit"},
+    }},
+    { name="find",     usage="find [path] [-name PAT] [-type f|d|l] [-maxdepth N]", desc="Walk the filesystem tree and print matching paths.", flags={
+        {"-name PAT",  "Match filename against shell glob (* and ?)"},
+        {"-type f|d|l","Filter by file, directory, or symlink"},
+        {"-maxdepth N","Descend at most N directory levels"},
+        {"-mindepth N","Skip entries shallower than N levels"},
+        {"-empty",     "Match empty files or empty directories"},
+    }},
+    { name="cp",       usage="cp [-rRp] SOURCE... DEST", desc="Copy files or directories.", flags={
+        {"-r,-R","Recurse into directories"},
+        {"-p",   "Preserve permissions"},
+        {"--help","Display help and exit"},
+    }},
+    { name="mv",       usage="mv [-f] SOURCE... DEST", desc="Move or rename files and directories.", flags={
+        {"-f",   "Do not prompt before overwriting (default)"},
+        {"--help","Display help and exit"},
+    }},
+    { name="rm",       usage="rm [-rRf] FILE...", desc="Remove files or directories.", flags={
+        {"-r,-R","Recursively remove directories and their contents"},
+        {"-f",   "Ignore nonexistent files, never prompt"},
+        {"--help","Display help and exit"},
+    }},
+    { name="touch",    usage="touch FILE...",          desc="Create an empty file, or no-op if it already exists.", flags={} },
+    { name="mkdir",    usage="mkdir <dir>",            desc="Create a directory.", flags={} },
+    { name="ln",       usage="ln -s [-f] TARGET LINK", desc="Create a symbolic link. Multiple targets can be linked into a directory.", flags={
+        {"-s",   "Create a symbolic link (required; hard links not supported)"},
+        {"-f",   "Remove existing destination before creating link"},
+        {"--help","Display help and exit"},
+    }},
+    { name="cat",      usage="cat [file...]",          desc="Print file(s) to stdout. Reads stdin if no file given.", flags={} },
+    { name="head",     usage="head [-n N] [file...]",  desc="Print the first N lines of each file (default 10).", flags={
+        {"-n N","Number of lines to print"},
+        {"--help","Display help and exit"},
+    }},
+    { name="tail",     usage="tail [-n N] [file...]",  desc="Print the last N lines of each file (default 10).", flags={
+        {"-n N","Number of lines to print"},
+        {"--help","Display help and exit"},
+    }},
+    { name="wc",       usage="wc [-lwc] [file...]",    desc="Count lines, words, and bytes in files.", flags={
+        {"-l","Print line count"},
+        {"-w","Print word count"},
+        {"-c","Print byte count"},
+        {"--help","Display help and exit"},
+    }},
+    { name="grep",     usage="grep [-ivnlcrR] PATTERN [file...]", desc="Search for lines matching a Lua pattern.", flags={
+        {"-i","Ignore case"},
+        {"-v","Invert: select non-matching lines"},
+        {"-n","Prefix output with line numbers"},
+        {"-l","Print only filenames that contain a match"},
+        {"-c","Print count of matching lines per file"},
+        {"-r,-R","Recurse into directories"},
+        {"--help","Display help and exit"},
+    }},
+    { name="sed",      usage="sed 's/PAT/REPL/' [file...]", desc="Stream editor. Applies substitution commands to each line.", flags={} },
+    { name="sort",     usage="sort [-rnu] [file...]",  desc="Sort lines of text.", flags={
+        {"-r","Reverse the sort order"},
+        {"-n","Numeric sort"},
+        {"-u","Suppress duplicate lines"},
+        {"--help","Display help and exit"},
+    }},
+    { name="uniq",     usage="uniq [-cdui] [input [output]]", desc="Filter adjacent duplicate lines.", flags={
+        {"-c","Prefix each line with its repetition count"},
+        {"-d","Print only lines that appear more than once"},
+        {"-u","Print only lines that appear exactly once"},
+        {"-i","Ignore case when comparing"},
+        {"--help","Display help and exit"},
+    }},
+    { name="tee",      usage="tee [-a] [file...]",     desc="Copy stdin to stdout and to each FILE simultaneously.", flags={
+        {"-a","Append to files instead of overwriting"},
+        {"--help","Display help and exit"},
+    }},
+    { name="basename", usage="basename STRING [SUFFIX]", desc="Strip directory and optional suffix from a path.", flags={} },
+    { name="dirname",  usage="dirname STRING...",       desc="Strip the last component from a path.", flags={} },
+    { name="readlink", usage="readlink [-fenq] file...", desc="Print the target of a symbolic link.", flags={
+        {"-f","Canonicalize: follow every symlink component"},
+        {"-e","Like -f but all components must exist"},
+        {"-n","Do not output trailing newline"},
+        {"--help","Display help and exit"},
+    }},
+    { name="stat",     usage="stat file...",            desc="Display file type, size, owner, group, and permissions.", flags={
+        {"--help","Display help and exit"},
+    }},
+    { name="chmod",    usage="chmod [-R] MODE file...", desc="Change file permissions. MODE may be octal (755) or symbolic (u+x).", flags={
+        {"-R",   "Recurse into directories"},
+        {"--help","Display help and exit"},
+    }},
+    { name="chown",    usage="chown [-R] USER[:GROUP] file...", desc="Change file owner and/or group.", flags={
+        {"-R","Recurse into directories"},
+        {"--help","Display help and exit"},
+    }},
+    { name="chgrp",    usage="chgrp [-R] GROUP file...", desc="Change file group ownership.", flags={
+        {"-R","Recurse into directories"},
+        {"--help","Display help and exit"},
+    }},
+    { name="chattr",   usage="chattr [+-=][attrs] file...", desc="Change file attributes.", flags={} },
+    { name="echo",     usage="echo [text...]",          desc="Print arguments to stdout.", flags={} },
+    { name="whoami",   usage="whoami",                  desc="Print the current username.", flags={} },
+    { name="id",       usage="id [username]",            desc="Print user identity (uid, gid).", flags={} },
+    { name="ps",       usage="ps",                      desc="List running tasks with pid, user, name, and status.", flags={} },
+    { name="hostname", usage="hostname [NAME]",          desc="Print or set the system hostname.", flags={} },
+    { name="uname",    usage="uname [-asnrm]",           desc="Print system information (OS name, hostname, release, machine).", flags={
+        {"-a","Print all fields"},
+        {"-s","Kernel name"},
+        {"-n","Node hostname"},
+        {"-r","Kernel release"},
+        {"-m","Machine hardware name"},
+        {"--help","Display help and exit"},
+    }},
+    { name="df",       usage="df [-h] [path...]",        desc="Report filesystem disk space usage.", flags={
+        {"-h","Human-readable sizes (K, M, G)"},
+        {"--help","Display help and exit"},
+    }},
+    { name="stat",     usage="stat file...",             desc="Display file status: type, size, permissions, owner.", flags={} },
+    { name="env",      usage="env [KEY=VAL]... [CMD]",   desc="Print the environment, or run a command with modified environment.", flags={} },
+    { name="printenv", usage="printenv [NAME...]",        desc="Print environment variable values (all if no names given).", flags={} },
+    { name="sleep",    usage="sleep N[smhd]",            desc="Pause for N seconds (or minutes/hours/days with m/h/d suffix).", flags={} },
+    { name="true",     usage="true",                     desc="Do nothing, exit successfully (status 0).", flags={} },
+    { name="false",    usage="false",                    desc="Do nothing, exit unsuccessfully (status 1).", flags={} },
+    { name="yes",      usage="yes [text]",               desc="Repeatedly print 'y' (or given text) until interrupted.", flags={} },
+    { name="mount",    usage="mount [-o loop] [SRC DEST | ID MNT]", desc="Mount a loop device or show all current mounts.", flags={
+        {"-o loop","Attach SRC as a loop device and mount at DEST in one step"},
+        {"--help","Display help and exit"},
+    }},
+    { name="umount",   usage="umount [--no-detach] MOUNTPOINT | -l LOOPID", desc="Unmount a filesystem and auto-detach its loop device.", flags={
+        {"--no-detach","Unmount but keep loop device attached"},
+        {"-l LOOPID","Force-detach a loop device without unmounting"},
+        {"--help","Display help and exit"},
+    }},
+    { name="losetup",  usage="losetup [-dil] [path]",    desc="Attach a directory or .hfs image as a loop device.", flags={
+        {"-d ID","Detach loop device"},
+        {"-i path","Force image mode (even without .hfs extension)"},
+        {"-l","List all attached loop devices"},
+        {"--help","Display help and exit"},
+    }},
+    { name="loimgcreate", usage="loimgcreate [-x] SRC DEST", desc="Pack a directory into a portable HFS image, or extract one.", flags={
+        {"-x","Extract image to destination directory"},
+        {"--help","Display help and exit"},
+    }},
+    { name="useradd",  usage="useradd [-p pw] [-g gid] [-d home] [-s shell] [-M] <user>", desc="Create a new user account.", flags={
+        {"-p pw",   "Set password"},
+        {"-g gid",  "Set primary group id"},
+        {"-d home", "Set home directory (default /home/username)"},
+        {"-s shell","Set login shell (default /bin/hysh)"},
+        {"-M",      "Do not create home directory"},
+    }},
+    { name="userdel",  usage="userdel [-r] <user>",      desc="Delete a user account.", flags={
+        {"-r","Also remove the user's home directory"},
+    }},
+    { name="usermod",  usage="usermod [-l name] [-p pw] [-g gid] [-d home] [-s shell] [-LU] <user>", desc="Modify an existing user account.", flags={
+        {"-l name", "Rename the user"},
+        {"-p pw",   "Set new password"},
+        {"-g gid",  "Change primary group id"},
+        {"-d home", "Change home directory"},
+        {"-s shell","Change login shell"},
+        {"-L",      "Lock the account"},
+        {"-U",      "Unlock the account"},
+    }},
+    { name="passwd",   usage="passwd [username]",         desc="Change a user password.", flags={} },
+    { name="lsusers",  usage="lsusers",                  desc="List all user accounts with uid, gid, home, and shell.", flags={} },
+    { name="su",       usage="su [username]",             desc="Switch user. Defaults to root. Root can switch without a password.", flags={} },
+    { name="sudo",     usage="sudo [-u user] CMD [args...]", desc="Run a command as another user (default root).", flags={
+        {"-u user","Run as the specified user (name or uid)"},
+    }},
+    { name="exit",     usage="exit [N]",                 desc="Exit the shell with optional status code N.", flags={} },
+    { name="clear",    usage="clear",                    desc="Clear the terminal screen.", flags={} },
+    { name="help",     usage="help [command]",            desc="Display this command reference. Pass a command name to filter.", flags={} },
+    { name="lua",      usage="lua",                      desc="Interactive Lua REPL prompt.", flags={} },
+    { name="micro",    usage="micro [file]",              desc="Full-screen terminal text editor.", flags={} },
+    { name="hfetch",   usage="hfetch",                   desc="Display system information in a neofetch-style layout.", flags={} },
+    { name="sysdump",  usage="sysdump",                  desc="List all registered kernel syscalls.", flags={} },
+    { name="chroot",   usage="chroot DIR [CMD]",          desc="Run a command with a different root directory.", flags={} },
 }
 
--- Build lines to display
-local C_HEAD  = 7   -- yellow  (section headers)
-local C_CMD   = 5   -- cyan    (command name)
-local C_USAGE = 1   -- white   (usage line)
-local C_DESC  = 13  -- grey    (description)
-local C_FLAG  = 3   -- green   (flag name)
-local C_DIM   = 12  -- dark grey
+do
+    local seen = {}
+    local deduped = {}
+    for _, cmd in ipairs(COMMANDS) do
+        if not seen[cmd.name] then
+            seen[cmd.name] = true
+            table.insert(deduped, cmd)
+        end
+    end
+    COMMANDS = deduped
+end
 
--- Each entry is {text, color}
+local C_HEAD  = 7
+local C_CMD   = 5
+local C_USAGE = 1
+local C_DESC  = 13
+local C_FLAG  = 3
+local C_DIM   = 12
+
 local lines = {}
 local function push(text, col) lines[#lines+1] = {text, col or 1} end
 
@@ -177,7 +208,7 @@ push(string.rep("=", 50), C_DIM)
 push("", 1)
 
 local args = {...}
-local filter = args[1]  -- optional: help <command>
+local filter = args[1]
 
 local function addCmd(cmd)
     push(cmd.name, C_CMD)
@@ -207,11 +238,10 @@ else
     for _, cmd in ipairs(COMMANDS) do addCmd(cmd) end
 end
 
--- Pager
 local sizeStr = syscall.devctl(1, "size")
-local screenW = tonumber(sizeStr:sub(1, sizeStr:find(";")-1)) or 51
-local screenH = tonumber(sizeStr:sub(sizeStr:find(";")+1)) or 19
-local pageSize = screenH - 2  -- reserve bottom row for status bar
+local screenW = tonumber(sizeStr:match("^(%d+)")) or 51
+local screenH = tonumber(sizeStr:match(";(%d+)")) or 19
+local pageSize = screenH - 2
 
 local scroll = 0
 local totalLines = #lines
@@ -225,14 +255,12 @@ local function render()
         if li <= totalLines then
             local text, col = lines[li][1], lines[li][2]
             syscall.devctl(1, "sfgc", col)
-            -- truncate to screen width
             if #text > screenW then text = text:sub(1, screenW) end
             syscall.write(1, text .. "\n")
         else
             syscall.write(1, "\n")
         end
     end
-    -- status bar
     syscall.devctl(1, "sfgc", 16)
     syscall.devctl(1, "sbgc", 13)
     local pct = math.floor(math.min(100, (scroll + pageSize) / totalLines * 100))
@@ -246,7 +274,6 @@ local function render()
     dirty = false
 end
 
--- If output fits on one screen, just print without pager
 if totalLines <= pageSize then
     syscall.devctl(1, "clear")
     syscall.devctl(1, "spos", 1, 1)
@@ -262,30 +289,20 @@ render()
 while true do
     local ch = syscall.read(0)
     if not ch or ch == "" then
-        -- idle
     elseif ch == "q" or ch == "Q" then
         break
-    elseif ch == "\17" then  -- up arrow
-        if scroll > 0 then
-            scroll = scroll - 1
-            dirty = true
-        end
-    elseif ch == "\18" then  -- down arrow
-        if scroll + pageSize < totalLines then
-            scroll = scroll + 1
-            dirty = true
-        end
-    elseif ch == "\19" then  -- left / page up (reuse left arrow)
-        scroll = math.max(0, scroll - pageSize)
-        dirty = true
-    elseif ch == "\20" then  -- right / page down
-        scroll = math.min(totalLines - pageSize, scroll + pageSize)
-        dirty = true
+    elseif ch == "\17" then
+        if scroll > 0 then scroll = scroll - 1; dirty = true end
+    elseif ch == "\18" then
+        if scroll + pageSize < totalLines then scroll = scroll + 1; dirty = true end
+    elseif ch == "\19" then
+        scroll = math.max(0, scroll - pageSize); dirty = true
+    elseif ch == "\20" then
+        scroll = math.min(totalLines - pageSize, scroll + pageSize); dirty = true
     end
     if dirty then render() end
 end
 
--- Restore screen
 syscall.devctl(1, "clear")
 syscall.devctl(1, "spos", 1, 1)
 syscall.devctl(1, "sfgc", 1)

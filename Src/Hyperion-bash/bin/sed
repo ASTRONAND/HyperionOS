@@ -1,0 +1,429 @@
+--:Minify:--
+-- Supports: s/pat/repl/[gip], d, p, q, =, addr1[,addr2]cmd
+-- Addressing: line numbers, $, /regex/
+-- Flags: -n (silent), -e script, -i (in-place)
+
+local name = syscall.getTask(syscall.getpid()).name
+
+local scripts   = {}
+local files     = {}
+local silent    = false
+local inplace   = false
+local args      = { ... }
+local i         = 1
+
+while i <= #args do
+    local a = args[i]
+    if a == "-n" then
+        silent = true
+    elseif a == "-i" then
+        inplace = true
+    elseif a == "-e" then
+        i = i + 1
+        if not args[i] then
+            print(name .. ": option -e requires an argument"); syscall.exit(1); return
+        end
+        table.insert(scripts, args[i])
+    elseif a:sub(1,2) == "-e" then
+        table.insert(scripts, a:sub(3))
+    elseif a == "--help" then
+        print("Usage: " .. name .. " [OPTION]... SCRIPT [FILE...]")
+        print("       " .. name .. " [OPTION]... -e SCRIPT... [FILE...]")
+        print("Stream editor. Reads FILE(s) (or stdin) line by line,")
+        print("applies SCRIPT, and writes results to stdout.")
+        print("")
+        print("Commands:")
+        print("  s/REGEX/REPL/[flags]  substitute  (flags: g global, i ignore-case, p print)")
+        print("  d                     delete line (skip to next)")
+        print("  p                     print current line")
+        print("  q                     quit")
+        print("  =                     print current line number")
+        print("  y/src/dst/            transliterate characters")
+        print("")
+        print("Addressing (prefix any command):")
+        print("  N          line number N")
+        print("  $          last line")
+        print("  /REGEX/    lines matching regex")
+        print("  N,M        line range")
+        print("  N,/REGEX/  from line N until regex match")
+        print("")
+        print("Options:")
+        print("  -n          suppress default output")
+        print("  -e SCRIPT   add script expression")
+        print("  -i          edit file in-place")
+        print("  --help      display this help and exit")
+        return
+    elseif a:sub(1,1) == "-" then
+        print(name .. ": unknown option: " .. a)
+        syscall.exit(1); return
+    else
+        if #scripts == 0 then
+            table.insert(scripts, a)
+        else
+            table.insert(files, a)
+        end
+    end
+    i = i + 1
+end
+
+if #scripts == 0 then
+    print(name .. ": no script specified"); syscall.exit(1); return
+end
+
+local script = table.concat(scripts, "\n")
+
+local function patEscape(s)
+    return s:gsub("([%(%)%.%%%+%-%*%?%[%^%$])", "%%%1")
+end
+
+local function sedPatToLua(pat, icase)
+    pat = pat:gsub("\\%(", "("):gsub("\\%)", ")")
+    pat = pat:gsub("\\1", "%%1"):gsub("\\2", "%%2")
+    return pat
+end
+
+local function parseDelim(s, pos, delim)
+    local out = {}
+    while pos <= #s do
+        local c = s:sub(pos, pos)
+        if c == "\\" and pos < #s then
+            pos = pos + 1
+            local nc = s:sub(pos, pos)
+            if nc == delim then
+                table.insert(out, delim)
+            elseif nc == "n" then
+                table.insert(out, "\n")
+            else
+                table.insert(out, "\\" .. nc)
+            end
+        elseif c == delim then
+            return table.concat(out), pos + 1
+        else
+            table.insert(out, c)
+        end
+        pos = pos + 1
+    end
+    return table.concat(out), pos
+end
+
+local function parseAddr(s, pos)
+    local c = s:sub(pos, pos)
+    if c == "" then return nil, pos end
+    if c:match("%d") then
+        local numstr = s:match("^(%d+)", pos)
+        return { type="line", n=tonumber(numstr) }, pos + #numstr
+    elseif c == "$" then
+        return { type="last" }, pos + 1
+    elseif c == "/" then
+        local pat, npos = parseDelim(s, pos + 1, "/")
+        return { type="regex", pat=pat }, npos
+    end
+    return nil, pos
+end
+
+local function parseCommands(src)
+    local cmds = {}
+    local pos  = 1
+    local len  = #src
+
+    local function skip()
+        while pos <= len and (src:sub(pos,pos) == " " or src:sub(pos,pos) == "\t") do
+            pos = pos + 1
+        end
+    end
+
+    while pos <= len do
+        skip()
+        if pos > len then break end
+
+        local c = src:sub(pos, pos)
+        if c == "\n" or c == ";" then
+            pos = pos + 1
+            goto continue
+        end
+        if c == "#" then
+            while pos <= len and src:sub(pos,pos) ~= "\n" do pos = pos + 1 end
+            goto continue
+        end
+
+        local addr1, addr2
+        addr1, pos = parseAddr(src, pos)
+        skip()
+        if addr1 and pos <= len and src:sub(pos,pos) == "," then
+            pos = pos + 1
+            skip()
+            addr2, pos = parseAddr(src, pos)
+        end
+        skip()
+
+        if pos > len then break end
+        local cmd = src:sub(pos, pos)
+        pos = pos + 1
+
+        if cmd == "s" then
+            local delim = src:sub(pos, pos); pos = pos + 1
+            local pat,  p1 = parseDelim(src, pos, delim);    pos = p1
+            local repl, p2 = parseDelim(src, pos, delim);    pos = p2
+            local flags = ""
+            while pos <= len and src:sub(pos,pos):match("[giIp]") do
+                flags = flags .. src:sub(pos,pos); pos = pos + 1
+            end
+            table.insert(cmds, { addr1=addr1, addr2=addr2, cmd="s",
+                pat=pat, repl=repl, flags=flags })
+
+        elseif cmd == "y" then
+            local delim = src:sub(pos, pos); pos = pos + 1
+            local srcch, p1 = parseDelim(src, pos, delim); pos = p1
+            local dstch, p2 = parseDelim(src, pos, delim); pos = p2
+            table.insert(cmds, { addr1=addr1, addr2=addr2, cmd="y",
+                src=srcch, dst=dstch })
+
+        elseif cmd == "d" or cmd == "p" or cmd == "q" or cmd == "=" then
+            table.insert(cmds, { addr1=addr1, addr2=addr2, cmd=cmd })
+
+        elseif cmd == "{" then
+            local depth = 1
+            local start = pos
+            while pos <= len and depth > 0 do
+                local ch = src:sub(pos,pos)
+                if ch == "{" then depth = depth + 1
+                elseif ch == "}" then depth = depth - 1 end
+                pos = pos + 1
+            end
+            local inner = src:sub(start, pos - 2)
+            local innerCmds = parseCommands(inner)
+            for _, ic in ipairs(innerCmds) do
+                ic.addr1 = ic.addr1 or addr1
+                ic.addr2 = ic.addr2 or addr2
+            end
+            for _, ic in ipairs(innerCmds) do
+                table.insert(cmds, ic)
+            end
+
+        elseif cmd == "\n" or cmd == ";" then
+        else
+        end
+
+        ::continue::
+    end
+
+    return cmds
+end
+
+local cmds = parseCommands(script)
+
+local inRange = {}
+
+local function addrMatch(cmd, lineNum, line, isLast, ci)
+    local a1 = cmd.addr1
+    local a2 = cmd.addr2
+
+    if not a1 then return true end
+
+    local function matchOne(addr, ln, l)
+        if addr.type == "line"  then return ln == addr.n
+        elseif addr.type == "last"  then return isLast
+        elseif addr.type == "regex" then return l:find(sedPatToLua(addr.pat)) ~= nil
+        end
+        return false
+    end
+
+    if not a2 then
+        return matchOne(a1, lineNum, line)
+    end
+
+    if inRange[ci] then
+        local endMatch
+        if a2.type == "line"  then endMatch = (lineNum >= a2.n)
+        elseif a2.type == "last"  then endMatch = isLast
+        elseif a2.type == "regex" then endMatch = (line:find(sedPatToLua(a2.pat)) ~= nil)
+        end
+        if endMatch then inRange[ci] = false end
+        return true
+    else
+        if matchOne(a1, lineNum, line) then
+            if a2.type == "line" and a2.n <= lineNum then
+            else
+                inRange[ci] = true
+            end
+            return true
+        end
+        return false
+    end
+end
+
+local function doSubst(line, pat, repl, flags)
+    local global = flags:find("g") ~= nil
+    local icase  = flags:find("[iI]") ~= nil
+    local luaPat = sedPatToLua(pat, icase)
+
+    local function buildRepl(whole, ...)
+        local caps = { ... }
+        local out  = {}
+        local rp   = repl
+        local ri   = 1
+        while ri <= #rp do
+            local rc = rp:sub(ri, ri)
+            if rc == "&" then
+                table.insert(out, whole)
+            elseif rc == "\\" and ri < #rp then
+                ri = ri + 1
+                local nc = rp:sub(ri, ri)
+                if nc:match("%d") then
+                    local idx = tonumber(nc)
+                    table.insert(out, caps[idx] or "")
+                elseif nc == "n" then
+                    table.insert(out, "\n")
+                else
+                    table.insert(out, nc)
+                end
+            else
+                table.insert(out, rc)
+            end
+            ri = ri + 1
+        end
+        return table.concat(out)
+    end
+
+    local result
+    local changed = false
+    if global then
+        result = line:gsub(luaPat, buildRepl)
+        changed = (result ~= line)
+    else
+        local s, e, whole
+        local parts = { line:find(luaPat) }
+        if parts[1] then
+            s = parts[1]; e = parts[2]
+            local caps = {}
+            for ci = 3, #parts do caps[#caps+1] = parts[ci] end
+            local wmatch = line:sub(s, e)
+            local replStr = buildRepl(wmatch, table.unpack(caps))
+            result = line:sub(1, s-1) .. replStr .. line:sub(e+1)
+            changed = true
+        else
+            result = line
+        end
+    end
+    return result, changed
+end
+
+local function doTranslit(line, src, dst)
+    local out = {}
+    for ci = 1, #line do
+        local c = line:sub(ci, ci)
+        local idx = src:find(c, 1, true)
+        if idx and idx <= #dst then
+            table.insert(out, dst:sub(idx, idx))
+        else
+            table.insert(out, c)
+        end
+    end
+    return table.concat(out)
+end
+
+local function processLines(lines, outputLines)
+    local total = #lines
+    for lineNum, line in ipairs(lines) do
+        local isLast = (lineNum == total)
+        local deleted = false
+        local printed = false
+        local quit    = false
+
+        local bare = line:gsub("\n$", "")
+
+        for ci, cmd in ipairs(cmds) do
+            if addrMatch(cmd, lineNum, bare, isLast, ci) then
+                if cmd.cmd == "d" then
+                    deleted = true; break
+
+                elseif cmd.cmd == "p" then
+                    table.insert(outputLines, bare)
+
+                elseif cmd.cmd == "=" then
+                    table.insert(outputLines, tostring(lineNum))
+
+                elseif cmd.cmd == "q" then
+                    if not silent then table.insert(outputLines, bare) end
+                    quit = true; break
+
+                elseif cmd.cmd == "s" then
+                    local newLine, changed = doSubst(bare, cmd.pat, cmd.repl, cmd.flags)
+                    bare = newLine
+                    if changed and cmd.flags:find("p") then
+                        table.insert(outputLines, bare)
+                    end
+
+                elseif cmd.cmd == "y" then
+                    bare = doTranslit(bare, cmd.src, cmd.dst)
+                end
+            end
+        end
+
+        if quit then break end
+        if not deleted and not silent then
+            table.insert(outputLines, bare)
+        end
+    end
+end
+
+local function readLines(fd)
+    local lines = {}
+    local buf   = ""
+    while true do
+        local chunk = syscall.read(fd, 1024)
+        if not chunk or chunk == "" then break end
+        buf = buf .. chunk
+    end
+    for line in (buf .. "\n"):gmatch("([^\n]*)\n") do
+        table.insert(lines, line)
+    end
+    if buf ~= "" and buf:sub(-1) ~= "\n" and lines[#lines] == "" then
+        table.remove(lines)
+    end
+    return lines
+end
+
+local function runOnFile(path)
+    local fd
+    if path then
+        local ok, err = pcall(function() fd = syscall.open(path, "r") end)
+        if not ok then
+            print(name .. ": " .. path .. ": " .. tostring(err))
+            return false
+        end
+    else
+        fd = 0
+    end
+
+    local lines      = readLines(fd)
+    if path then syscall.close(fd) end
+
+    inRange = {}
+
+    local outputLines = {}
+    processLines(lines, outputLines)
+
+    if inplace and path then
+        local wfd = syscall.open(path, "w")
+        for _, ol in ipairs(outputLines) do
+            syscall.write(wfd, ol .. "\n")
+        end
+        syscall.close(wfd)
+    else
+        for _, ol in ipairs(outputLines) do
+            print(ol)
+        end
+    end
+    return true
+end
+
+if #files == 0 then
+    runOnFile(nil)
+else
+    for _, f in ipairs(files) do
+        local absf = f
+        if absf:sub(1,1) ~= "/" then absf = syscall.getcwd() .. "/" .. f end
+        runOnFile(absf)
+    end
+end

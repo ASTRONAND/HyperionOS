@@ -7,11 +7,9 @@ proxy.address = "tmpfs0000"
 proxy.isvirt = true
 proxy.isReadOnly = function() return false end
 
--- Space functions (just placeholders)
 proxy.spaceUsed = function() return 0 end
 proxy.spaceTotal = function() return 0 end
 
--- Writable operations
 proxy.makeDirectory = function(_, path)
     local steps = kernel.vfs.splitPath(path)
     local step = data
@@ -52,7 +50,6 @@ proxy.attributes = function(_, path)
     }
 end
 
--- Open files
 function proxy:open(path, mode)
     local steps = kernel.vfs.splitPath(path)
     local step = data
@@ -71,26 +68,32 @@ function proxy:open(path, mode)
         local content = step[filename]
         local pos = 1
         return {
-            read = function(amount)
+            read  = function(amount)
                 amount = amount or #content
                 local chunk = content:sub(pos, pos+amount-1)
                 pos = pos + #chunk
                 return chunk
-            end
+            end,
+            close = function() end,
         }
     elseif mode == "w" then
         step[filename] = ""
+        local buf = {}
         return {
             write = function(str)
-                step[filename] = str
-            end
+                buf[#buf + 1] = str
+            end,
+            close = function()
+                step[filename] = table.concat(buf)
+            end,
         }
     elseif mode == "a" then
         if type(step[filename]) ~= "string" then step[filename] = "" end
         return {
             write = function(str)
                 step[filename] = step[filename] .. str
-            end
+            end,
+            close = function() end,
         }
     else
         error("EACCES")
@@ -123,7 +126,8 @@ function proxy:list(path)
 end
 
 function proxy:fileExists(path)
-    return pcall(function() return self:type(path) end)
+    local t = self:type(path)
+    return t == "file" or t == "directory"
 end
 
 kernel.disks["tmpfs0000"] = proxy

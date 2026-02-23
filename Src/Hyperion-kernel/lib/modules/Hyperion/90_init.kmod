@@ -3,8 +3,13 @@ local kernel = ...
 kernel.log("Loading init system...")
 kernel.log("InitPath: " .. kernel.config.initPath)
 
+local initOk, initErr = pcall(kernel.vfs.access, kernel.config.initPath, "rx")
+if not initOk then
+    kernel.PANIC("Init binary not executable: " .. kernel.config.initPath .. " (" .. tostring(initErr) .. ")")
+end
+
 local handle = kernel.vfs.open(kernel.config.initPath, "r")
-local data = kernel.vfs.read(handle, 1024 * 1024 * 4)
+local data   = kernel.vfs.read(handle, 1024 * 1024 * 4)
 kernel.vfs.close(handle)
 
 local initFunc, err = load(data, "@sysinit", "t", kernel._U)
@@ -20,27 +25,27 @@ kernel.tasks["1"] = {
         end
     end),
 
-    name = "sysinit",
+    name   = "sysinit",
     status = "R",
-    pid = 1,
-    tgid = 1,
-    uid = 0,
-    fd = {},
+    pid    = 1,
+    tgid   = 1,
+    uid    = 0,
+    fd     = {},
     envars = {},
-    args = {},
-    exit = "",
-    sleep = 0,
-    ivs = 0,
-    vs = 0,
+    args   = {},
+    exit   = "",
+    sleep  = 0,
+    ivs    = 0,
+    vs     = 0,
     parent = kernel.kernelTask,
     siblings = kernel.kernelTask.children,
     children = {},
     syscallReturn = {},
-    cwd = "/",
+    cwd       = "/",
     timeSlice = 0,
-    lastTime = 0,
+    lastTime  = 0,
     totalTime = 0,
-    numRuns = 0
+    numRuns   = 0
 }
 
 kernel.log("created init task with PID 1")

@@ -3,7 +3,6 @@ syscall.open("/dev/tty/TTY1", "r") --stdin  (fd 0)
 syscall.open("/dev/tty/TTY1", "w") --stdout (fd 1)
 syscall.open("/dev/null", "w")    --stderr (fd 2)
 
-local fs = require("sys.fs")
 
 local MAX_ATTEMPTS = 3
 
@@ -12,7 +11,6 @@ local function readLine(mask)
     while true do
         local ch = syscall.read(0)
         if not ch or ch == "" then
-            -- buffer empty, spin
         elseif ch == "\n" then
             syscall.write(1, "\n")
             return input
@@ -29,7 +27,12 @@ local function readLine(mask)
 end
 
 local function firstBoot()
-    local shadow = fs.readAllText("/etc/shadow") or ""
+    local shadow = ""
+    local _fd, _fderr = pcall(function()
+        local fd = syscall.open("/etc/shadow", "r")
+        shadow = syscall.read(fd, 65535) or ""
+        syscall.close(fd)
+    end)
     if shadow:match("%S") then return end
 
     syscall.devctl(1, "clear")
@@ -71,35 +74,36 @@ local function firstBoot()
 end
 
 local function spawnShell(username, uid, shell, homedir)
-    local shellText = fs.readAllText(shell)
-    if not shellText then
+    local existsOk, existsErr = pcall(syscall.exists, shell)
+    if not existsOk or not existsErr then
         syscall.write(1, "login: shell not found: " .. shell .. "\n")
         sleep(2)
         return false
     end
 
-    local errFifo = {}
+    local accessOk, accessErr = pcall(syscall.access, shell, "rx")
 
-    local proc = syscall.spawn(function()
-        syscall.setuid(uid)
-        syscall.chdir(homedir)
-        syscall.setEnviron("HOME", homedir)
-        syscall.setEnviron("USER", username)
-        syscall.setEnviron("SHELL", shell)
-        syscall.setEnviron("PATH", "/bin/")
+    syscall.setEnviron("HOME",  homedir)
+    syscall.setEnviron("USER",  username)
+    syscall.setEnviron("SHELL", shell)
+    syscall.setEnviron("PATH",  "/bin/")
 
-        local shellFn, loadErr = load(shellText, "@" .. shell)
-        if not shellFn then
-            syscall.log("login: shell load error: " .. tostring(loadErr), "ERROR")
-            syscall.exit(-1)
-            return
-        end
+    local setuidOk, setuidErr = pcall(syscall.setuid, uid)
+    if not setuidOk then
+        syscall.write(1, "login: setuid failed: " .. tostring(setuidErr) .. "\n")
+        sleep(2)
+        return false
+    end
 
-        local ok, runErr = xpcall(shellFn, debug.traceback)
-        if not ok then
-            syscall.log("login: shell runtime error: " .. tostring(runErr), "ERROR")
-        end
-    end, username .. ":shell")
+    local chdirOk, chdirErr = pcall(syscall.chdir, homedir)
+
+    local ok, err = pcall(syscall.execspawn, shell, username .. ":shell")
+    if not ok then
+        syscall.write(1, "login: failed to launch shell: " .. tostring(err) .. "\n")
+        sleep(2)
+        return false
+    end
+
     syscall.exit(0)
 end
 
@@ -126,9 +130,10 @@ local function doLogin()
 
         local ok, err = syscall.login(username, password)
         if ok then
-            local uid     = syscall.getuid(username)
-            local pwent   = uid and syscall.getpasswd(uid)
-            local shell   = (pwent and pwent.shell) or "/bin/hysh"
+            local uid     = syscall.getuid()
+            local pwent   = syscall.getpasswd(uid)
+
+            local shell   = (pwent and pwent.shell)   or "/bin/hysh"
             local homedir = (pwent and pwent.homedir) or "/"
 
             syscall.devctl(1, "sfgc", 3)
