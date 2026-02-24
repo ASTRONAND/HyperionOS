@@ -1,5 +1,2 @@
-local args = {...}
-local kernel = args[1]
-
-local origLoad = load
---kernel._U.load = function(a,b,c,d) return origLoad(a,b,c,d or kernel._U) end
+local kernel = ...
+kernel.allowGlobalOverwrites = false

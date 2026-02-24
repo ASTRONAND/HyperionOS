@@ -60,21 +60,18 @@ local function parseMetafile(raw)
         local etype, owner, group, perms, cmeta
 
         if version == 0x02 then
-            -- v2: etype(1) + owner(2) + group(2) + perms(2) = 7 bytes
             if p + 6 > #raw then break end
             etype  = raw:byte(p);                              p = p + 1
             owner  = raw:byte(p) + raw:byte(p+1) * 256;       p = p + 2
             group  = raw:byte(p) + raw:byte(p+1) * 256;       p = p + 2
             perms  = raw:byte(p) + raw:byte(p+1) * 256;       p = p + 2
         elseif version == 0x01 then
-            -- v1: etype(1) + owner(1) + group(1) + perms(2) = 5 bytes
             if p + 4 > #raw then break end
             etype  = raw:byte(p);     p = p + 1
             owner  = raw:byte(p);     p = p + 1
             group  = raw:byte(p);     p = p + 1
             perms  = raw:byte(p) + raw:byte(p+1) * 256; p = p + 2
         else
-            -- v0: owner(1) + group(1) + perms(1) = 3 bytes
             if p + 2 > #raw then break end
             etype = 0x00
             owner = raw:byte(p); p = p + 1
@@ -114,6 +111,22 @@ local function makeMetafile(meta)
     return out
 end
 
+local function validateComponent(part)
+    if part == "" then
+        error("EINVAL: empty path component", 2)
+    end
+    if part:sub(1, 2) == ".." then
+        error("EINVAL: illegal path component '" .. part .. "'", 2)
+    end
+    if part:find("\0", 1, true) then
+        error("EINVAL: null byte in path component", 2)
+    end
+    if part:find("/", 1, true) then
+        error("EINVAL: slash in path component", 2)
+    end
+    return true
+end
+
 local function normalizePath(path)
     local task = kernel.currentTask
     local cwd  = task.cwd or "/"
@@ -122,7 +135,9 @@ local function normalizePath(path)
     for part in path:gmatch("[^/]+") do
         if part == ".." then
             if #parts > 0 then table.remove(parts) end
-        elseif part ~= "." and part ~= "" then
+        elseif part == "." or part == "" then
+        else
+            validateComponent(part)
             table.insert(parts, part)
         end
     end
@@ -164,7 +179,6 @@ local function resolveMount(normalPath)
     return vfs.disks[mountId], diskPath
 end
 
--- Expose parser for use by other modules (e.g. permissions seeder)
 vfs._parseMetafile = parseMetafile
 
 local function readMetaEntry(disk, parentDiskPath, filename)
@@ -181,7 +195,6 @@ local function readMetaEntry(disk, parentDiskPath, filename)
     local raw = f.read(65535)
     if f.close then f.close() end
 
-    -- Auto-upgrade: if this .meta file is not v2, rewrite it as v2 now
     if raw and #raw > 0 and raw:byte(1) ~= META_VERSION then
         local upgraded = makeMetafile(parseMetafile(raw))
         local wok, wf = pcall(function() return disk:open(mp, "w") end)
@@ -440,7 +453,6 @@ function vfs.open(path, mode)
         if type(handle) ~= "table" then error("ENFILE") end
     end
 
-    -- If this is a newly created file, stamp it with the creating user's ownership
     if isNew then
         local euid = (task and (task.euid or task.uid)) or kernel.uid
         local egid = (task and task.gid) or 0
@@ -629,7 +641,6 @@ function vfs.mkdir(path)
     checkperms(parentMeta, "w")
     local disk, diskPath = resolvePath(path)
     disk:makeDirectory(diskPath)
-    -- Stamp the new directory with the creating user's ownership
     local task = kernel.currentTask
     local euid = (task and (task.euid or task.uid)) or kernel.uid
     local egid = (task and task.gid) or 0
