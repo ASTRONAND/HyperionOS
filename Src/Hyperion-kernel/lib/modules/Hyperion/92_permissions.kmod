@@ -51,12 +51,106 @@ end
 
 local REG = 0x00
 
-if rootDisk:fileExists(".meta") then
-    kernel.log("Permissions already seeded, skipping.", "INFO")
-else
+-- All known /bin entries with their permissions
+local BIN_ENTRIES = {
+    {"cat",      REG, 0, 0, RWX_RX_RX},
+    {"chattr",   REG, 0, 0, RWX_RX_RX},
+    {"chgrp",    REG, 0, 0, RWX_RX_RX},
+    {"chmod",    REG, 0, 0, RWX_RX_RX},
+    {"chown",    REG, 0, 0, RWX_RX_RX},
+    {"chroot",   REG, 0, 0, RWX_RX_RX},
+    {"clear",    REG, 0, 0, RWX_RX_RX},
+    {"echo",     REG, 0, 0, RWX_RX_RX},
+    {"hfetch",   REG, 0, 0, RWX_RX_RX},
+    {"help",     REG, 0, 0, RWX_RX_RX},
+    {"hysh",     REG, 0, 0, RWX_RX_RX},
+    {"hyshex",   REG, 0, 0, RWX_RX_RX},
+    {"id",       REG, 0, 0, RWX_RX_RX},
+    {"install",  REG, 0, 0, RWX_RX_RX},
+    {"ln",       REG, 0, 0, RWX_RX_RX},
+    {"login",    REG, 0, 0, SUID_755 },
+    {"loimgcreate", REG, 0, 0, RWX_RX_RX},
+    {"looptest", REG, 0, 0, RWX_RX_RX},
+    {"losetup",  REG, 0, 0, RWX_RX_RX},
+    {"ls",       REG, 0, 0, RWX_RX_RX},
+    {"lsusers",  REG, 0, 0, RWX_RX_RX},
+    {"lua",      REG, 0, 0, RWX_RX_RX},
+    {"luaold",   REG, 0, 0, RWX_RX_RX},
+    {"micro",    REG, 0, 0, RWX_RX_RX},
+    {"mkdir",    REG, 0, 0, RWX_RX_RX},
+    {"mount",    REG, 0, 0, RWX_RX_RX},
+    {"passwd",   REG, 0, 0, RWX_RX_RX},
+    {"ps",       REG, 0, 0, RWX_RX_RX},
+    {"pwd",      REG, 0, 0, RWX_RX_RX},
+    {"readlink", REG, 0, 0, RWX_RX_RX},
+    {"sed",      REG, 0, 0, RWX_RX_RX},
+    {"socktest", REG, 0, 0, RWX_RX_RX},
+    {"spm",      REG, 0, 0, RWX_RX_RX},
+    {"su",       REG, 0, 0, SUID_755 },
+    {"sudo",     REG, 0, 0, SUID_755 },
+    {"sysdump",  REG, 0, 0, RWX_RX_RX},
+    {"umount",   REG, 0, 0, RWX_RX_RX},
+    {"useradd",  REG, 0, 0, RWX_RX_RX},
+    {"userdel",  REG, 0, 0, RWX_RX_RX},
+    {"usermod",  REG, 0, 0, RWX_RX_RX},
+    {"whoami",   REG, 0, 0, RWX_RX_RX},
+    {"yes",      REG, 0, 0, RWX_RX_RX},
+    {"startup",  REG, 0, 0, RWX_RX_RX},
+}
+
+-- Merge entries: always ensure all known entries exist with correct permissions.
+-- This handles both fresh installs and upgrades (adds missing entries, upgrades
+-- the on-disk format to v2 by rewriting).
+local function mergeMeta(dir, entries)
+    local diskDir = dir
+    if diskDir:sub(1,1) == "/" then diskDir = diskDir:sub(2) end
+    local metaPath = (diskDir == "" and ".meta" or diskDir .. "/.meta")
+
+    -- Read existing meta (may be v1 or v2)
+    local existing = {}
+    local rok, rf = pcall(function() return rootDisk:open(metaPath, "r") end)
+    if rok and rf then
+        local raw = rf.read(65535)
+        if rf.close then rf.close() end
+        -- Parse using the VFS parser (handles v0/v1/v2)
+        existing = kernel.vfs and kernel.vfs._parseMetafile and kernel.vfs._parseMetafile(raw) or {}
+    end
+
+    -- Add any missing entries (don't overwrite existing customised perms)
+    for _, e in ipairs(entries) do
+        if not existing[e[1]] then
+            existing[e[1]] = {
+                etype = e[2] or 0x00,
+                owner = e[3] or 0,
+                group = e[4] or 0,
+                perms = e[5] or RWX_RX_RX,
+                cmeta = e[6] or "",
+            }
+        end
+    end
+
+    -- Write back as v2
+    local data = string.char(META_VERSION)
+    for name, m in pairs(existing) do
+        data = data .. makeEntry(name, m.etype or 0x00, m.owner or 0, m.group or 0, m.perms or RWX_RX_RX, m.cmeta or "")
+    end
+
+    local ok, err = pcall(function()
+        local f = rootDisk:open(metaPath, "w")
+        f.write(data)
+        f.close()
+    end)
+    if not ok then
+        kernel.log("permissions: failed to write " .. metaPath .. ": " .. tostring(err), "WARN", 8)
+    end
+end
+
+local freshInstall = not rootDisk:fileExists(".meta")
+
+if freshInstall then
     kernel.log("Seeding filesystem permissions...", "INFO")
 
-    -- /
+    -- / (only on fresh install — these dirs are stable)
     writeMeta("/", {
         {"bin",  REG, 0, 0, RWX_RX_RX},
         {"boot", REG, 0, 0, RWX_RX_RX},
@@ -71,38 +165,10 @@ else
         {"var",  REG, 0, 0, RWX_RX_RX},
     })
 
-    -- /bin
-    writeMeta("/bin", {
-        {"cat",     REG, 0, 0, RWX_RX_RX},
-        {"clear",   REG, 0, 0, RWX_RX_RX},
-        {"echo",    REG, 0, 0, RWX_RX_RX},
-        {"hfetch",  REG, 0, 0, RWX_RX_RX},
-        {"hysh",    REG, 0, 0, RWX_RX_RX},
-        {"hyshex",  REG, 0, 0, RWX_RX_RX},
-        {"install", REG, 0, 0, RWX_RX_RX},
-        {"login",   REG, 0, 0, SUID_755 },
-        {"ls",      REG, 0, 0, RWX_RX_RX},
-        {"lua",     REG, 0, 0, RWX_RX_RX},
-        {"luaold",  REG, 0, 0, RWX_RX_RX},
-        {"mkdir",   REG, 0, 0, RWX_RX_RX},
-        {"ps",      REG, 0, 0, RWX_RX_RX},
-        {"pwd",     REG, 0, 0, RWX_RX_RX},
-        {"spm",     REG, 0, 0, RWX_RX_RX},
-        {"su",      REG, 0, 0, SUID_755 },
-        {"sudo",    REG, 0, 0, SUID_755 },
-        {"sysdump", REG, 0, 0, RWX_RX_RX},
-        {"whoami",  REG, 0, 0, RWX_RX_RX},
-        {"yes",     REG, 0, 0, RWX_RX_RX},
-        {"startup",  REG, 0, 0, RWX_RX_RX},
-        {"ln",       REG, 0, 0, RWX_RX_RX},
-        {"readlink", REG, 0, 0, RWX_RX_RX},
-    })
-
     writeMeta("/bin/startup", {
         {"test.lua", REG, 0, 0, RWX_RX_RX},
     })
 
-    -- /etc
     writeMeta("/etc", {
         {"passwd", REG, 0, 0, RW_R_R},
         {"shadow", REG, 0, 0, RW____},
@@ -113,12 +179,10 @@ else
         {"secret", REG, 0, 0, RW____},
     })
 
-    -- /sbin
     writeMeta("/sbin", {
         {"init.lua", REG, 0, 0, RWX_RX_RX},
     })
 
-    -- /boot
     writeMeta("/boot", {
         {"kernel.lua",   REG, 0, 0, RW_R_R   },
         {"boot.cfg",     REG, 0, 0, RW_R_R   },
@@ -129,7 +193,6 @@ else
         {"oc",           REG, 0, 0, RWX_RX_RX},
     })
 
-    -- /lib
     writeMeta("/lib", {
         {"sys",     REG, 0, 0, RWX_RX_RX},
         {"modules", REG, 0, 0, RWX_RX_RX},
@@ -141,6 +204,11 @@ else
     })
 
     kernel.log("Filesystem permissions seeded.", "INFO")
+else
+    kernel.log("Permissions already seeded, merging /bin updates...", "INFO")
 end
+
+-- Always merge /bin — adds missing entries and upgrades format to v2
+mergeMeta("/bin", BIN_ENTRIES)
 
 kernel.log("Permission module loaded.", "INFO")

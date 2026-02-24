@@ -220,7 +220,13 @@ local function chmodPath(path)
 
     local ok, cerr = pcall(syscall.chmod, path, newPerms)
     if not ok then
-        print(name .. ": cannot change permissions of '" .. path .. "': " .. tostring(cerr))
+        local msg = tostring(cerr)
+        if msg:find("EACCES") or msg:find("EPERM") then
+            msg = "permission denied"
+        elseif msg:find("ENOENT") then
+            msg = "no such file or directory"
+        end
+        print(name .. ": cannot change permissions of '" .. path .. "': " .. msg)
         return false
     end
     return true

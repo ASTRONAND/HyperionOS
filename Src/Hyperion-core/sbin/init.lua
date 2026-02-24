@@ -14,6 +14,9 @@ for i,v in pairs(kernel.processes) do
     end, i)
 end
 
+if not fs.exists("/bin/startup") then
+    fs.mkdir("/bin/startup")
+end
 local files = fs.list("/bin/startup")
 if not files then error("Failed to list /bin/startup") end
 for i,v in ipairs(files) do

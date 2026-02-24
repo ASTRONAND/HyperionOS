@@ -96,6 +96,9 @@ local function spawnShell(username, uid, shell, homedir)
     end
 
     local chdirOk, chdirErr = pcall(syscall.chdir, homedir)
+    if not chdirOk then
+        pcall(syscall.chdir, "/")
+    end
 
     local ok, err = pcall(syscall.execspawn, shell, username .. ":shell")
     if not ok then

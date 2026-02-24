@@ -17,7 +17,13 @@ local commandHistory = {}
 local terminate = false
 syscall.setEnviron("SHELL","rtbash")
 syscall.setEnviron("PATH","/bin/")
-syscall.chdir("/")
+local _home = syscall.getEnviron("HOME")
+if _home and _home ~= "" then
+    local ok = pcall(syscall.chdir, _home)
+    if not ok then syscall.chdir("/") end
+else
+    syscall.chdir("/")
+end
 local oldWD = ""
 
 for i = 1, 16 do

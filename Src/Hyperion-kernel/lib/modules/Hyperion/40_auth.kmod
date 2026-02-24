@@ -394,6 +394,8 @@ function auth.newUser(username, password, gid, homedir, shell)
 
     if kernel.vfs.mkdir and not kernel.vfs.exists(homedir) then
         kernel.vfs.mkdir(homedir)
+        -- Homedir must be owned by the new user, not root
+        pcall(kernel.vfs.chown, homedir, uid, uid)
     end
 
     kernel.log("AUTH: new user '" .. username .. "' uid=" .. tostring(uid))

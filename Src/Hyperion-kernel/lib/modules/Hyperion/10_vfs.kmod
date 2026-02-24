@@ -164,6 +164,9 @@ local function resolveMount(normalPath)
     return vfs.disks[mountId], diskPath
 end
 
+-- Expose parser for use by other modules (e.g. permissions seeder)
+vfs._parseMetafile = parseMetafile
+
 local function readMetaEntry(disk, parentDiskPath, filename)
     if filename == ".meta" then error("Cannot open metafile") end
     local mp
@@ -177,6 +180,15 @@ local function readMetaEntry(disk, parentDiskPath, filename)
     if not ok or not f then return nil end
     local raw = f.read(65535)
     if f.close then f.close() end
+
+    -- Auto-upgrade: if this .meta file is not v2, rewrite it as v2 now
+    if raw and #raw > 0 and raw:byte(1) ~= META_VERSION then
+        local upgraded = makeMetafile(parseMetafile(raw))
+        local wok, wf = pcall(function() return disk:open(mp, "w") end)
+        if wok and wf then wf.write(upgraded); if wf.close then wf.close() end end
+        raw = upgraded
+    end
+
     local parsed = parseMetafile(raw)
     return parsed[filename]
 end
@@ -418,12 +430,30 @@ function vfs.open(path, mode)
     if not disk then error("NODISK") end
 
     local meta = getFileMeta(path)
+    local isNew = (mode == "w" or mode == "a") and not disk:fileExists(diskPath)
+
     checkperms(meta, mode == "r" and "r" or "w")
 
     local handle
     if disk:type(diskPath) ~= "directory" then
         handle = disk:open(diskPath, mode)
         if type(handle) ~= "table" then error("ENFILE") end
+    end
+
+    -- If this is a newly created file, stamp it with the creating user's ownership
+    if isNew then
+        local euid = (task and (task.euid or task.uid)) or kernel.uid
+        local egid = (task and task.gid) or 0
+        local norm   = normalizePath(path)
+        local parent = norm:match("^(.*)/[^/]+$") or "/"
+        if parent == "" then parent = "/" end
+        local name   = norm:match("[^/]+$")
+        if name then
+            local entry = { etype=0x00, owner=euid, group=egid,
+                            perms=vfs.PERM.RW_R_R, cmeta="" }
+            pcall(writeMetaEntry, parent, name, entry, false)
+            meta = entry
+        end
     end
 
     local fobj = newFileObj(handle, mode, path, meta, disk:type(diskPath))
@@ -592,15 +622,33 @@ function vfs.listdir(path)
 end
 
 function vfs.mkdir(path)
+    local norm   = normalizePath(path)
+    local parent = norm:match("^(.*)/[^/]+$") or "/"
+    if parent == "" then parent = "/" end
+    local parentMeta = getFileMeta(parent)
+    checkperms(parentMeta, "w")
     local disk, diskPath = resolvePath(path)
-    local meta = getFileMeta(path)
-    checkperms(meta, "w")
     disk:makeDirectory(diskPath)
+    -- Stamp the new directory with the creating user's ownership
+    local task = kernel.currentTask
+    local euid = (task and (task.euid or task.uid)) or kernel.uid
+    local egid = (task and task.gid) or 0
+    local name = norm:match("[^/]+$")
+    if name then
+        local entry = { etype=0x00, owner=euid, group=egid,
+                        perms=vfs.PERM.RWX_RX, cmeta="" }
+        pcall(writeMetaEntry, parent, name, entry, false)
+    end
 end
 
 function vfs.remove(path)
+    local norm   = resolveSymlinks(path, true)
+    local parent = norm:match("^(.*)/[^/]+$") or "/"
+    if parent == "" then parent = "/" end
+    local parentMeta = getFileMeta(parent)
+    checkperms(parentMeta, "w")
+
     local meta = getFileMeta(path, true)
-    checkperms(meta, "w")
 
     if kernel.unixSockets and kernel.unixSockets[path] then
         kernel.unixSockets[path] = nil

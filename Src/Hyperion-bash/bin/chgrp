@@ -64,12 +64,18 @@ local newGid = resolveGid(groupStr)
 local function chgrpPath(path)
     local stat = syscall.stat(path)
     if not stat then
-        print(name .. ": cannot stat '" .. path .. "': No such file or directory")
+        print(name .. ": cannot stat '" .. path .. "': no such file or directory")
         return false
     end
     local ok, err = pcall(syscall.chown, path, stat.owner, newGid)
     if not ok then
-        print(name .. ": cannot change group of '" .. path .. "': " .. tostring(err))
+        local msg = tostring(err)
+        if msg:find("EPERM") or msg:find("EACCES") then
+            msg = "operation not permitted (must be root)"
+        elseif msg:find("ENOENT") then
+            msg = "no such file or directory"
+        end
+        print(name .. ": cannot change group of '" .. path .. "': " .. msg)
         return false
     end
     return true
