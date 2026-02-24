@@ -33,7 +33,6 @@ local host_str = syscall.getHost() or "Unknown"
 local cc_ver   = host_str:match("ComputerCraft ([%d%.]+)") or host_str
 
 local info = {
-    -- {label, value}  label=nil means print value as-is (userhost / separator)
     {nil,        userhost},
     {nil,        string.rep("-", #userhost)},
     {"OS",       syscall.version() or "Unknown"},
@@ -42,7 +41,7 @@ local info = {
     {"Uptime",   formatUptime(syscall.getUptime() or 0)},
     {"Tasks",    tostring(#(syscall.getTasks() or {}))},
     {"Shell",    syscall.getEnviron("SHELL") or "Unknown"},
-    {"Terminal", "TTY1"},
+    {"Terminal", "tty1"},
     {"UID",      tostring(syscall.getuid())},
     {"Packages", "n/a (spm)"},
 }
@@ -71,15 +70,12 @@ local lines = math.max(#logo, #info)
 for i = 1, lines do
     local logo_str = logo[i] or string.rep(" ", 36)
 
-    -- print logo segment in cyan
     c(C_LOGO)
     printInline(logo_str)
 
-    -- print separator pipe
     c(C_LABEL)
     printInline("| ")
 
-    -- print info segment
     local row = info[i]
     if row then
         if row[1] == nil and i == 1 then

@@ -203,7 +203,7 @@ def _make_firstboot_kmod(users):
 
     lines.append("do")
     lines.append("  local ok, err = pcall(function()")
-    lines.append("    kernel.vfs.remove('/lib/modules/Hyperion/50_firstboot_users.kmod')")
+    lines.append("    kernel.vfs.remove('/lib/modules/hyperion/50_firstboot_users.kmod')")
     lines.append("  end)")
     lines.append("  if not ok then")
     lines.append("    kernel.log('FIRSTBOOT: could not self-delete: ' .. tostring(err), 'WARN')")
@@ -215,7 +215,7 @@ def _make_firstboot_kmod(users):
 
 def inject_makeusers(users, arch):
     base = BUILD_ROOT / "$" if arch else BUILD_ROOT
-    kmod_path = base / "lib" / "modules" / "Hyperion" / "50_firstboot_users.kmod"
+    kmod_path = base / "lib" / "modules" / "hyperion" / "50_firstboot_users.kmod"
     kmod_path.parent.mkdir(parents=True, exist_ok=True)
     kmod_path.write_text(_make_firstboot_kmod(users), encoding="utf-8")
     print("  Wrote first-boot user setup -> " + str(kmod_path.relative_to(BUILD_ROOT)))

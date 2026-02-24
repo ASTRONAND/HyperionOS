@@ -1,6 +1,6 @@
 --:Minify:--
-syscall.open("/dev/tty/TTY1", "r") --stdin  (fd 0)
-syscall.open("/dev/tty/TTY1", "w") --stdout (fd 1)
+syscall.open("/dev/tty/tty1", "r") --stdin  (fd 0)
+syscall.open("/dev/tty/tty1", "w") --stdout (fd 1)
 syscall.open("/dev/null", "w")    --stderr (fd 2)
 
 

@@ -193,10 +193,10 @@ mergeMeta("/lib/sys", {
 })
 
 mergeMeta("/lib/modules", {
-    {"Hyperion", REG, 0, 0, RWX_RX_RX},
+    {"hyperion", REG, 0, 0, RWX_RX_RX},
 })
 
-mergeMeta("/lib/modules/Hyperion", {
+mergeMeta("/lib/modules/hyperion", {
     {"01_stdlib.kmod",      REG, 0, 0, RW_R_R},
     {"10_vfs.kmod",         REG, 0, 0, RW_R_R},
     {"11_require.kmod",     REG, 0, 0, RW_R_R},

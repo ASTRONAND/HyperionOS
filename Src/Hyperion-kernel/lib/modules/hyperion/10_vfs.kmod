@@ -141,6 +141,7 @@ local function normalizePath(path)
                 table.remove(stack)
             end
         else
+            comp = comp:lower()
             if not comp:match(SAFE_COMPONENT_PATTERN) then
                 error("EINVAL: illegal characters in path component: " .. comp, 2)
             end
