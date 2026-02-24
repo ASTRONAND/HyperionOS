@@ -3,6 +3,7 @@ local args = {...}
 local kernel = args[1]
 kernel._G = _G
 
+
 local function readonly(tbl)
     return setmetatable({}, {
         __index = function(_, key)
@@ -49,8 +50,10 @@ local function readonly(tbl)
         __metatable = false
     })
 end
+local origLoad = load
 
 kernel._U = readonly(kernel._G)
 kernel.allowGlobalOverwrites = true
 kernel._U._G = kernel._U
+kernel._U.load = function(a,b,c,d) return origLoad(a,b,c,d or kernel._U) end
 kernel.allowGlobalOverwrites = false

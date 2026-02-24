@@ -13,15 +13,19 @@ local RW____    = P.OWNER_R + P.OWNER_W
 local RWXRWXRWX = PERM.RWXRWXRWX
 local SUID_755  = PERM.SUID_755
 
-local META_VERSION = 0x01
+local META_VERSION = 0x02
 local rootDisk = kernel.disks["$"]
 
 local function makeEntry(name, etype, owner, group, perms, cmeta)
     cmeta = cmeta or ""
     local plo = perms % 256
     local phi = math.floor(perms / 256) % 256
+    local olo = (owner or 0) % 256
+    local ohi = math.floor((owner or 0) / 256) % 256
+    local glo = (group or 0) % 256
+    local ghi = math.floor((group or 0) / 256) % 256
     return string.char(#name) .. name
-         .. string.char(etype, owner, group, plo, phi)
+         .. string.char(etype, olo, ohi, glo, ghi, plo, phi)
          .. string.char(#cmeta) .. cmeta
 end
 

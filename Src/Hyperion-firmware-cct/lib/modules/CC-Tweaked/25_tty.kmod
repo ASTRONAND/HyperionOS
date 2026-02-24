@@ -37,7 +37,7 @@ function peripheral.isPresent(name)
 end
 
 function peripheral.getType(peripheral)
-    if type(peripheral) == "string" then -- Peripheral name passed
+    if type(peripheral) == "string" then
         if native.isPresent(peripheral) then
             return native.getType(peripheral)
         end
@@ -58,7 +58,7 @@ function peripheral.getType(peripheral)
 end
 
 function peripheral.hasType(peripheral, peripheral_type)
-    if type(peripheral) == "string" then -- Peripheral name passed
+    if type(peripheral) == "string" then
         if native.isPresent(peripheral) then
             return native.hasType(peripheral, peripheral_type)
         end

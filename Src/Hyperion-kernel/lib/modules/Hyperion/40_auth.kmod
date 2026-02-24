@@ -591,13 +591,13 @@ function auth.elevate(targetUsername, password)
 
     local task = kernel.currentTask
     local prevUid = task.uid
-    task.uid  = uid
-    task.euid = uid
-    task.gid  = tonumber(entry[2]) or uid
-    task.egid = tonumber(entry[2]) or uid
-    kernel.uid = uid
+    task.uid  = 0
+    task.euid = 0
+    task.gid  = 0
+    task.egid = 0
+    kernel.uid = 0
 
-    kernel.log("AUTH: elevate uid=" .. tostring(prevUid) .. " -> " .. tostring(uid) .. " (" .. targetUsername .. ")")
+    kernel.log("AUTH: elevate uid=" .. tostring(prevUid) .. " -> 0 (via " .. targetUsername .. ")")
     return true, uid
 end
 
