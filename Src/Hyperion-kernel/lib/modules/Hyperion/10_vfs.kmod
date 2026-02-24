@@ -111,43 +111,52 @@ local function makeMetafile(meta)
     return out
 end
 
-local function validateComponent(part)
-    if part == "" then
-        error("EINVAL: empty path component", 2)
-    end
-    if part:sub(1, 2) == ".." then
-        error("EINVAL: illegal path component '" .. part .. "'", 2)
-    end
-    if part:find("\0", 1, true) then
-        error("EINVAL: null byte in path component", 2)
-    end
-    if part:find("/", 1, true) then
-        error("EINVAL: slash in path component", 2)
-    end
-    return true
-end
+local SAFE_COMPONENT_PATTERN = "^[A-Za-z0-9_.+%-%@ %(%)%[%] ]+$"
 
 local function normalizePath(path)
     local task = kernel.currentTask
     local cwd  = task.cwd or "/"
-    if path:sub(1,1) ~= "/" then path = cwd .. "/" .. path end
-    local parts = {}
-    for part in path:gmatch("[^/]+") do
-        if part == ".." then
-            if #parts > 0 then table.remove(parts) end
-        elseif part == "." or part == "" then
+
+    if path:sub(1, 1) ~= "/" then
+        path = cwd .. "/" .. path
+    end
+
+    local stack = {}
+    local i = 1
+    local len = #path
+    while i <= len do
+        local j = path:find("/", i, true)
+        local comp
+        if j then
+            comp = path:sub(i, j - 1)
+            i = j + 1
         else
-            validateComponent(part)
-            table.insert(parts, part)
+            comp = path:sub(i)
+            i = len + 1
+        end
+
+        if comp == "" or comp == "." then
+        elseif comp == ".." then
+            if #stack > 0 then
+                table.remove(stack)
+            end
+        else
+            if not comp:match(SAFE_COMPONENT_PATTERN) then
+                error("EINVAL: illegal characters in path component: " .. comp, 2)
+            end
+            table.insert(stack, comp)
         end
     end
-    local result = "/" .. table.concat(parts, "/")
+
+    local result = "/" .. table.concat(stack, "/")
+
     local root = task and task.root
     if root and root ~= "/" then
         if result ~= root and result:sub(1, #root + 1) ~= root .. "/" then
             result = root
         end
     end
+
     return result
 end
 
