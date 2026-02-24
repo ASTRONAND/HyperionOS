@@ -21,7 +21,7 @@ local function readonly(tbl)
             error("Attempt to modify global variable '" .. k .. "'", 2)
         end,
 
-        __pairs = function()
+        __pairs = function(self)
             local function iter(_, key)
                 local nextKey, value = next(tbl, key)
                 if type(value) == "table" then
@@ -29,7 +29,7 @@ local function readonly(tbl)
                 end
                 return nextKey, value
             end
-            return iter, tbl, nil
+            return iter, self, nil
         end,
 
         __ipairs = function()
@@ -54,4 +54,4 @@ local origLoad = load
 
 kernel._U = readonly(kernel._G)
 kernel._U._G = kernel._U
-kernel._U.load = function(a, b, c, d) return origLoad(a, b, c, d or kernel._U) end
+kernel._U.load = function(a,b,c,d) return origLoad(a,b,c,d or kernel._U) end

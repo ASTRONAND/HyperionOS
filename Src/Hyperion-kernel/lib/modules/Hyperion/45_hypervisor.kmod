@@ -5,6 +5,8 @@ local sys    = {}
 local nextpid = 2
 kernel.exitMain = false
 
+local resumeWithTimeout = coroutine.resumeWithTimeout
+
 local function bit_is_set(num, bit)
     return math.floor(num / (2 ^ bit)) % 2 == 1
 end
@@ -206,10 +208,14 @@ function sys.kill(pid)
         return false, "Task does not exist"
     elseif task.status == "Z" then
         return false, "Task is already dead"
-    else
-        task.status = "Z"
-        return true
     end
+    local caller = kernel.currentTask
+    local ceuid  = caller and (caller.euid or caller.uid) or kernel.uid
+    if ceuid ~= 0 and task.uid ~= (caller and caller.uid or kernel.uid) then
+        return false, "EPERM"
+    end
+    task.status = "Z"
+    return true
 end
 
 function sys.stop(pid)
@@ -352,7 +358,7 @@ function kernel.main()
                 if task.sigq and #task.sigq ~= 0 and task.sigh then
                     local coro = coroutine.create(task.sigh)
                     if kernel.config.preempt then
-                        coroutine.resumeWithTimeout(coro, task.timeSlice, table.remove(task.sigq, 1))
+                        resumeWithTimeout(coro, task.timeSlice, table.remove(task.sigq, 1))
                     else
                         coroutine.resume(coro, table.remove(task.sigq, 1))
                     end
@@ -363,7 +369,7 @@ function kernel.main()
                     local ret
 
                     if kernel.config.preempt then
-                        ret = { coroutine.resumeWithTimeout(task.coro, task.timeSlice, table.unpack(task.syscallReturn)) }
+                        ret = { resumeWithTimeout(task.coro, task.timeSlice, table.unpack(task.syscallReturn)) }
                     else
                         ret = { coroutine.resume(task.coro, table.unpack(task.syscallReturn)) }
                     end
