@@ -5,14 +5,14 @@ kernel.vfs = vfs
 vfs.mounts = {["$"] = "/"}
 vfs.disks = kernel.disks
 
--- Metafile format (version 1)
--- File header:   1 byte  = version (0x01)
+-- Metafile format (version 2)
+-- File header:   1 byte  = version (0x02)
 -- Per-entry:
 --   1 byte  = name length
 --   N bytes = name
 --   1 byte  = entry type  (0x00 = regular, 0x01 = symlink)
---   1 byte  = owner uid
---   1 byte  = group gid
+--   2 bytes = owner uid  (little-endian uint16)
+--   2 bytes = group gid  (little-endian uint16)
 --   2 bytes = perms (little-endian uint16)
 --               bit  0 = world-write    bit  1 = world-read
 --               bit  2 = group-write    bit  3 = group-read
@@ -24,12 +24,16 @@ vfs.disks = kernel.disks
 --   1 byte  = cmeta length
 --   N bytes = cmeta  (for symlinks: the link target path)
 --
+-- Version 1:
+--   1 byte name len, N bytes name, 1 byte etype, 1 byte owner,
+--   1 byte group, 2 bytes perms (little-endian), 1 byte cmeta len, N bytes cmeta
+--
 -- Version 0:
 --   No file header.  Per-entry:
 --     1 byte name len, N bytes name, 1 byte owner, 1 byte group,
 --     1 byte perms (low 7 bits only), 1 byte cmeta len, N bytes cmeta
 
-local META_VERSION = 0x01
+local META_VERSION = 0x02
 
 local function bit_is_set(num, bit)
     return math.floor(num / (2 ^ bit)) % 2 == 1
@@ -41,8 +45,9 @@ local function parseMetafile(raw)
     local p = 1
 
     local version = 0
-    if raw:byte(1) == META_VERSION then
-        version = META_VERSION
+    local firstByte = raw:byte(1)
+    if firstByte == 0x02 or firstByte == 0x01 then
+        version = firstByte
         p = 2
     end
 
@@ -54,7 +59,13 @@ local function parseMetafile(raw)
 
         local etype, owner, group, perms, cmeta
 
-        if version == META_VERSION then
+        if version == 0x02 then
+            if p + 6 > #raw then break end
+            etype  = raw:byte(p);                              p = p + 1
+            owner  = raw:byte(p) + raw:byte(p+1) * 256;       p = p + 2
+            group  = raw:byte(p) + raw:byte(p+1) * 256;       p = p + 2
+            perms  = raw:byte(p) + raw:byte(p+1) * 256;       p = p + 2
+        elseif version == 0x01 then
             if p + 4 > #raw then break end
             etype  = raw:byte(p);     p = p + 1
             owner  = raw:byte(p);     p = p + 1
@@ -85,36 +96,73 @@ end
 local function makeMetafile(meta)
     local out = string.char(META_VERSION)
     for name, m in pairs(meta) do
-        local plo = m.perms % 256
-        local phi = math.floor(m.perms / 256) % 256
+        local plo  = m.perms % 256
+        local phi  = math.floor(m.perms / 256) % 256
+        local olo  = (m.owner or 0) % 256
+        local ohi  = math.floor((m.owner or 0) / 256) % 256
+        local glo  = (m.group or 0) % 256
+        local ghi  = math.floor((m.group or 0) / 256) % 256
         out = out
             .. string.char(#name) .. name
             .. string.char(m.etype or 0x00)
-            .. string.char(m.owner, m.group, plo, phi)
+            .. string.char(olo, ohi, glo, ghi, plo, phi)
             .. string.char(#m.cmeta) .. m.cmeta
     end
     return out
 end
 
+local SAFE_COMPONENT_PATTERN = "^[A-Za-z0-9_.+%-%@%(%)%[%]]+$"
+
 local function normalizePath(path)
     local task = kernel.currentTask
     local cwd  = task.cwd or "/"
-    if path:sub(1,1) ~= "/" then path = cwd .. "/" .. path end
-    local parts = {}
-    for part in path:gmatch("[^/]+") do
-        if part == ".." then
-            if #parts > 0 then table.remove(parts) end
-        elseif part ~= "." and part ~= "" then
-            table.insert(parts, part)
+
+    if path:sub(1, 1) ~= "/" then
+        path = cwd .. "/" .. path
+    end
+
+    local stack = {}
+    local i = 1
+    local len = #path
+    while i <= len do
+        local j = path:find("/", i, true)
+        local comp
+        if j then
+            comp = path:sub(i, j - 1)
+            i = j + 1
+        else
+            comp = path:sub(i)
+            i = len + 1
+        end
+
+        comp = comp:match("^%s*(.-)%s*$")
+
+        if comp == "" or comp == "." then
+        elseif comp == ".." then
+            if #stack > 0 then
+                table.remove(stack)
+            end
+        else
+            comp = comp:lower()
+            if not comp:match(SAFE_COMPONENT_PATTERN) then
+                error("EINVAL: illegal characters in path component: " .. comp, 2)
+            end
+            if comp == ".meta" then
+                error("EINVAL: reserved path component: " .. comp, 2)
+            end
+            table.insert(stack, comp)
         end
     end
-    local result = "/" .. table.concat(parts, "/")
+
+    local result = "/" .. table.concat(stack, "/")
+
     local root = task and task.root
     if root and root ~= "/" then
         if result ~= root and result:sub(1, #root + 1) ~= root .. "/" then
             result = root
         end
     end
+
     return result
 end
 
@@ -146,8 +194,10 @@ local function resolveMount(normalPath)
     return vfs.disks[mountId], diskPath
 end
 
+vfs._parseMetafile = parseMetafile
+
 local function readMetaEntry(disk, parentDiskPath, filename)
-    if filename == ".meta" then error("Cannot open metafile") end
+    if filename == ".meta" then error("EACCES: Cannot open metafile") end
     local mp
     if parentDiskPath == "/" then
         mp = ".meta"
@@ -159,6 +209,14 @@ local function readMetaEntry(disk, parentDiskPath, filename)
     if not ok or not f then return nil end
     local raw = f.read(65535)
     if f.close then f.close() end
+
+    if raw and #raw > 0 and raw:byte(1) ~= META_VERSION then
+        local upgraded = makeMetafile(parseMetafile(raw))
+        local wok, wf = pcall(function() return disk:open(mp, "w") end)
+        if wok and wf then wf.write(upgraded); if wf.close then wf.close() end end
+        raw = upgraded
+    end
+
     local parsed = parseMetafile(raw)
     return parsed[filename]
 end
@@ -400,12 +458,29 @@ function vfs.open(path, mode)
     if not disk then error("NODISK") end
 
     local meta = getFileMeta(path)
+    local isNew = (mode == "w" or mode == "a") and not disk:fileExists(diskPath)
+
     checkperms(meta, mode == "r" and "r" or "w")
 
     local handle
     if disk:type(diskPath) ~= "directory" then
         handle = disk:open(diskPath, mode)
         if type(handle) ~= "table" then error("ENFILE") end
+    end
+
+    if isNew then
+        local euid = (task and (task.euid or task.uid)) or kernel.uid
+        local egid = (task and task.gid) or 0
+        local norm   = normalizePath(path)
+        local parent = norm:match("^(.*)/[^/]+$") or "/"
+        if parent == "" then parent = "/" end
+        local name   = norm:match("[^/]+$")
+        if name then
+            local entry = { etype=0x00, owner=euid, group=egid,
+                            perms=vfs.PERM.RW_R_R, cmeta="" }
+            pcall(writeMetaEntry, parent, name, entry, false)
+            meta = entry
+        end
     end
 
     local fobj = newFileObj(handle, mode, path, meta, disk:type(diskPath))
@@ -574,15 +649,32 @@ function vfs.listdir(path)
 end
 
 function vfs.mkdir(path)
+    local norm   = normalizePath(path)
+    local parent = norm:match("^(.*)/[^/]+$") or "/"
+    if parent == "" then parent = "/" end
+    local parentMeta = getFileMeta(parent)
+    checkperms(parentMeta, "w")
     local disk, diskPath = resolvePath(path)
-    local meta = getFileMeta(path)
-    checkperms(meta, "w")
     disk:makeDirectory(diskPath)
+    local task = kernel.currentTask
+    local euid = (task and (task.euid or task.uid)) or kernel.uid
+    local egid = (task and task.gid) or 0
+    local name = norm:match("[^/]+$")
+    if name then
+        local entry = { etype=0x00, owner=euid, group=egid,
+                        perms=vfs.PERM.RWX_RX, cmeta="" }
+        pcall(writeMetaEntry, parent, name, entry, false)
+    end
 end
 
 function vfs.remove(path)
+    local norm   = resolveSymlinks(path, true)
+    local parent = norm:match("^(.*)/[^/]+$") or "/"
+    if parent == "" then parent = "/" end
+    local parentMeta = getFileMeta(parent)
+    checkperms(parentMeta, "w")
+
     local meta = getFileMeta(path, true)
-    checkperms(meta, "w")
 
     if kernel.unixSockets and kernel.unixSockets[path] then
         kernel.unixSockets[path] = nil

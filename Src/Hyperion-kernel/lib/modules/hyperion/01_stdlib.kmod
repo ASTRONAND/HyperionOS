@@ -1,4 +1,7 @@
 -- :Minify:--
+local kernel = ...
+kernel.allowGlobalOverwrites = true
+
 function string.hasSuffix(str, suffix)
     return string.sub(str, #suffix + 1) == suffix
 end
@@ -68,30 +71,24 @@ end
 local function serialize(tbl, seen)
     seen = seen or {}
 
-    -- If we've seen this table before, return a placeholder to prevent infinite loops
     if seen[tbl] then return '"[Circular Reference]"' end
 
-    -- Mark this table as seen
     seen[tbl] = true
 
     local output = "{"
     local first = true
 
     for i, v in pairs(tbl) do
-        -- Handle comma placement more cleanly
         if not first then output = output .. "," end
         first = false
 
-        -- Serialize Key
         if type(i) == "string" then
             output = output .. "[\"" .. i .. "\"]="
         elseif type(i) == "number" then
             output = output .. "[" .. tostring(i) .. "]="
         end
 
-        -- Serialize Value
         if type(v) == "table" then
-            -- Pass the 'seen' table down to the recursive call
             output = output .. serialize(v, seen)
         elseif type(v) == "string" then
             output = output .. "[=[" .. v .. "]=]"

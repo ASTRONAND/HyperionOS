@@ -1,6 +1,6 @@
 --:Minify:--
-syscall.open("/dev/tty/TTY1", "r") --stdin  (fd 0)
-syscall.open("/dev/tty/TTY1", "w") --stdout (fd 1)
+syscall.open("/dev/tty/tty1", "r") --stdin  (fd 0)
+syscall.open("/dev/tty/tty1", "w") --stdout (fd 1)
 syscall.open("/dev/null", "w")    --stderr (fd 2)
 
 
@@ -96,6 +96,9 @@ local function spawnShell(username, uid, shell, homedir)
     end
 
     local chdirOk, chdirErr = pcall(syscall.chdir, homedir)
+    if not chdirOk then
+        pcall(syscall.chdir, "/")
+    end
 
     local ok, err = pcall(syscall.execspawn, shell, username .. ":shell")
     if not ok then

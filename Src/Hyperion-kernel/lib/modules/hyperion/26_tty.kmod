@@ -385,11 +385,11 @@ kernel.processes.cctmond = function()
     end
 end
 
-newtty(apis.term, "TTY1", fifo.pop)
+newtty(apis.term, "tty1", fifo.pop)
 
 
 for i,v in ipairs({peripheral.find("monitor")}) do
     v.setTextScale(.5)
     v.write("Initializing...")
-    newtty(v,"TTY"..tostring(i+1),function () end)
+    newtty(v,"tty"..tostring(i+1),function () end)
 end

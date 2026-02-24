@@ -1,6 +1,6 @@
 --:Minify:--
-syscall.open("/dev/tty/TTY1","r")
-syscall.open("/dev/tty/TTY1","w")
+syscall.open("/dev/tty/tty1","r")
+syscall.open("/dev/tty/tty1","w")
 syscall.open("/dev/null","r")
 syscall.devctl(1,"clear")
 syscall.devctl(1,"sfgc",1)
@@ -57,8 +57,8 @@ while true do
                             printInline("> ")
                         end
                         proc = syscall.spawn(function(...)
-                            syscall.open("/dev/tty/TTY1","r")
-                            syscall.open("/dev/tty/TTY1","w")
+                            syscall.open("/dev/tty/tty1","r")
+                            syscall.open("/dev/tty/tty1","w")
                             syscall.open("/dev/null","w")
                             program(...)
                         end, path, nil, {table.unpack(split, 2)})
