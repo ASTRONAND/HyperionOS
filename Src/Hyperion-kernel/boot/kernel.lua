@@ -8,7 +8,7 @@ local computer = args[6]
 local ifs = args[7]
 local kernel = {}
 kernel.LOG_Text=""
-kernel.version="HyperionOS V1.2.0"
+kernel.version="HyperionOS V1.2.3"
 kernel.process = "Kernel"
 kernel.users={[0]="root",[1]="User"}
 kernel.hostname = "hyperion"

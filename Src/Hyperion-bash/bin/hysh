@@ -946,23 +946,16 @@ local function runCommand(command)
         return
     end
 
-    local text = fs.readAllText(cmdPath)
-    local program, err = load(text, progName)
-    if not program then
-        syscall.devctl(1,"sfgc",2)
-        local line, rest = tostring(err):match(":(%d+): (.+)$")
-        if line then printInline(progName..": load error on line "..line..": "); print(rest)
-        else print(progName..": load error: "..tostring(err)) end
-        syscall.devctl(1,"sfgc",1); return
-    end
-
-    local proc = syscall.spawn(function(...)
-        syscall.open("/dev/tty/tty1","r")
-        syscall.open("/dev/tty/tty1","w")
-        syscall.open("/dev/null","w")
-        local ok2, msg = pcall(program, ...)
-        if not ok2 then printError(progName, msg) end
-    end, progName, nil, {table.unpack(args, 2)})
+    local proc = syscall.spawn(function()
+        -- Open standard fds so programs that don't do it themselves work correctly.
+        syscall.open("/dev/tty/tty1", "r")  -- fd 0 stdin
+        syscall.open("/dev/tty/tty1", "w")  -- fd 1 stdout
+        syscall.open("/dev/null",     "w")  -- fd 2 stderr
+        -- exec replaces this coroutine's code with a fresh isolated environment
+        -- compiled from disk by the kernel (via loadExecutable -> freshUserEnv),
+        -- so the child cannot share any upvalue or syscall table state with hysh.
+        syscall.exec(cmdPath, {table.unpack(args, 2)})
+    end, progName)
 
     while true do
         local exited, code = syscall.collect(proc)

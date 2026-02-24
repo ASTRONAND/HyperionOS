@@ -11,14 +11,16 @@ local function bit_is_set(num, bit)
     return math.floor(num / (2 ^ bit)) % 2 == 1
 end
 
-local function loadExecutable(path, env)
+local function loadExecutable(path)
     kernel.vfs.access(path, "rx")
 
     local fd   = kernel.vfs.open(path, "r")
     local data = kernel.vfs.read(fd, 1024 * 1024 * 4)
     kernel.vfs.close(fd)
 
-    local func, err = load(data, "@" .. path, "t", env or kernel._U)
+    local env = kernel.freshUserEnv()
+
+    local func, err = load(data, "@" .. path, "t", env)
     if not func then error("ENOEXEC: " .. tostring(err)) end
 
     local meta       = kernel.vfs.lstat(path)
@@ -92,7 +94,7 @@ local function createTask(func, name, envars, args, tgid, real_uid, eff_uid)
 end
 
 function sys.spawn(func, name, envars, args, tgid)
-    local caller  = kernel.currentTask
+    local caller   = kernel.currentTask
     local real_uid = caller and caller.uid  or kernel.uid
     local eff_uid  = caller and caller.euid or real_uid
     return createTask(func, name, envars, args, tgid, real_uid, eff_uid)
@@ -357,10 +359,25 @@ function kernel.main()
 
                 if task.sigq and #task.sigq ~= 0 and task.sigh then
                     local coro = coroutine.create(task.sigh)
-                    if kernel.config.preempt then
-                        resumeWithTimeout(coro, task.timeSlice, table.remove(task.sigq, 1))
-                    else
-                        coroutine.resume(coro, table.remove(task.sigq, 1))
+                    local sigret = { coroutine.resume(coro, table.remove(task.sigq, 1)) }
+                    while coroutine.status(coro) ~= "dead" do
+                        if sigret[1] == false then break end
+                        if sigret[2] == "syscall" then
+                            local scname = sigret[3]
+                            local sysret
+                            if kernel.syscalls[scname] then
+                                sysret = { xpcall(kernel.syscalls[scname], debug.traceback, table.unpack(sigret, 4)) }
+                            else
+                                sysret = { false, "Unknown syscall: " .. tostring(scname) }
+                            end
+                            if not sysret[1] then
+                                sigret = { coroutine.resume(coro, false, sysret[2]) }
+                            else
+                                sigret = { coroutine.resume(coro, true, table.unpack(sysret, 2)) }
+                            end
+                        else
+                            sigret = { coroutine.resume(coro) }
+                        end
                     end
                 end
 

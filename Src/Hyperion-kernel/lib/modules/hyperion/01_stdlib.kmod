@@ -207,17 +207,29 @@ function toHex(num)
     return string.format("%X", num)
 end
 
-syscall = setmetatable({}, {
-    __index = function(self, name)
-        return function(...)
-            local res = table.pack(coroutine.yield("syscall", name, ...))
-            if res[1] then
-                return table.unpack(res, 2, res.n)
-            else
-                error(res[2], 2)
+local function makeSyscallProxy()
+    local backing = {}
+    return setmetatable(backing, {
+        __index = function(self, name)
+            local raw = rawget(self, name)
+            if raw ~= nil then return raw end
+            return function(...)
+                local res = table.pack(coroutine.yield("syscall", name, ...))
+                if res[1] then
+                    return table.unpack(res, 2, res.n)
+                else
+                    error(res[2], 2)
+                end
             end
-        end
-    end
-})
+        end,
+        __newindex = function(self, k, v)
+            rawset(self, k, v)
+        end,
+    })
+end
+
+syscall = makeSyscallProxy()
+
+_makeSyscallProxy = makeSyscallProxy
 
 table.serialize = serialize

@@ -334,6 +334,13 @@ local function buildKeyMaps()
 end
 
 kernel.processes.cctmond = function()
+    local _getTasks  = function()
+        local ret = {}
+        for _, v in pairs(kernel.tasks) do ret[#ret+1] = v.pid end
+        return ret
+    end
+    local _sigsend   = kernel.signal.sigsend
+
     local timeout = false
     while true do
         local event = {kernel.computer:getMachineEvent()}
@@ -352,8 +359,8 @@ kernel.processes.cctmond = function()
                 end
 
                 if ctrl and charOrKey == apis.keys.c then
-                    for _, task in ipairs(syscall.getTasks()) do
-                        syscall.sigsend(task, 1)
+                    for _, pid in ipairs(_getTasks()) do
+                        _sigsend(pid, 1)
                     end
                 end
 
