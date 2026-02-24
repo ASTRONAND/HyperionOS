@@ -111,7 +111,7 @@ local function makeMetafile(meta)
     return out
 end
 
-local SAFE_COMPONENT_PATTERN = "^[A-Za-z0-9_.+%-%@ %(%)%[%] ]+$"
+local SAFE_COMPONENT_PATTERN = "^[A-Za-z0-9_.+%-%@%(%)%[%]]+$"
 
 local function normalizePath(path)
     local task = kernel.currentTask
@@ -135,6 +135,8 @@ local function normalizePath(path)
             i = len + 1
         end
 
+        comp = comp:match("^%s*(.-)%s*$")
+
         if comp == "" or comp == "." then
         elseif comp == ".." then
             if #stack > 0 then
@@ -144,6 +146,9 @@ local function normalizePath(path)
             comp = comp:lower()
             if not comp:match(SAFE_COMPONENT_PATTERN) then
                 error("EINVAL: illegal characters in path component: " .. comp, 2)
+            end
+            if comp == ".meta" then
+                error("EINVAL: reserved path component: " .. comp, 2)
             end
             table.insert(stack, comp)
         end
@@ -192,7 +197,7 @@ end
 vfs._parseMetafile = parseMetafile
 
 local function readMetaEntry(disk, parentDiskPath, filename)
-    if filename == ".meta" then error("Cannot open metafile") end
+    if filename == ".meta" then error("EACCES: Cannot open metafile") end
     local mp
     if parentDiskPath == "/" then
         mp = ".meta"

@@ -184,9 +184,16 @@ end
 
 kernel.log("Gathering modules")
 for _, i in ipairs(ifs.list("/lib/modules")) do
-    for _,v in ipairs(ifs.list("/lib/modules/"..i)) do
-        local prior=tonumber(v:sub(1,2))
-        modules[prior+1][#modules[prior+1]+1]="/lib/modules/"..i.."/"..v
+    local modlist = ifs.list("/lib/modules/"..i)
+    if not modlist then
+        kernel.log("WARNING: could not list /lib/modules/"..i.." (skipping)", "WARN", 8)
+    else
+        for _,v in ipairs(modlist) do
+            local prior=tonumber(v:sub(1,2))
+            if prior then
+                modules[prior+1][#modules[prior+1]+1]="/lib/modules/"..i.."/"..v
+            end
+        end
     end
 end
 
