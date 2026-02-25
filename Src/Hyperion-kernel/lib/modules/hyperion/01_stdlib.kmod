@@ -225,6 +225,7 @@ local function makeSyscallProxy()
         __newindex = function(self, k, v)
             rawset(self, k, v)
         end,
+        __metatable=false
     })
 end
 

@@ -63,6 +63,7 @@ function kernel.freshUserEnv()
     local env = setmetatable(locals, {
         __index    = kernel._U,
         __newindex = function(_, k, v) rawset(locals, k, v) end,
+        __metatable=false
     })
 
     locals._G   = env
