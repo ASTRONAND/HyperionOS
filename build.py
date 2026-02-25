@@ -90,11 +90,6 @@ def install_bootloader(arch: str, release: bool):
     boot_dir  = BUILD_ROOT / "$" / ARCH_BOOT_DIR[arch]
     eeprom    = boot_dir / "eeprom"
 
-    for src in (boot_lua, eeprom):
-        if not src.exists():
-            print(f"  ! Bootloader file not found: {src}", file=sys.stderr)
-            sys.exit(1)
-
     eeprom_dst_name = "startup.lua" if release else "eeprom"
     print(f"  Installing: eeprom -> Build/{eeprom_dst_name}")
     shutil.copy2(eeprom, BUILD_ROOT / eeprom_dst_name)
