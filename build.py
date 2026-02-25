@@ -72,7 +72,7 @@ def process_root(src_root: Path, out_root: Path, minify: bool):
             if minify and has_minify_header(src):
                 print("    > Minifying")
                 result = subprocess.run(
-                    ["luamin", "-f", str(src)],
+                    ["luamin.cmd", "-f", str(src)],
                     capture_output=True, text=True
                 )
                 if result.returncode != 0:

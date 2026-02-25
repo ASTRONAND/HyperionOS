@@ -1,4 +1,4 @@
--- :Minify:--
+--:Minify:--
 local kernel = ...
 kernel.log("Loading init system...")
 kernel.log("InitPath: " .. kernel.config.initPath)

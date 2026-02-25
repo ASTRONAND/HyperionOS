@@ -1,4 +1,4 @@
--- :Minify:--
+--:Minify:--
 -- Loop device driver:
 --
 --   BIND  (directory)  - re-routes VFS calls into a host directory subtree.

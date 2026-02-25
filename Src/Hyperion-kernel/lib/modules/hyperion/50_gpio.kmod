@@ -1,3 +1,4 @@
+--:Minify:--
 local kernel=...
 local sysc=kernel.syscalls
 kernel.gpio={}

@@ -1,4 +1,4 @@
--- :Minify:--
+--:Minify:--
 local args = {...}
 local kernel = args[1]
 kernel._G = _G

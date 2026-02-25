@@ -1,4 +1,4 @@
--- :Minify:--
+--:Minify:--
 local kernel = ...
 kernel.allowGlobalOverwrites = true
 

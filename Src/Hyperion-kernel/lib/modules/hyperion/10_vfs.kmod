@@ -1,4 +1,4 @@
--- :Minify:--
+--:Minify:--
 local kernel = ...
 local vfs = {}
 kernel.vfs = vfs
