@@ -1,6 +1,6 @@
 --:Minify:--
-syscall.open("/dev/tty/tty1","r") --stdin  (Device 0)
-syscall.open("/dev/tty/tty1","w") --stdout (Device 1)
+syscall.open("/dev/tty/1","r") --stdin  (Device 0)
+syscall.open("/dev/tty/1","w") --stdout (Device 1)
 syscall.open("/dev/null","w")     --stderr (device 2)
 
 local success, errorMsg = xpcall(function()
@@ -948,8 +948,8 @@ local function runCommand(command)
 
     local proc = syscall.spawn(function()
         -- Open standard fds so programs that don't do it themselves work correctly.
-        syscall.open("/dev/tty/tty1", "r")  -- fd 0 stdin
-        syscall.open("/dev/tty/tty1", "w")  -- fd 1 stdout
+        syscall.open("/dev/tty/1", "r")  -- fd 0 stdin
+        syscall.open("/dev/tty/1", "w")  -- fd 1 stdout
         syscall.open("/dev/null",     "w")  -- fd 2 stderr
         -- exec replaces this coroutine's code with a fresh isolated environment
         -- compiled from disk by the kernel (via loadExecutable -> freshUserEnv),
