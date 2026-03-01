@@ -1,5 +1,0 @@
---:Minify:--
-local kernel = ...
-kernel.vfs.open("/dev/tty/1","r")
-kernel.vfs.open("/dev/tty/1","w")
-kernel.vfs.open("/dev/null","w")

@@ -810,6 +810,160 @@ builtinCmds.df = function(...)
     end
 end
 
+local function listDir(dir, prefix)
+    local ok, entries = pcall(syscall.listdir, dir)
+    if not ok or not entries then return {} end
+    local results = {}
+    for _, e in ipairs(entries) do
+        if prefix == "" or e:sub(1, #prefix) == prefix then
+            local fullpath = (dir == "/" and "/" or dir.."/")..e
+            local t = syscall.type(fullpath)
+            results[#results+1] = t == "directory" and (e.."/") or e
+        end
+    end
+    table.sort(results)
+    return results
+end
+
+local function listCommands(prefix)
+    local results = {}
+    local seen = {}
+    for name in pairs(builtinCmds) do
+        if prefix == "" or name:sub(1, #prefix) == prefix then
+            if not seen[name] then results[#results+1] = name; seen[name] = true end
+        end
+    end
+    local paths = string.split(syscall.getEnviron("PATH") or "/bin/", ":")
+    for _, p in ipairs(paths) do
+        local ok, entries = pcall(syscall.listdir, p)
+        if ok and entries then
+            for _, e in ipairs(entries) do
+                local fullpath = (p:sub(-1)=="/" and p or p.."/")..e
+                local xok = pcall(syscall.access, fullpath, "x")
+                if xok and (prefix == "" or e:sub(1, #prefix) == prefix) then
+                    if not seen[e] then results[#results+1] = e; seen[e] = true end
+                end
+            end
+        end
+    end
+    table.sort(results)
+    return results
+end
+
+local function commonPrefix(list)
+    if #list == 0 then return "" end
+    local pre = list[1]
+    for i = 2, #list do
+        local s = list[i]
+        local j = 1
+        while j <= #pre and j <= #s and pre:sub(j,j) == s:sub(j,j) do j = j+1 end
+        pre = pre:sub(1, j-1)
+        if pre == "" then return "" end
+    end
+    return pre
+end
+
+local function showCompletions(completions)
+    syscall.write(1, "\n")
+    local W = 51
+    local maxlen = 0
+    for _, c in ipairs(completions) do if #c > maxlen then maxlen = #c end end
+    local colw = maxlen + 2
+    local cols = math.max(1, math.floor(W / colw))
+    local i = 0
+    for _, c in ipairs(completions) do
+        local padded = c .. string.rep(" ", colw - #c)
+        syscall.write(1, padded)
+        i = i + 1
+        if i % cols == 0 then syscall.write(1, "\n") end
+    end
+    if i % cols ~= 0 then syscall.write(1, "\n") end
+end
+
+local function parseForCompletion(input, cursorPos)
+    local sofar = input:sub(1, cursorPos - 1)
+    local tokens = {}
+    for tok in sofar:gmatch("%S+") do tokens[#tokens+1] = tok end
+    local partial = sofar:match("%S+$") or ""
+    local isFirst = (#tokens == 0) or (sofar:sub(-1) ~= " " and #tokens == 1)
+
+    local partialDir, partialBase
+    if partial:find("/") then
+        partialDir  = partial:match("^(.*/)") or "/"
+        partialBase = partial:match("[^/]*$") or ""
+    else
+        partialDir  = nil
+        partialBase = partial
+    end
+
+    return tokens, partial, isFirst, partialDir, partialBase
+end
+
+local tabState = { last = nil, idx = 0, list = {} }
+
+local function doTabComplete(input, cursorPos)
+    local tokens, partial, isFirst, partialDir, partialBase = parseForCompletion(input, cursorPos)
+
+    local candidates
+    if isFirst then
+        if partialDir then
+            local dir = partialDir:sub(1,1) == "/" and partialDir or (syscall.getcwd().."/"..partialDir)
+            candidates = listDir(dir, partialBase)
+            for i, c in ipairs(candidates) do candidates[i] = partialDir..c end
+        else
+            candidates = listCommands(partialBase)
+        end
+    else
+        local dir, base
+        if partialDir then
+            dir = partialDir:sub(1,1) == "/" and partialDir or (syscall.getcwd().."/"..partialDir)
+            base = partialBase
+        else
+            dir = syscall.getcwd()
+            base = partialBase
+        end
+        candidates = listDir(dir, base)
+        if partialDir then
+            for i, c in ipairs(candidates) do candidates[i] = partialDir..c end
+        end
+    end
+
+    if #candidates == 0 then
+        return input, cursorPos, false
+    end
+
+    local context = input.."\0"..tostring(cursorPos)
+    if tabState.last ~= context then
+        tabState.last = context
+        tabState.idx  = 0
+        tabState.list = candidates
+    end
+
+    if #candidates == 1 then
+        local completed = candidates[1]
+        local before = input:sub(1, cursorPos - 1 - #partial)
+        local after  = input:sub(cursorPos)
+        local newInput = before .. completed .. after
+        local newCursor = #before + #completed + 1
+        tabState.last = nil
+        return newInput, newCursor, true
+    end
+
+    local pre = commonPrefix(candidates)
+    if #pre > #partial then
+        local before = input:sub(1, cursorPos - 1 - #partial)
+        local after  = input:sub(cursorPos)
+        local newInput = before .. pre .. after
+        local newCursor = #before + #pre + 1
+        tabState.last = newInput.."\0"..tostring(newCursor)
+        tabState.list = candidates
+        return newInput, newCursor, true
+    else
+        showCompletions(candidates)
+        return input, cursorPos, true
+    end
+end
+
 local function getUserInput()
     syscall.devctl(1,"sfgc",3)
     syscall.write(1, userhost)
@@ -829,6 +983,41 @@ local function getUserInput()
     local history = 0
     local dirty = true
 
+    local function getGhostSuffix()
+        if #input == 0 then return "" end
+        local _, partial, isFirst, partialDir, partialBase = parseForCompletion(input, cursorPos)
+        if cursorPos ~= #input + 1 then return "" end
+        local candidates
+        if isFirst then
+            if partialDir then
+                local dir = partialDir:sub(1,1) == "/" and partialDir or (syscall.getcwd().."/"..partialDir)
+                candidates = listDir(dir, partialBase)
+                for i, c in ipairs(candidates) do candidates[i] = partialDir..c end
+            else
+                candidates = listCommands(partialBase)
+            end
+        else
+            local dir, base
+            if partialDir then
+                dir = partialDir:sub(1,1) == "/" and partialDir or (syscall.getcwd().."/"..partialDir)
+                base = partialBase
+            else
+                dir = syscall.getcwd()
+                base = partialBase
+            end
+            candidates = listDir(dir, base)
+            if partialDir then
+                for i, c in ipairs(candidates) do candidates[i] = partialDir..c end
+            end
+        end
+        if #candidates == 0 then return "" end
+        local pre = commonPrefix(candidates)
+        if #pre > #partial then
+            return pre:sub(#partial + 1)
+        end
+        return ""
+    end
+
     local function redraw()
         syscall.devctl(1,"spos",curOffsetX,curOffsetY)
         syscall.write(1, string.sub(input, 1, cursorPos-1))
@@ -841,27 +1030,69 @@ local function getUserInput()
             syscall.write(1, string.sub(input, cursorPos, cursorPos))
         end
         syscall.devctl(1,"sfgc",1); syscall.devctl(1,"sbgc",16)
-        syscall.write(1, string.sub(input, cursorPos+1) .. " ")
+        local after = string.sub(input, cursorPos+1)
+        syscall.write(1, after)
+        local ghost = getGhostSuffix()
+        if #ghost > 0 then
+            syscall.devctl(1,"sfgc",14)
+            syscall.write(1, ghost)
+            syscall.devctl(1,"sfgc",1)
+            syscall.write(1, " ")
+        else
+            syscall.write(1, " ")
+        end
     end
 
     while true do
         local key = syscall.read(0)
         if key and key ~= "" then
-            if     key=="\19" then if cursorPos>1       then cursorPos=cursorPos-1;dirty=true end
-            elseif key=="\20" then if cursorPos<=#input then cursorPos=cursorPos+1;dirty=true end
-            elseif key=="\17" then
+            if     key=="[D" then if cursorPos>1       then cursorPos=cursorPos-1;dirty=true end
+            elseif key=="[C" then if cursorPos<=#input then cursorPos=cursorPos+1;dirty=true end
+            elseif key=="[A" then
                 if history<#commandHistory then
                     history=history+1
                     input=commandHistory[#commandHistory-history+1]
                     cursorPos=#input+1;dirty=true
                 end
-            elseif key=="\18" then
+            elseif key=="[B" then
                 if history>1 then
                     history=history-1
                     input=commandHistory[#commandHistory-history+1]
                     cursorPos=#input+1;dirty=true
                 elseif history==1 then
                     history=0;input="";cursorPos=1;dirty=true
+                end
+            elseif key=="[H" then cursorPos=1;dirty=true
+            elseif key=="[F" then cursorPos=#input+1;dirty=true
+            elseif key=="[3~" then
+                if cursorPos<=#input then
+                    input=string.sub(input,1,cursorPos-1)..string.sub(input,cursorPos+1)
+                    dirty=true
+                end
+            elseif key=="\t" then
+                local newInput, newCursor, needsRedraw = doTabComplete(input, cursorPos)
+                if needsRedraw then
+                    input = newInput; cursorPos = newCursor
+                    local posStr = syscall.devctl(1, "gpos")
+                    local sep = posStr:find(";")
+                    local px = tonumber(posStr:sub(1, sep-1))
+                    local py = tonumber(posStr:sub(sep+1))
+                    if px > 1 then
+                        syscall.devctl(1,"spos",1,py)
+                        local tsz = syscall.devctl(1,"size") or "51;19"
+                        local tw = tonumber(tsz:match("^(%d+)")) or 51
+                        syscall.write(1, string.rep(" ", tw))
+                        syscall.devctl(1,"spos",1,py)
+                    end
+                    syscall.devctl(1,"sfgc",3); syscall.write(1, userhost)
+                    syscall.devctl(1,"sfgc",1); syscall.write(1, ":")
+                    syscall.devctl(1,"sfgc",10); syscall.write(1, syscall.getcwd())
+                    syscall.devctl(1,"sfgc",1); syscall.write(1, "$ ")
+                    posStr = syscall.devctl(1, "gpos")
+                    sep = posStr:find(";")
+                    curOffsetX = tonumber(posStr:sub(1, sep-1))
+                    curOffsetY = tonumber(posStr:sub(sep+1))
+                    dirty = true
                 end
             elseif key=="\b" then
                 if cursorPos>1 then
@@ -873,7 +1104,7 @@ local function getUserInput()
                 syscall.devctl(1,"spos",curOffsetX,curOffsetY)
                 syscall.write(1, input.." \n")
                 return input
-            else
+            elseif #key == 1 and key:byte(1) >= 32 and key:byte(1) < 127 then
                 input=string.sub(input,1,cursorPos-1)..key..string.sub(input,cursorPos)
                 cursorPos=cursorPos+1;dirty=true
             end

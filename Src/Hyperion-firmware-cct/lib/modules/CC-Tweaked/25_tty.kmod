@@ -1,4 +1,4 @@
--- :Minify:--
+--:Minify:--
 local kernel = ...
 local apis = kernel.apis
 local native = apis.peripheral
@@ -317,7 +317,18 @@ kernel.processes.cctmond = function()
             local eventType = event[1]
             local charOrKey = event[3]
 
-            -- Update modifier keys
+            local ctrlKeyMap = {
+                [apis.keys.a]=1,  [apis.keys.b]=2,  [apis.keys.c]=3,
+                [apis.keys.d]=4,  [apis.keys.e]=5,  [apis.keys.f]=6,
+                [apis.keys.g]=7,  [apis.keys.h]=8,  [apis.keys.i]=9,
+                [apis.keys.j]=10, [apis.keys.k]=11, [apis.keys.l]=12,
+                [apis.keys.m]=13, [apis.keys.n]=14, [apis.keys.o]=15,
+                [apis.keys.p]=16, [apis.keys.q]=17, [apis.keys.r]=18,
+                [apis.keys.s]=19, [apis.keys.t]=20, [apis.keys.u]=21,
+                [apis.keys.v]=22, [apis.keys.w]=23, [apis.keys.x]=24,
+                [apis.keys.y]=25, [apis.keys.z]=26,
+            }
+
             if eventType == "keyPressed" then
                 if charOrKey == apis.keys.leftCtrl or charOrKey == apis.keys.rightCtrl then
                     ctrl = true
@@ -325,11 +336,31 @@ kernel.processes.cctmond = function()
                     alt = true
                 end
 
-                -- Handle Ctrl+C
-                if ctrl and charOrKey == apis.keys.c then
-                    for _, task in ipairs(syscall.getTasks()) do
-                        syscall.sigsend(task, 1) -- SIGINT
+                if ctrl then
+                    local ctrlByte = ctrlKeyMap[charOrKey]
+                    if ctrlByte then
+                        if ctrlByte == 3 then
+                            for _, task in ipairs(syscall.getTasks()) do
+                                syscall.sigsend(task, 1)
+                            end
+                        else
+                            fifo.push(string.char(ctrlByte))
+                        end
                     end
+                else
+                    local specialKeyMap = {
+                        [apis.keys.up]        = "[A",
+                        [apis.keys.down]      = "[B",
+                        [apis.keys.right]     = "[C",
+                        [apis.keys.left]      = "[D",
+                        [apis.keys.home]      = "[H",
+                        [apis.keys["end"]]    = "[F",
+                        [apis.keys.pageUp]    = "[5~",
+                        [apis.keys.pageDown]  = "[6~",
+                        [apis.keys.delete]    = "[3~",
+                    }
+                    local special = specialKeyMap[charOrKey]
+                    if special then fifo.push(special) end
                 end
 
             elseif eventType == "keyReleased" then

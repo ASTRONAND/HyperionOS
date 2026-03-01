@@ -223,7 +223,7 @@ local function prompt(label, default)
         tbg(16); tfg(1)
         local key = syscall.read(0)
         if not key or key == "" then sleep(0.02)
-        elseif key == "\27" then return nil
+        elseif key == "" then return nil
         elseif key == "\n"  then return inp
         elseif key == "\b"  then if #inp > 0 then inp = inp:sub(1,-2) end
         else
@@ -359,31 +359,29 @@ while running do
     local key = syscall.read(0)
     if key and key ~= "" then
         local b = key:byte(1)
-        if     key == "\17" then moveCursorUp(map); dirty=true
-        elseif key == "\18" then moveCursorDown(map); dirty=true
-        elseif key == "\19" then
-            if cx > 1 then cx=cx-1
-            elseif cy > 1 then cy=cy-1; cx=#lines[cy]+1 end
-            dirty=true
-        elseif key == "\20" then
+        if     key == "[A"  then moveCursorUp(map); dirty=true
+        elseif key == "[B"  then moveCursorDown(map); dirty=true
+        elseif key == "[C"  then
             if cx <= #lines[cy] then cx=cx+1
             elseif cy < #lines then cy=cy+1; cx=1 end
             dirty=true
+        elseif key == "[D"  then
+            if cx > 1 then cx=cx-1
+            elseif cy > 1 then cy=cy-1; cx=#lines[cy]+1 end
+            dirty=true
+        elseif key == "[H"  then cx=1; dirty=true
+        elseif key == "[F"  then cx=#lines[cy]+1; dirty=true
+        elseif key == "[5~" then for _=1,ROWS do moveCursorUp(map) end; dirty=true
+        elseif key == "[6~" then for _=1,ROWS do moveCursorDown(map) end; dirty=true
+        elseif key == "[3~" then delRight()
         elseif key == "\n"  then newline()
         elseif key == "\b"  then delLeft()
         elseif key == "\t"  then for _=1,4 do insChar(" ") end
-        elseif b == 1  then cx=1; dirty=true
-        elseif b == 2  then
-            for _=1,ROWS do moveCursorUp(map) end; dirty=true
-        elseif b == 4  then delRight()
-        elseif b == 5  then cx=#lines[cy]+1; dirty=true
         elseif b == 6  then
             local p=prompt("Find: ",sPat); dirty=true
             if p then sPat=p; sLine=0; findNext() end
         elseif b == 7  then goToLine()
         elseif b == 11 then cutLine()
-        elseif b == 12 then
-            for _=1,ROWS do moveCursorDown(map) end; dirty=true
         elseif b == 14 then
             if sPat=="" then
                 local p=prompt("Find: ",""); dirty=true
