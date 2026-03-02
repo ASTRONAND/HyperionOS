@@ -1,3 +1,4 @@
+--:Minify:--
 local args = {...}
 while true do
     if #args == 0 then

@@ -1,3 +1,4 @@
+--:Minify:--
 local syscalls=syscall.sysdump()
 for i=1, #syscalls do
     print(syscalls[i])
