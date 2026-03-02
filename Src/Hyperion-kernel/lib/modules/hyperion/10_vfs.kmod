@@ -113,57 +113,23 @@ end
 
 local SAFE_COMPONENT_PATTERN = "^[A-Za-z0-9_.+%-%@%(%)%[%]]+$"
 
-local function normalizePath(path)
-    local task = kernel.currentTask
-    local cwd  = task.cwd or "/"
-
-    if path:sub(1, 1) ~= "/" then
-        path = cwd .. "/" .. path
+local function tokenizePath(path)
+    local isAbsolute = (path:sub(1,1) == "/")
+    local tokens = {}
+    for comp in (path .. "/"):gmatch("([^/]*)/") do
+        table.insert(tokens, comp)
     end
+    return isAbsolute, tokens
+end
 
-    local stack = {}
-    local i = 1
-    local len = #path
-    while i <= len do
-        local j = path:find("/", i, true)
-        local comp
-        if j then
-            comp = path:sub(i, j - 1)
-            i = j + 1
-        else
-            comp = path:sub(i)
-            i = len + 1
-        end
-
-        comp = comp:match("^%s*(.-)%s*$")
-
-        if comp == "" or comp == "." then
-        elseif comp == ".." then
-            if #stack > 0 then
-                table.remove(stack)
-            end
-        else
-            comp = comp:lower()
-            if not comp:match(SAFE_COMPONENT_PATTERN) then
-                error("EINVAL: illegal characters in path component: " .. comp, 2)
-            end
-            if comp == ".meta" then
-                error("EINVAL: reserved path component: " .. comp, 2)
-            end
-            table.insert(stack, comp)
-        end
+local function validateComponent(comp)
+    local lower = comp:lower()
+    if not lower:match(SAFE_COMPONENT_PATTERN) then
+        error("EINVAL: illegal characters in path component: " .. comp, 3)
     end
-
-    local result = "/" .. table.concat(stack, "/")
-
-    local root = task and task.root
-    if root and root ~= "/" then
-        if result ~= root and result:sub(1, #root + 1) ~= root .. "/" then
-            result = root
-        end
+    if lower == ".meta" then
+        error("EINVAL: reserved path component: .meta", 3)
     end
-
-    return result
 end
 
 function vfs.splitPath(path)
@@ -222,47 +188,205 @@ local function readMetaEntry(disk, parentDiskPath, filename)
 end
 
 local MAX_SYMLINK = 16
-local function resolveSymlinks(path, noFollow, _depth)
-    _depth = _depth or 0
-    if _depth > MAX_SYMLINK then error("ELOOP") end
-    path = normalizePath(path)
 
-    local parts = {}
-    for p in path:gmatch("[^/]+") do table.insert(parts, p) end
+local function namei(path, noFollow, symDepth)
+    symDepth = symDepth or 0
+    if symDepth > MAX_SYMLINK then error("ELOOP") end
 
-    local resolved = ""
+    local task   = kernel.currentTask
+    local euid   = (task and (task.euid or task.uid)) or kernel.uid
+    local groups = (task and task.groups) or kernel.groups or {}
+    local root   = (task and task.root) or "/"
+    local cwd    = (task and task.cwd)  or "/"
 
-    for i, part in ipairs(parts) do
-        local candidate = resolved == "" and ("/" .. part) or (resolved .. "/" .. part)
+    if root ~= "/" and root:sub(-1) == "/" then root = root:sub(1,-2) end
 
-        if noFollow and i == #parts then
-            resolved = candidate
-            break
-        end
-
-        local disk, parentDisk = resolveMount(resolved == "" and "/" or resolved)
-        local entry = readMetaEntry(disk, parentDisk, part)
-
-        if entry and entry.etype == 0x01 then
-            local target = entry.cmeta
-            if target:sub(1,1) ~= "/" then
-                target = (resolved == "" and "/" or resolved) .. "/" .. target
+    local function canTraverse(entry)
+        if euid == 0 then return true end
+        if not entry then return true end
+        local bits = entry.perms
+        if euid == entry.owner and bit_is_set(bits, 9) then return true end
+        if entry.group then
+            for _, gid in ipairs(groups) do
+                if gid == entry.group and bit_is_set(bits, 8) then return true end
             end
-            if i < #parts then
-                target = target .. "/" .. table.concat(parts, "/", i+1, #parts)
-            end
-            return resolveSymlinks(normalizePath(target), noFollow, _depth + 1)
         end
-
-        resolved = candidate
+        return bit_is_set(bits, 7)
     end
 
-    if resolved == "" then resolved = "/" end
-    return resolved
+    local isAbsolute, tokens = tokenizePath(path)
+
+    local stack = {}
+
+    if isAbsolute then
+        stack = {}
+    else
+        for seg in cwd:gmatch("[^/]+") do table.insert(stack, seg) end
+    end
+
+    local i = 1
+    while i <= #tokens do
+        local comp = tokens[i]
+        i = i + 1
+
+        comp = comp:match("^%s*(.-)%s*$")
+
+        if comp == "" or comp == "." then
+        elseif comp == ".." then
+            local currentPath = "/" .. table.concat(stack, "/")
+
+            local jailStack = {}
+            if root ~= "/" then
+                for seg in root:gmatch("[^/]+") do table.insert(jailStack, seg) end
+            end
+
+            if #stack <= #jailStack then
+                stack = {}
+                for _, seg in ipairs(jailStack) do table.insert(stack, seg) end
+            else
+                local exitName   = stack[#stack]
+                local parentPath = "/" .. table.concat(stack, "/", 1, #stack - 1)
+                if parentPath == "/" then parentPath = "/" end
+
+                local okM, diskM, dpM = pcall(resolveMount, parentPath == "" and "/" or parentPath)
+                if okM and diskM then
+                    local entry = readMetaEntry(diskM, dpM, exitName)
+                    if entry then
+                        if entry.etype ~= 0x00 then
+                            error("ENOTDIR: not a directory: " .. currentPath)
+                        end
+                        if not canTraverse(entry) then
+                            error("EACCES: permission denied traversing " .. currentPath)
+                        end
+                    else
+                        local okD, diskD, dpD = pcall(resolveMount, currentPath)
+                        if okD and diskD then
+                            local dtype = diskD:type(dpD)
+                            if dtype ~= nil and dtype ~= "directory" then
+                                error("ENOTDIR: not a directory: " .. currentPath)
+                            end
+                        end
+                    end
+                end
+
+                table.remove(stack)
+            end
+
+        else
+            validateComponent(comp)
+            local lname = comp:lower()
+
+            local curPath = "/" .. table.concat(stack, "/")
+
+            local okM, diskM, dpM = pcall(resolveMount, curPath == "/" and "/" or curPath)
+            local entry = nil
+            if okM and diskM then
+                entry = readMetaEntry(diskM, dpM, lname)
+            end
+
+            local isFinal = (i > #tokens)
+
+            if entry and entry.etype == 0x01 then
+                if isFinal and noFollow then
+                    table.insert(stack, lname)
+                else
+                    symDepth = symDepth + 1
+                    if symDepth > MAX_SYMLINK then error("ELOOP") end
+
+                    local target = entry.cmeta
+                    if not target or target == "" then
+                        error("ENOENT: empty symlink target")
+                    end
+
+                    local symIsAbs, symTokens = tokenizePath(target)
+
+                    if symIsAbs then
+                        stack = {}
+                        if root ~= "/" then
+                            for seg in root:gmatch("[^/]+") do table.insert(stack, seg) end
+                        end
+                    end
+
+                    local fresh = {}
+                    for j = 1, i - 2 do table.insert(fresh, tokens[j]) end
+                    local insertAt = #fresh + 1
+                    for _, t in ipairs(symTokens) do table.insert(fresh, t) end
+                    for j = i, #tokens do table.insert(fresh, tokens[j]) end
+                    tokens = fresh
+                    i = insertAt
+                end
+            else
+                table.insert(stack, lname)
+
+                if not isFinal then
+                    local newPath = "/" .. table.concat(stack, "/")
+                    local okD, diskD, dpD = pcall(resolveMount, newPath)
+                    if okD and diskD then
+                        local dtype = diskD:type(dpD)
+                        if dtype ~= nil and dtype ~= "directory" then
+                            error("ENOTDIR: not a directory: " .. newPath)
+                        end
+                    end
+                    if not canTraverse(entry) then
+                        error("EACCES: permission denied traversing " .. newPath)
+                    end
+                end
+            end
+        end
+    end
+
+    local result = "/" .. table.concat(stack, "/")
+
+    if root ~= "/" then
+        if result ~= root and result:sub(1, #root + 1) ~= root .. "/" then
+            result = root
+        end
+    end
+
+    return result
+end
+
+local function normalizePath(path)
+    local task = kernel.currentTask
+    local cwd  = (task and task.cwd)  or "/"
+    local root = (task and task.root) or "/"
+    if root ~= "/" and root:sub(-1) == "/" then root = root:sub(1,-2) end
+
+    local isAbsolute, tokens = tokenizePath(path)
+    local stack = {}
+
+    if not isAbsolute then
+        for seg in cwd:gmatch("[^/]+") do table.insert(stack, seg) end
+    end
+
+    local jailStack = {}
+    if root ~= "/" then
+        for seg in root:gmatch("[^/]+") do table.insert(jailStack, seg) end
+    end
+
+    for _, comp in ipairs(tokens) do
+        comp = comp:match("^%s*(.-)%s*$")
+        if comp == "" or comp == "." then
+        elseif comp == ".." then
+            if #stack > #jailStack then
+                table.remove(stack)
+            end
+        else
+            table.insert(stack, comp:lower())
+        end
+    end
+
+    local result = "/" .. table.concat(stack, "/")
+    if root ~= "/" then
+        if result ~= root and result:sub(1, #root + 1) ~= root .. "/" then
+            result = root
+        end
+    end
+    return result
 end
 
 local function resolvePath(path, noFollow)
-    local real = resolveSymlinks(path, noFollow)
+    local real = namei(path, noFollow)
     local disk, diskPath = resolveMount(real)
     if kernel.config.logPathResolution then
         kernel.log("resolvePath '"..path.."' -> '"..real.."' diskPath '"..diskPath.."'")
@@ -271,24 +395,23 @@ local function resolvePath(path, noFollow)
 end
 
 local function getFileMeta(path, noFollow)
-    local real = resolveSymlinks(path, noFollow)
+    local real = namei(path, noFollow)
 
-    local parts = {}
-    for p in real:gmatch("[^/]+") do table.insert(parts, p) end
+    if real == "/" then
+        return { etype = 0x00, owner = 0, group = 0, perms = 63, cmeta = "" }
+    end
 
-    local default = { etype = 0x00, owner = 0, group = 0, perms = 63, cmeta = "" }
-    if #parts == 0 then return default end
+    local parent, name = real:match("^(.*)/([^/]+)$")
+    if not parent or parent == "" then parent = "/" end
 
-    local parentNorm = "/" .. table.concat(parts, "/", 1, #parts - 1)
-    if parentNorm == "" then parentNorm = "/" end
-    local disk, parentDiskPath = resolveMount(parentNorm)
-    local entry = readMetaEntry(disk, parentDiskPath, parts[#parts])
+    local disk, parentDiskPath = resolveMount(parent)
+    local entry = readMetaEntry(disk, parentDiskPath, name)
     if entry then return entry end
-    return default
+    return { etype = 0x00, owner = 0, group = 0, perms = 63, cmeta = "" }
 end
 
 local function writeMetaEntry(path, name, entry, noFollow)
-    local real = resolveSymlinks(path, noFollow)
+    local real = namei(path, noFollow)
     local disk, diskPath = resolveMount(real)
 
     local mp
@@ -668,7 +791,7 @@ function vfs.mkdir(path)
 end
 
 function vfs.remove(path)
-    local norm   = resolveSymlinks(path, true)
+    local norm   = namei(path, true)
     local parent = norm:match("^(.*)/[^/]+$") or "/"
     if parent == "" then parent = "/" end
     local parentMeta = getFileMeta(parent)
@@ -681,7 +804,7 @@ function vfs.remove(path)
     end
 
     if meta.etype == 0x01 then
-        local norm   = resolveSymlinks(path, true)
+        local norm   = namei(path, true)
         local parent = norm:match("^(.*)/[^/]+$") or "/"
         if parent == "" then parent = "/" end
         local name   = norm:match("[^/]+$")
@@ -747,7 +870,7 @@ function vfs.access(path, mode)
 end
 
 local function updateMeta(path, fn, noFollow)
-    local real   = resolveSymlinks(path, noFollow)
+    local real   = namei(path, noFollow)
     local norm   = real
     local parent = norm:match("^(.*)/[^/]+$") or "/"
     if parent == "" then parent = "/" end
