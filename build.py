@@ -27,7 +27,6 @@ import argparse
 import subprocess
 from pathlib import Path
 from typing import Union
-import lz4.frame
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 SRC_ROOT     = PROJECT_ROOT / "Src"
@@ -224,6 +223,9 @@ def main():
     micro        = "micro" in args.target
     include_test = "test" in args.target
 
+    if micro:
+        import lz4.block
+    
     run_build(minify=minify, micro=micro, include_test=include_test, arch=args.arch, release=args.release)
 
     if args.makeuser:
