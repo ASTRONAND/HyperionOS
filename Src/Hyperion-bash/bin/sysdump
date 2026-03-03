@@ -1,6 +1,9 @@
 --:Minify:--
+local path=...
+path=path or "/dev/tty/1"
 local syscalls=syscall.sysdump()
+local fd=syscall.open(path,"w")
 for i=1, #syscalls do
-    print(syscalls[i])
+    syscall.write(fd,syscalls[i].."\n)
 end
-print("Total # of syscalls: "..tostring(#syscalls))
+syscall.write(fd,"Total # of syscalls: "..tostring(#syscalls))
