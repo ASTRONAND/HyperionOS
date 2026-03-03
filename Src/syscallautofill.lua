@@ -6,96 +6,96 @@ syscall.connect=function(fd, address) end
 syscall.getcwd=function() end
 syscall.lodetach=function(id) end
 syscall.stop=function(pid) end
-syscall.recv
+syscall.recv=function(fd, amount) end
 syscall.write=function(fd, data) end
 syscall.getppid=function() end
-syscall.lstat
+syscall.lstat=function(path) end
 syscall.open=function(path, mode) end
 syscall.lseek=function(fd, offset, whence) end
 syscall.setHostname=function(hostname) end
-syscall.chroot
-syscall.dup2
+syscall.chroot=function(path) end
+syscall.dup2=function(src, dst) end
 syscall.getpid=function() end
-syscall.fchown
+syscall.fchown=function(fd, uid, gid) end
 syscall.close=function(fd) end
-syscall.umount
+syscall.umount=function(target) end
 syscall.getTasks=function() end
 syscall.sysdump=function() end
-syscall.fchmod
+syscall.fchmod=function(fd, perms) end
 syscall.getHostname=function() end
-syscall.listen
-syscall.dup
-syscall.gpio_read
-syscall.fget_suid
-syscall.gpio_write
-syscall.setpassword
+syscall.listen=function(fd, backlog) end
+syscall.dup=function(fd) end
+syscall.gpio_read=function(pin) end
+syscall.fget_suid=function(fd) end
+syscall.gpio_write=function(pin, data) end
+syscall.setpassword=function(uid, newPassword) end
 syscall.setEnviron=function(key, value) end
-syscall.losetup
+syscall.losetup=function(filePath, forceImage) end
 syscall.reboot=function() end
 syscall.getuid=function() end
-syscall.sigsend
+syscall.sigsend=function(pid, sigid) end
 syscall.sleep=function(time) end
 syscall.exit=function(code) end
 syscall.getEnviron=function(key) end
 syscall.continue=function(pid) end
-syscall.socket
+syscall.socket=function(domain, socktype) end
 syscall.log=function(text, tag, color) end
-syscall.loimgwrite
+syscall.loimgwrite=function(imgStr, destPath) end
 syscall.exists=function(path) end
 syscall.setuid=function(uid) end
 syscall.exec=function(path, args, envars) end
 syscall.execspawn=function(path, name, envars, args, tgid) end
-syscall.loimgcreate
+syscall.loimgcreate=function(srcPath) end
 syscall.time=function() end
-syscall.newuser
+syscall.newuser=function(username, password, gid, homedir, shell) end
 syscall.spawn=function(func, name, envars, args, tgid) end
 syscall.collect=function(pid) end
-syscall.setshell
+syscall.setshell=function(uid, shell) end
 syscall.devctl=function(fd, funcname) end
-syscall.listusers
-syscall.unlockuser
-syscall.mount
-syscall.accept
-syscall.lolist
-syscall.readlink
-syscall.deleteuser
+syscall.listusers=function() end
+syscall.unlockuser=function(uid) end
+syscall.mount=function(target, diskOrId) end
+syscall.accept=function(fd) end
+syscall.lolist=function() end
+syscall.readlink=function(path) end
+syscall.deleteuser=function(uid) end
 syscall.remove=function(path) end
 syscall.type=function(path) end
-syscall.elevate
+syscall.elevate=function(targetUsername, password) end
 syscall.mkdir=function(path) end
-syscall.getuidbyname
+syscall.getuidbyname=function(username) end
 syscall.whoami=function() end
-syscall.sendfile
-syscall.setusername
-syscall.geteuid
-syscall.login
-syscall.getHost
-syscall.getUptime
-syscall.httpget
-syscall.stat
-syscall.symlink
-syscall.pread
-syscall.chdir
+syscall.sendfile=function(src, dest, amount) end
+syscall.setusername=function(uid, newUsername) end
+syscall.geteuid=function() end
+syscall.login=function(username, password) end
+syscall.getHost=function() end
+syscall.getUptime=function() end
+syscall.httpget=function(url, headers) end
+syscall.stat=function(path) end
+syscall.symlink=function(target, linkPath) end
+syscall.pread=function(fd, count, offset) end
+syscall.chdir=function(path) end
 syscall.arch=function() end
-syscall.pwrite
-syscall.sockshutdown
-syscall.resolve
-syscall.send
-syscall.fstat
-syscall.chown
-syscall.fsync
-syscall.lockuser
-syscall.getUsername
-syscall.getsockname
-syscall.bind
+syscall.pwrite=function(fd, data, offset) end
+syscall.sockshutdown=function(fd) end
+syscall.resolve=function(hostname) end
+syscall.send=function(fd, data) end
+syscall.fstat=function(fd) end
+syscall.chown=function(path, uid, gid) end
+syscall.fsync=function(fd) end
+syscall.lockuser=function(uid) end
+syscall.getUsername=function(uid) end
+syscall.getsockname=function(fd) end
+syscall.bind=function(fd, address) end
 syscall.kill=function(pid) end
-syscall.setgid
-syscall.getpeername
-syscall.sigcatch
-syscall.shutdown
-syscall.access
-syscall.sigignore
-syscall.getpasswd
-syscall.version
+syscall.setgid=function(uid, gid) end
+syscall.getpeername=function(fd) end
+syscall.sigcatch=function(handler) end
+syscall.shutdown=function() end
+syscall.access=function(path, mode) end
+syscall.sigignore=function() end
+syscall.getpasswd=function(uid) end
+syscall.version=function() end
 syscall.chmod=function(path, perms) end
 syscall.listdir=function(path) end
