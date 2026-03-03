@@ -4,6 +4,7 @@ path=path or "/dev/tty/1"
 local syscalls=syscall.sysdump()
 local fd=syscall.open(path,"w")
 for i=1, #syscalls do
-    syscall.write(fd,syscalls[i].."\n)
+    syscall.write(fd,syscalls[i].."\n")
 end
 syscall.write(fd,"Total # of syscalls: "..tostring(#syscalls))
+syscall.close(fd)

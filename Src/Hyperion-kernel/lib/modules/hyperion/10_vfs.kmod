@@ -398,7 +398,7 @@ local function getFileMeta(path, noFollow)
     local real = namei(path, noFollow)
 
     if real == "/" then
-        return { etype = 0x00, owner = 0, group = 0, perms = 63, cmeta = "" }
+        return { etype = 0x00, owner = 0, group = 0, perms = 62, cmeta = "" }
     end
 
     local cur = real
