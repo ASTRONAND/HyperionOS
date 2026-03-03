@@ -102,12 +102,7 @@ def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool):
                     if micro:
                         print("    > LZ4 compressing")
                         compressed = compress_lz4(content.encode("utf-8"))
-                        # wrap in kernel.unpack if in hyperion-kernel
-                        if pkg_dir.name == "hyperion-kernel" and dst.suffix == ".lua":
-                            content_str = f"kernel.unpack([=[{compressed.hex()}]=])"
-                            dst.write_text(content_str, encoding="utf-8")
-                        else:
-                            dst.write_bytes(compressed)
+                        dst.write_bytes(compressed)
                     else:
                         dst.write_text(content, encoding="utf-8")
                 else:
