@@ -110,6 +110,9 @@ def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool):
                             dst.write_bytes(compressed)
                     else:
                         dst.write_text(content, encoding="utf-8")
+                else:
+                    print("    > Copying")
+                    shutil.copy2(src, dst)
             else:
                 print("    > Copying")
                 shutil.copy2(src, dst)
