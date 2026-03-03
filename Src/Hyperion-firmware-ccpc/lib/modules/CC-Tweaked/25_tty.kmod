@@ -243,22 +243,6 @@ local function serializeBool(bool)
 end
 
 local function newtty(obj, id, ev)
-    obj.setPaletteColor(0x1, 0xFFFFFF) -- #000000
-    obj.setPaletteColor(0x2, 0xFF0000) -- #FFFFFF
-    obj.setPaletteColor(0x4, 0x00FF00) -- #FF0000
-    obj.setPaletteColor(0x8, 0x0000FF) -- #00FF00
-    obj.setPaletteColor(0x10, 0x00FFFF) -- #0000FF
-    obj.setPaletteColor(0x20, 0xFF00FF) -- #00FFFF
-    obj.setPaletteColor(0x40, 0xFFFF00) -- #FF00FF
-    obj.setPaletteColor(0x80, 0xFF6D00) -- #FFFF00
-    obj.setPaletteColor(0x100, 0x6DFF55) -- #FF6D00
-    obj.setPaletteColor(0x200, 0x24FFFF) -- #6DFF55
-    obj.setPaletteColor(0x400, 0x924900) -- #24FFFF
-    obj.setPaletteColor(0x800, 0x6D6D55) -- #924900
-    obj.setPaletteColor(0x1000, 0xDBDBAA) -- #6D6D55
-    obj.setPaletteColor(0x2000, 0x6D00FF) -- #DBDBAA
-    obj.setPaletteColor(0x4000, 0xB6FF00) -- #6D00FF
-    obj.setPaletteColor(0x8000, 0x000000) -- #B6FF00
     kernel.devfs.data["tty"][id] = function(op, mode)
         if op=="type" then
             return "character device"

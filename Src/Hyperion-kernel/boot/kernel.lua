@@ -27,15 +27,15 @@ local windowsExp = false
 
 function kernel.log(msg, level, c)
     c=c or 12
-    kernel.LOG_Text = kernel.LOG_Text..tostring(computer:time()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
+    kernel.LOG_Text = kernel.LOG_Text..string.format("%X",c-1).." "..tostring(computer:time()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
     if kernel.status == "start" then
         screen:setTextColor(c)
-        screen:print(string.format("%X",c-1).." "..tostring(computer:time()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
+        screen:print(tostring(computer:time()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
     elseif kernel.status == "term" then
         kernel.standbyTask=kernel.currentTask
         kernel.currentTask=kernel.kernelTask
         kernel.vfs.devctl(1,"sfgc",c)
-        kernel.vfs.write(1,string.format("%X",c-1).." "..tostring(computer:time()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n")
+        kernel.vfs.write(1,tostring(computer:time()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n")
         kernel.currentTask=kernel.standbyTask
     end
 end
@@ -149,6 +149,10 @@ function kernel.saveLog()
     ifs.writeAllText("/var/log/syslog.log", kernel.LOG_Text)
 end
 
+function loadcstr(string)
+    
+end
+
 function kernel.newFifo()
     local fifo = {}
     fifo.push=function(data)
@@ -251,7 +255,12 @@ kernel.syscalls["sysdump"]=function()
     end
     return rv
 end
-kernel.syscalls["test"]=function() return true end
+kernel.syscalls["reboot"]=function()
+    kernel.computer:reboot()
+end
+kernel.syscalls["shutdown"]=function()
+    kernel.computer:reboot()
+end
 
 kernel.log("Running modules")
 for _,p in ipairs(modules) do
@@ -272,6 +281,7 @@ for _,p in ipairs(modules) do
 end
 
 kernel.log("Kernel initialized successfully.")
+kernel.saveLog()
 kernel.status="running"
 kernel.main()
 if kernel.status=="panic" then

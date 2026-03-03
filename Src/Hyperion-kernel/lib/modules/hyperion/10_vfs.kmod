@@ -401,12 +401,27 @@ local function getFileMeta(path, noFollow)
         return { etype = 0x00, owner = 0, group = 0, perms = 63, cmeta = "" }
     end
 
-    local parent, name = real:match("^(.*)/([^/]+)$")
-    if not parent or parent == "" then parent = "/" end
+    local cur = real
 
-    local disk, parentDiskPath = resolveMount(parent)
-    local entry = readMetaEntry(disk, parentDiskPath, name)
-    if entry then return entry end
+    -- FML i hated implementing this - Astronand
+    while true do
+        local parent, name = cur:match("^(.*)/([^/]+)$")
+        if not parent or parent == "" then parent = "/" end
+
+        local disk, parentDiskPath = resolveMount(parent)
+        local entry = readMetaEntry(disk, parentDiskPath, name)
+
+        if entry then
+            return entry
+        end
+
+        if parent == "/" or cur == "/" then
+            break
+        end
+
+        cur = parent
+    end
+
     return { etype = 0x00, owner = 0, group = 0, perms = 63, cmeta = "" }
 end
 
@@ -610,6 +625,7 @@ function vfs.open(path, mode)
     if mode == "r" and bit_is_set(meta.perms, 6) then
         fobj.suid_owner = meta.owner
     end
+    if disk.isvirt then fobj.isvirt=true end
     task.fd[fd] = fobj
     if not disk.isvirt then total = total + 1 end
     return fd
@@ -658,8 +674,10 @@ function vfs.close(fd)
     local task = kernel.currentTask
     local file = task.fd[fd]
     if not file then error("EBADF") end
+    if not task.fd[fd].isvirt then 
+        total = total - 1
+    end
     task.fd[fd] = nil
-    total = total - 1
     file.refcount = file.refcount - 1
     if file.refcount <= 0 and file.handle and file.handle.close then
         file.handle.close()
