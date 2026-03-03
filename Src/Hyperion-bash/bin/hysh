@@ -133,8 +133,6 @@ local function copyfile(src, dst)
     if not data then return false, err end
     local ok, err2 = writefile(dst, data)
     if not ok then return false, err2 end
-    local ok2, stat = pcall(syscall.stat, src)
-    if ok2 and stat and stat.perms then pcall(syscall.chmod, dst, stat.perms) end
     return true
 end
 
