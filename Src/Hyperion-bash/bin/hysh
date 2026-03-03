@@ -1,7 +1,7 @@
 --:Minify:--
 syscall.open("/dev/tty/1","r") --stdin  (Device 0)
 syscall.open("/dev/tty/1","w") --stdout (Device 1)
-syscall.open("/dev/null","w")     --stderr (device 2)
+syscall.open("/dev/null","w")  --stderr (device 2)
 
 local success, errorMsg = xpcall(function()
 
@@ -15,7 +15,7 @@ print("HyperionOS hysh Shell")
 local userhost = (syscall.getUsername() or "Unknown").."@"..(syscall.getHostname() or "Unknown")
 local commandHistory = {}
 local terminate = false
-syscall.setEnviron("SHELL","rtbash")
+syscall.setEnviron("SHELL","hysh")
 syscall.setEnviron("PATH","/bin/")
 local _home = syscall.getEnviron("HOME")
 if _home and _home ~= "" then
