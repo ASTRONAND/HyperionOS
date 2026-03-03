@@ -260,17 +260,17 @@ local function getUserInput(prompt, history)
     while true do
         local key = syscall.read(0)
         if key and key ~= "" then
-            if     key == "\19" then
+            if     key == "[C" then
                 if cursor > 1 then cursor = cursor - 1; dirty = true end
-            elseif key == "\20" then
+            elseif key == "[D" then
                 if cursor <= #input then cursor = cursor + 1; dirty = true end
-            elseif key == "\17" then
+            elseif key == "[A" then
                 if history and histIdx < #history then
                     histIdx = histIdx + 1
                     input = history[#history - histIdx + 1]
                     cursor = #input + 1; dirty = true
                 end
-            elseif key == "\18" then
+            elseif key == "[B" then
                 if histIdx > 1 then
                     histIdx = histIdx - 1
                     input = history[#history - histIdx + 1]
@@ -299,8 +299,6 @@ local function getUserInput(prompt, history)
     end
 end
 
-syscall.devctl(1, "clear")
-syscall.devctl(1, "spos", 1, 1)
 c(C_PROMPT); w("HyperionOS " .. _VERSION .. "\n")
 c(C_NIL)
 w("Interactive Lua REPL. exit() to quit.\n\n")
