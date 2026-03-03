@@ -1,12 +1,48 @@
 syscall={}
+
+--- Sets home directory of User with corosponding uid to homedir
+--- @param uid number
+--- @param homedir string
+--- @return true|nil, nil|string
 syscall.sethomedir=function(uid, homedir) end
+
+--- Reads amount from fd and returns content or nil
+--- @param fd integer
+--- @param amount integer
+--- @return string|nil
 syscall.read=function(fd, amount) end
+
+--- Gets information of task with id of pid
+---@param pid integer
+---@return table|nil
 syscall.getTask=function(pid) end
+
+--- client: connect to server address
+---@param fd integer
+---@param address string
+---@return nil
 syscall.connect=function(fd, address) end
-syscall.getcwd=function() end
+
+--- Get current working directory
+--- @return string
+syscall.getcwd=function() return "string" end
+
+--- detach loop device (must be unmounted first)
+--- @param id string
+--- @return nil
 syscall.lodetach=function(id) end
-syscall.stop=function(pid) end
-syscall.recv=function(fd, amount) end
+
+--- Stops task with id of pid
+--- @param pid integer
+--- @return boolean, string|nil
+syscall.stop=function(pid) return true end
+
+--- Receive bytes from socket (blocking poll, returns "" on nothing)
+--- @param fd integer
+--- @param amount integer
+--- @return string
+syscall.recv=function(fd, amount) return "string" end
+
 syscall.write=function(fd, data) end
 syscall.getppid=function() end
 syscall.lstat=function(path) end
