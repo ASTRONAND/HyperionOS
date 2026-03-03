@@ -96,19 +96,20 @@ def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool):
             print(f"  Processing: {src.relative_to(src_root)}")
 
             if has_minify_header(src):
-                print("    > Minifying")
-                content = minify_file(src)
-                if micro:
-                    print("    > LZ4 compressing")
-                    compressed = compress_lz4(content.encode("utf-8"))
-                    # wrap in kernel.unpack if in hyperion-kernel
-                    if pkg_dir.name == "hyperion-kernel" and dst.suffix == ".lua":
-                        content_str = f"kernel.unpack([=[{compressed.hex()}]=])"
-                        dst.write_text(content_str, encoding="utf-8")
+                if minify:
+                    print("    > Minifying")
+                    content = minify_file(src)
+                    if micro:
+                        print("    > LZ4 compressing")
+                        compressed = compress_lz4(content.encode("utf-8"))
+                        # wrap in kernel.unpack if in hyperion-kernel
+                        if pkg_dir.name == "hyperion-kernel" and dst.suffix == ".lua":
+                            content_str = f"kernel.unpack([=[{compressed.hex()}]=])"
+                            dst.write_text(content_str, encoding="utf-8")
+                        else:
+                            dst.write_bytes(compressed)
                     else:
-                        dst.write_bytes(compressed)
-                else:
-                    dst.write_text(content, encoding="utf-8")
+                        dst.write_text(content, encoding="utf-8")
             else:
                 print("    > Copying")
                 shutil.copy2(src, dst)
