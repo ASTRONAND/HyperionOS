@@ -113,13 +113,14 @@ local split = function(str, delim, maxResultCountOrNil)
 end
 
 if not ifs.isFile("/boot/boot.cfg") then
-    kernel.log("boot.cfg missing or corrupted!, Attempting to write recovery boot.cfg", "ERROR", 2)
+    kernel.log("First boot detected writing boot.cfg", "INFO", 3)
     ifs.writeAllText("/boot/boot.cfg",ifs.readAllText("/boot/safeboot.cfg"))
+    kernel.firstBoot=true
 end
 
 local initCfgFunc, err = load(ifs.readAllText("/boot/boot.cfg"), "@boot.cfg")
 if not initCfgFunc then
-    kernel.PANIC("Failed to load /boot/boot.cfg: "..tostring(err))
+    kernel.LOG_Text("Failed to load /boot/boot.cfg: "..tostring(err))
 end
 
 ---@diagnostic disable-next-line: param-type-mismatch
@@ -147,10 +148,6 @@ kernel.log("Disks initialized")
 
 function kernel.saveLog()
     ifs.writeAllText("/var/log/syslog.log", kernel.LOG_Text)
-end
-
-function loadcstr(string)
-    
 end
 
 function kernel.newFifo()

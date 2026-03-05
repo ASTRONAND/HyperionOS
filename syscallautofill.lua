@@ -1,7 +1,7 @@
 syscall={}
 
 --- Sets home directory of User with corosponding uid to homedir
---- @param uid number
+--- @param uid integer
 --- @param homedir string
 --- @return true|nil, nil|string
 syscall.sethomedir=function(uid, homedir) end
@@ -87,7 +87,7 @@ syscall.newuser=function(username, password, gid, homedir, shell) end
 syscall.spawn=function(func, name, envars, args, tgid) end
 syscall.collect=function(pid) end
 syscall.setshell=function(uid, shell) end
-syscall.devctl=function(fd, funcname) end
+syscall.devctl=function(fd, funcname, ...) end
 syscall.listusers=function() end
 syscall.unlockuser=function(uid) end
 syscall.mount=function(target, diskOrId) end

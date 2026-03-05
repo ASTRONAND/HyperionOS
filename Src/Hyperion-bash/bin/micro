@@ -413,8 +413,6 @@ while running do
         redraw()
         dirty = false
     end
-
-    sleep(0.05)
 end
 
 tclear(); tfg(1); tbg(16); tpos(1,1)

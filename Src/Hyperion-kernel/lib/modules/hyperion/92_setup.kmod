@@ -82,36 +82,38 @@ local function mergeMeta(dir, entries)
     end
 end
 
-kernel.log("Seeding filesystem permissions...", "INFO")
+if kernel.firstBoot then
+    kernel.log("Seeding filesystem permissions...")
 
-mergeMeta("/", {
-    {"bin",  REG, 0, 0, RWX_RX_RX},
-    {"boot", REG, 0, 0, RWX_RX_RX},
-    {"dev",  REG, 0, 0, RWXRWXRWX},
-    {"etc",  REG, 0, 0, RWX_RX_RX},
-    {"home", REG, 0, 0, RWX_RX_RX},
-    {"lib",  REG, 0, 0, RWX_RX_RX},
-    {"root", REG, 0, 0, RW____   },
-    {"sbin", REG, 0, 0, RWX_RX_RX},
-    {"tmp",  REG, 0, 0, RWXRWXRWX},
-    {"usr",  REG, 0, 0, RWX_RX_RX},
-    {"var",  REG, 0, 0, RWX_RX_RX},
-})
+    mergeMeta("/", {
+        {"bin",  REG, 0, 0, RWX_RX_RX},
+        {"boot", REG, 0, 0, RWX_RX_RX},
+        {"dev",  REG, 0, 0, RWXRWXRWX},
+        {"etc",  REG, 0, 0, RWX_RX_RX},
+        {"home", REG, 0, 0, RWX_RX_RX},
+        {"lib",  REG, 0, 0, RWX_RX_RX},
+        {"root", REG, 0, 0, RW____   },
+        {"sbin", REG, 0, 0, RWX_RX_RX},
+        {"tmp",  REG, 0, 0, RWXRWXRWX},
+        {"usr",  REG, 0, 0, RWX_RX_RX},
+        {"var",  REG, 0, 0, RWX_RX_RX},
+    })
 
-mergeMeta("/bin", {
-    {"login",       REG, 0, 0, SUID_755 },
-    {"su",          REG, 0, 0, SUID_755 },
-    {"sudo",        REG, 0, 0, SUID_755 },
-})
+    mergeMeta("/bin", {
+        {"login",       REG, 0, 0, SUID_755 },
+        {"su",          REG, 0, 0, SUID_755 },
+        {"sudo",        REG, 0, 0, SUID_755 },
+    })
 
-mergeMeta("/etc", {
-    {"passwd", REG, 0, 0, RW_R_R   },
-    {"shadow", REG, 0, 0, RW____   },
-    {"pam.d",  REG, 0, 0, RWX_RX_RX},
-})
+    mergeMeta("/etc", {
+        {"passwd", REG, 0, 0, RW_R_R   },
+        {"shadow", REG, 0, 0, RW____   },
+        {"pam.d",  REG, 0, 0, RW____   },
+    })
 
-mergeMeta("/etc/pam.d", {
-    {"secret", REG, 0, 0, RW____},
-})
+    mergeMeta("/etc/pam.d", {
+        {"secret", REG, 0, 0, RW____},
+    })
 
-kernel.log("Filesystem permissions seeded.", "INFO")
+    kernel.log("Filesystem permissions seeded.")
+end
