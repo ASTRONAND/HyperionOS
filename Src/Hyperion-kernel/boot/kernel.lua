@@ -120,7 +120,7 @@ end
 
 local initCfgFunc, err = load(ifs.readAllText("/boot/boot.cfg"), "@boot.cfg")
 if not initCfgFunc then
-    kernel.LOG_Text("Failed to load /boot/boot.cfg: "..tostring(err))
+    kernel.PANIC("Failed to load /boot/boot.cfg: "..tostring(err))
 end
 
 ---@diagnostic disable-next-line: param-type-mismatch

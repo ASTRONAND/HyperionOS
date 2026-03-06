@@ -11,7 +11,7 @@ syscall.sethomedir=function(uid, homedir) end
 
 --- Reads amount from fd and returns content or nil
 --- @param fd integer
---- @param amount integer
+--- @param amount? integer
 --- @return string|nil
 syscall.read=function(fd, amount) end
 
@@ -115,7 +115,7 @@ syscall.umount=function(target) end
 --- @return integer[]
 syscall.getTasks=function() end
 
---- Dump system state for debugging
+--- Dump all syscalls for debugging
 --- @return table
 syscall.sysdump=function() end
 
@@ -235,16 +235,16 @@ syscall.setuid=function(uid) end
 
 --- Replace current task with executable
 --- @param path string
---- @param args table
---- @param envars table
+--- @param args? table
+--- @param envars? table
 syscall.exec=function(path, args, envars) end
 
 --- Spawn a new task from executable
 --- @param path string
---- @param name string
---- @param envars table
---- @param args table
---- @param tgid integer
+--- @param name? string
+--- @param envars? table
+--- @param args? table
+--- @param tgid? integer
 --- @return integer
 syscall.execspawn=function(path, name, envars, args, tgid) end
 
@@ -268,10 +268,10 @@ syscall.newuser=function(username, password, gid, homedir, shell) end
 
 --- Spawn a new task from function
 --- @param func function
---- @param name string
---- @param envars table
---- @param args table
---- @param tgid integer
+--- @param name? string
+--- @param envars? table
+--- @param args? table
+--- @param tgid? integer
 --- @return integer
 syscall.spawn=function(func, name, envars, args, tgid) end
 

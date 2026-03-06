@@ -288,9 +288,9 @@ local function getUserInput(prompt, history)
                 syscall.devctl(1,"spos",ox,oy)
                 w(input .. " \n")
                 return input
-            else
-                input = input:sub(1, cursor-1) .. key .. input:sub(cursor)
-                cursor = cursor + 1; dirty = true
+            elseif #key == 1 and key:byte(1) >= 32 and key:byte(1) < 127 then
+                input=string.sub(input,1,cursor-1)..key..string.sub(input,cursor)
+                cursor=cursor+1;dirty=true
             end
         end
         local nb = (math.floor(syscall.getUptime() / 500) % 2) == 0

@@ -41,6 +41,6 @@ for i,v in ipairs(files) do
 end
 
 while true do
-    sleep(1)
+    sleep(5)
     kernel.saveLog()
 end
