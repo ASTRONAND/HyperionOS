@@ -90,9 +90,10 @@ def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool):
                 continue
 
             rel = src.relative_to(pkg_dir)
-            if rel=="$PKGCONFIG.ini":
-                continue
             
+            if rel.name=="$PKGCONFIG.ini":
+                continue
+
             dst = out_root / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
 
