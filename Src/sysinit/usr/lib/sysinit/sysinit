@@ -1,6 +1,6 @@
 --:Minify:--
 local kernel=...
-local fs=require("sys.fs")
+local fs=require("fs")
 
 for i,v in pairs(kernel.processes) do
     kernel.log("Spawning kernel task "..i)

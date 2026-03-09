@@ -1,4 +1,5 @@
 --:Minify:--
+--- @diagnostic disable: duplicate-set-field
 local kernel = ...
 kernel.allowGlobalOverwrites = true
 

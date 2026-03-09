@@ -1,5 +1,5 @@
 --:Minify:--
-local fs = require("sys.fs")
+local fs = require("fs")
 
 local cmdArgs = {...}
 local targetUser = "root"

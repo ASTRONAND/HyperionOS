@@ -1,3 +1,4 @@
 U $;/
 U devfs0000;/dev/
 U tmpfs0000;/tmp/
+U procfs0000;/proc/

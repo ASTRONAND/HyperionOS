@@ -45,7 +45,7 @@ if cloptions.help then
     return
 end
 
-local fs  = require("sys.fs")
+local fs  = require("fs")
 local dir = args[1] or ""
 if dir:sub(1, 1) ~= "/" then
     dir = syscall.getcwd() .. "/" .. dir
@@ -84,7 +84,7 @@ local function humanSize(size)
         size  = size / 1024
         scale = scale + 1
     end
-    if scale == 0 then return tostring(size) end
+    if scale == 0 then return tostring(size).."B" end
     if size < 10 then
         return string.format("%.1f%s", size, sizePrefixes[scale])
     end

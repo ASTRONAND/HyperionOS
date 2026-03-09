@@ -5,7 +5,7 @@ syscall.open("/dev/null","w")  --stderr (device 2)
 
 local success, errorMsg = xpcall(function()
 
-local fs = require("sys.fs")
+local fs = require("fs")
 
 syscall.devctl(1,"clear")
 syscall.devctl(1,"sfgc",1)

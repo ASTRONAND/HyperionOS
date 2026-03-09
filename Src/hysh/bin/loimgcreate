@@ -43,7 +43,7 @@ if opts.help then
     return
 end
 
-local fs = require("sys.fs")
+local fs = require("fs")
 
 if opts.x then
     if #args < 2 then
