@@ -577,6 +577,11 @@ table.values=function(tabl) end
 --- @return string
 table.serialize=function(tabl) end
 
+--- Returns a merged table with a and b
+--- @param ... table
+--- @return table
+table.merge=function(...) end
+
 --- Gets prefix of string with suffix
 --- @param str string
 --- @param suffix string

@@ -148,7 +148,7 @@ if cloptions.l then
                 syscall.devctl(1, "sfgc", 1)
             end
         elseif isDir then
-            syscall.devctl(1, "sfgc", 4)
+            syscall.devctl(1, "sfgc", 14)
             printInline(v)
             syscall.devctl(1, "sfgc", 1)
         else
@@ -177,7 +177,7 @@ for i, v in ipairs(list) do
     if isSym then
         syscall.devctl(1, "sfgc", 6)
     elseif isDir then
-        syscall.devctl(1, "sfgc", 4)
+        syscall.devctl(1, "sfgc", 14)
     else
         local isExec = stat and stat.perms and (math.floor(stat.perms / (2^9)) % 2 == 1)
         syscall.devctl(1, "sfgc", isExec and 3 or 1)

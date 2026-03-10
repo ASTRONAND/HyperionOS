@@ -19,16 +19,128 @@ proxy.attributes = function(path) return {
     created = 0
 } end
 
+local function buildMeta(entries, opts)
+    opts = opts or {}
+    local uid = opts.uid or 0
+    local gid = opts.gid or 0
+    local perms = opts.perms or 0x3F  -- default read/write for owner/group/world
+
+    local chunks = {}
+    table.insert(chunks, string.char(0x02))  -- version header
+
+    for path, target in pairs(entries) do
+        local name = path
+        local nameLen = #name
+        if nameLen > 255 then
+            error("Filename too long (>255 bytes): "..name)
+        end
+
+        -- Determine entry type: 0x01 = symlink if target ~= nil and target ~= ""
+        local entryType = 0x00
+        local cmeta = ""
+        if target and target ~= "" then
+            entryType = 0x01
+            cmeta = target
+        end
+        local cmetaLen = #cmeta
+        if cmetaLen > 255 then
+            error("cmeta too long (>255 bytes) for "..name)
+        end
+
+        -- Build entry as bytes
+        table.insert(chunks, string.char(nameLen))    -- name length
+        table.insert(chunks, name)                    -- name
+        table.insert(chunks, string.char(entryType))  -- entry type
+        table.insert(chunks, string.char(uid % 256, math.floor(uid/256) % 256))  -- uid
+        table.insert(chunks, string.char(gid % 256, math.floor(gid/256) % 256))  -- gid
+        table.insert(chunks, string.char(perms % 256, math.floor(perms/256) % 256)) -- perms
+        table.insert(chunks, string.char(cmetaLen))   -- cmeta length
+        if cmetaLen > 0 then
+            table.insert(chunks, cmeta)
+        end
+    end
+
+    return table.concat(chunks)
+end
+
+local function simpleFile(r,w)
+    return function(op, mode)
+        if op=="type" then
+            return "character device"
+        elseif op=="open" then
+            if mode=="r" then
+                return {
+                    read=r
+                }
+            elseif mode=="w" then
+                return {
+                    write=w
+                }
+            end
+        end
+    end
+end
+
+local function strFile(str)
+    local dat=tostring(str)
+    local pos=1
+    return simpleFile(function(amount)
+        pos=pos+amount
+        return dat:sub(pos-amount, pos)
+    end,function() error("EACCES") end)
+end
+
+local function newtaskproxy(task)
+    local files,siblings,children={},{},{}
+    if task.fd[0] then files["0"]=task.fd[0].path end
+    for i,v in ipairs(task.fd) do
+        files[tostring(i)]=tostring(v.path)
+    end
+    for i,v in ipairs(task.siblings) do
+        siblings[tostring(v.pid)]="/proc/"..tostring(v.pid)
+    end
+    for i,v in ipairs(task.children) do
+        children[tostring(v.pid)]="/proc/"..tostring(v.pid)
+    end
+    return {
+        [".meta"]=strFile(buildMeta({cwd=task.cwd,parent="/proc/"..tostring(task.parent.pid)})),
+        uid=strFile(task.uid),
+        comm=strFile(task.name),
+        fd={
+            [".meta"]=strFile(buildMeta(files))
+        },
+        siblings={
+            [".meta"]=strFile(buildMeta(siblings))
+        },
+        children={
+            [".meta"]=strFile(buildMeta(children))
+        }
+    }
+end
+
 function proxy:open(path, mode)
     local steps = kernel.vfs.splitPath(path)
     local step = data
-    for i=1, #steps-1 do
-        local dat = step[steps[i]]
-        if type(dat) ~= "table" then error("ENFILE") end
-        step=dat
-    end
-    if type(step[steps[#steps]]) == "function" then
-        return step[steps[#steps]]("open", mode)
+    if tonumber(steps[1]) then
+        local task=kernel.tasks[tostring(steps[1])]
+        local step = newtaskproxy(task)
+        for i=2, #steps-1 do
+            local dat = step[steps[i]]
+            if type(dat) ~= "table" then error("ENFILE") end
+            step=dat
+        end
+        if type(step[steps[#steps]]) == "function" then
+            return step[steps[#steps]]("open", mode)
+        end
+    else
+        for i=1, #steps-1 do
+            local dat = step[steps[i]]
+            if type(dat) ~= "table" then error("ENFILE") end
+            step=dat
+        end
+        if type(step[steps[#steps]]) == "function" then
+            return step[steps[#steps]]("open", mode)
+        end
     end
     error("ENFILE")
 end
@@ -39,16 +151,33 @@ function proxy:type(path, mode)
     if #steps == 0 then
         return "directory"
     end
-    for i=1, #steps-1 do
-        local dat = step[steps[i]]
-        if type(dat) ~= "table" then error("ENFILE") end
-        step=dat
-    end
-    if type(step[steps[#steps]]) == "function" then
-        return step[steps[#steps]]("type", mode)
-    end
-    if type(step[steps[#steps]]) == "table" then
-        return "directory"
+    if tonumber(steps[1]) then
+        local task=kernel.tasks[steps[1]]
+        if #steps==1 then return "directory" end
+        local step = newtaskproxy(task)
+        for i=2, #steps-1 do
+            local dat = step[steps[i]]
+            if type(dat) ~= "table" then error("ENFILE") end
+            step=dat
+        end
+        if type(step[steps[#steps]]) == "function" then
+            return step[steps[#steps]]("type", mode)
+        end
+        if type(step[steps[#steps]]) == "table" then
+            return "directory"
+        end
+    else
+        for i=1, #steps-1 do
+            local dat = step[steps[i]]
+            if type(dat) ~= "table" then error("ENFILE") end
+            step=dat
+        end
+        if type(step[steps[#steps]]) == "function" then
+            return step[steps[#steps]]("type", mode)
+        end
+        if type(step[steps[#steps]]) == "table" then
+            return "directory"
+        end
     end
     error("ENOENT")
 end
@@ -57,15 +186,29 @@ function proxy:list(path)
     local steps = kernel.vfs.splitPath(path)
     local step = data
     if #steps == 0 then
-        return table.keys(data)
+        return table.merge(table.keys(data),table.keys(kernel.tasks))
     end
-    for i=1, #steps-1 do
-        local dat = step[steps[i]]
-        if type(dat) ~= "table" then error("ENOENT") end
-        step=dat
-    end
-    if type(step[steps[#steps]]) == "table" then
-        return table.keys(step[steps[#steps]])
+    if tonumber(steps[1]) then
+        local task=kernel.tasks[steps[1]]
+        local step = newtaskproxy(task)
+        if #steps==1 then return table.keys(step) end
+        for i=2, #steps-1 do
+            local dat = step[steps[i]]
+            if type(dat) ~= "table" then error("ENOENT") end
+            step=dat
+        end
+        if type(step[steps[#steps]]) == "table" then
+            return table.keys(step[steps[#steps]])
+        end
+    else
+        for i=1, #steps-1 do
+            local dat = step[steps[i]]
+            if type(dat) ~= "table" then error("ENOENT") end
+            step=dat
+        end
+        if type(step[steps[#steps]]) == "table" then
+            return table.keys(step[steps[#steps]])
+        end
     end
     error("ENOENT")
 end
@@ -77,6 +220,7 @@ function proxy:fileExists(path)
     return ok
 end
 
+data.uptime=simpleFile(function()return tostring(kernel.computer:getUptime())end,function()error("EACCES")end)
 kernel.procfs={}
 kernel.procfs.data=data
 kernel.procfs.proxy=proxy
