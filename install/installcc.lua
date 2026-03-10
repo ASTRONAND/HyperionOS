@@ -1,2 +1,25 @@
 print("Hello, World!")
-sleep()
+sleep(1)
+term.clear()
+print("Do you want to install HyperionOS? [Y/n]")
+local input=read()
+if input=="y" or input=="Y" or input=="" then
+    goto install
+else
+    goto exit
+end
+
+::install::
+print("Installing tar but bad...")
+shell.run("wget https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/install/data/tarbad /tar.lua")
+print("Installing HyperionOS...")
+print("Installing precompiled tar")
+shell.run("wget https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/install/data/Build.tar /Build.tar")
+shell.run("tar Build.tar /")
+shell.run("rm $")
+shell.run("cp Build $")
+shell.run("rm Build")
+shell.run("rm Build.tar")
+fs.copy("/$/boot/cct/eeprom","/startup.lua")
+dofile("startup.lua")
+::exit::
