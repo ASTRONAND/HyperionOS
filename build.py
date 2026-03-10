@@ -6,8 +6,10 @@ Usage:
 Targets:
     build
     build-mini
+    build-micro
     build-test
     build-mini-test
+    build-micro-test
     clean
 
 Arch flags:
@@ -23,9 +25,6 @@ import sys
 import shutil
 import argparse
 import subprocess
-import hashlib
-import random
-import string
 from pathlib import Path
 from typing import Union
 
@@ -48,7 +47,34 @@ def clean():
         print("Nothing to clean.")
 
 
-def process_root(src_root: Path, out_root: Path, minify: bool):
+def has_minify_header(path: Path) -> bool:
+    try:
+        with path.open("r", encoding="utf-8", errors="ignore") as f:
+            for _ in range(3):
+                if "--:Minify:--" in f.readline():
+                    return True
+    except OSError:
+        pass
+    return False
+
+
+def minify_file(src: Path) -> str:
+    result = subprocess.run(
+        ["luamin.cmd", "-f", str(src)],
+        capture_output=True,
+        text=True
+    )
+    if result.returncode != 0:
+        print(f"    ! luamin failed: {result.stderr.strip()}", file=sys.stderr)
+        sys.exit(1)
+    return result.stdout
+
+
+def compress_lz4(data: bytes) -> bytes:
+    return lz4.frame.compress(data)
+
+
+def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool):
     print(f"Building from {src_root}")
     print(f"Output to      {out_root}")
     print()
@@ -64,21 +90,28 @@ def process_root(src_root: Path, out_root: Path, minify: bool):
                 continue
 
             rel = src.relative_to(pkg_dir)
+            
+            if rel.name=="$PKGCONFIG.ini":
+                continue
+
             dst = out_root / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
 
             print(f"  Processing: {src.relative_to(src_root)}")
 
-            if minify and has_minify_header(src):
-                print("    > Minifying")
-                result = subprocess.run(
-                    ["luamin", "-f", str(src)],
-                    capture_output=True, text=True
-                )
-                if result.returncode != 0:
-                    print(f"    ! luamin failed: {result.stderr.strip()}", file=sys.stderr)
-                    sys.exit(1)
-                dst.write_text(result.stdout, encoding="utf-8")
+            if has_minify_header(src):
+                if minify:
+                    print("    > Minifying")
+                    content = minify_file(src)
+                    if micro:
+                        print("    > LZ4 compressing")
+                        compressed = compress_lz4(content.encode("utf-8"))
+                        dst.write_bytes(compressed)
+                    else:
+                        dst.write_text(content, encoding="utf-8")
+                else:
+                    print("    > Copying")
+                    shutil.copy2(src, dst)
             else:
                 print("    > Copying")
                 shutil.copy2(src, dst)
@@ -88,88 +121,28 @@ def process_root(src_root: Path, out_root: Path, minify: bool):
 
 def install_bootloader(arch: str, release: bool):
     boot_dir  = BUILD_ROOT / "$" / ARCH_BOOT_DIR[arch]
-    boot_lua  = boot_dir / "boot.lua"
     eeprom    = boot_dir / "eeprom"
-
-    for src in (boot_lua, eeprom):
-        if not src.exists():
-            print(f"  ! Bootloader file not found: {src}", file=sys.stderr)
-            sys.exit(1)
-
-    print(f"  Installing: boot.lua -> Build/boot.lua")
-    shutil.copy2(boot_lua, BUILD_ROOT / "boot.lua")
 
     eeprom_dst_name = "startup.lua" if release else "eeprom"
     print(f"  Installing: eeprom -> Build/{eeprom_dst_name}")
     shutil.copy2(eeprom, BUILD_ROOT / eeprom_dst_name)
 
 
-def has_minify_header(path: Path) -> bool:
-    try:
-        with path.open("r", encoding="utf-8", errors="ignore") as f:
-            for _ in range(3):
-                if "--:Minify:--" in f.readline():
-                    return True
-    except OSError:
-        pass
-    return False
-
-
-def run_build(minify: bool, include_test: bool, arch: Union[str, None], release: bool):
+def run_build(minify: bool, micro: bool, include_test: bool, arch: Union[str, None], release: bool):
     clean()
     BUILD_ROOT.mkdir()
 
     out_root = BUILD_ROOT / "$" if arch else BUILD_ROOT
 
-    process_root(SRC_ROOT, out_root, minify)
+    process_root(SRC_ROOT, out_root, minify, micro)
     if include_test:
-        process_root(TEST_ROOT, out_root, minify)
+        process_root(TEST_ROOT, out_root, minify, micro)
 
     if arch:
         print("Installing bootloader files ...")
         install_bootloader(arch, release)
         print()
 
-
-def main():
-    parser = argparse.ArgumentParser(description="HyperionOS build script")
-    parser.add_argument("target", choices=["build", "build-mini", "build-test", "build-mini-test", "clean"])
-    parser.add_argument("--arch", choices=["cct", "oc"], default=None,
-                        help="Target architecture (cct or oc)")
-    parser.add_argument("--release", dest="release", action="store_true", default=True,
-                        help="Release build: eeprom placed as startup.lua (default)")
-    parser.add_argument("--dev", dest="release", action="store_false",
-                        help="Dev build: boot.lua and eeprom copied unchanged")
-    parser.add_argument(
-        "--makeuser", metavar=("USERNAME", "PASSWORD"), nargs=2, action="append",
-        default=[],
-        help=(
-            "Pre-create a user on first boot (dev builds only). "
-            "May be specified multiple times. "
-            "Example: --makeuser root secretpass --makeuser alice alicepass"
-        ),
-    )
-
-    args = parser.parse_args()
-
-    if args.makeuser and args.release:
-        parser.error("--makeuser is only allowed with --dev builds")
-
-    if args.target == "clean":
-        clean()
-        return
-
-    minify       = "mini" in args.target
-    include_test = "test" in args.target
-
-    run_build(minify=minify, include_test=include_test, arch=args.arch, release=args.release)
-
-    if args.makeuser:
-        print("Injecting first-boot user setup ...")
-        inject_makeusers(args.makeuser, args.arch)
-        print()
-
-    print("Build complete.")
 
 def _make_firstboot_kmod(users):
     lines = []
@@ -203,7 +176,7 @@ def _make_firstboot_kmod(users):
 
     lines.append("do")
     lines.append("  local ok, err = pcall(function()")
-    lines.append("    kernel.vfs.remove('/lib/modules/hyperion/50_firstboot_users.kmod')")
+    lines.append("    kernel.vfs.remove('/lib/modules/Hyperion/50_firstboot_users.kmod')")
     lines.append("  end)")
     lines.append("  if not ok then")
     lines.append("    kernel.log('FIRSTBOOT: could not self-delete: ' .. tostring(err), 'WARN')")
@@ -215,10 +188,55 @@ def _make_firstboot_kmod(users):
 
 def inject_makeusers(users, arch):
     base = BUILD_ROOT / "$" if arch else BUILD_ROOT
-    kmod_path = base / "lib" / "modules" / "hyperion" / "50_firstboot_users.kmod"
+    kmod_path = base / "lib" / "modules" / "Hyperion" / "50_firstboot_users.kmod"
     kmod_path.parent.mkdir(parents=True, exist_ok=True)
     kmod_path.write_text(_make_firstboot_kmod(users), encoding="utf-8")
     print("  Wrote first-boot user setup -> " + str(kmod_path.relative_to(BUILD_ROOT)))
+
+
+def main():
+    parser = argparse.ArgumentParser(description="HyperionOS build script")
+    parser.add_argument("target", choices=["build", "build-mini", "build-micro", "build-test", "build-mini-test", "build-micro-test", "clean"])
+    parser.add_argument("--arch", choices=["cct", "oc"], default=None,
+                        help="Target architecture (cct or oc)")
+    parser.add_argument("--release", dest="release", action="store_true", default=True,
+                        help="Release build: eeprom placed as startup.lua (default)")
+    parser.add_argument("--dev", dest="release", action="store_false",
+                        help="Dev build: boot.lua and eeprom copied unchanged")
+    parser.add_argument(
+        "--makeuser", metavar=("USERNAME", "PASSWORD"), nargs=2, action="append",
+        default=[],
+        help=(
+            "Pre-create a user on first boot (dev builds only). "
+            "May be specified multiple times. "
+            "Example: --makeuser root secretpass --makeuser alice alicepass"
+        ),
+    )
+
+    args = parser.parse_args()
+
+    if args.makeuser and args.release:
+        parser.error("--makeuser is only allowed with --dev builds")
+
+    if args.target == "clean":
+        clean()
+        return
+
+    minify       = "mini" in args.target or "micro" in args.target
+    micro        = "micro" in args.target
+    include_test = "test" in args.target
+
+    if micro:
+        import lz4.block
+    
+    run_build(minify=minify, micro=micro, include_test=include_test, arch=args.arch, release=args.release)
+
+    if args.makeuser:
+        print("Injecting first-boot user setup ...")
+        inject_makeusers(args.makeuser, args.arch)
+        print()
+
+    print("Build complete.")
 
 
 if __name__ == "__main__":

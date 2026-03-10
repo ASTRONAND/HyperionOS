@@ -1,6 +1,0 @@
-local sys = {}
-local fs = require("sys.fs")
-
-
-
-return sys

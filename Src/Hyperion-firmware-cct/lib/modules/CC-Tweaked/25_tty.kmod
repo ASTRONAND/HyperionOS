@@ -1,4 +1,4 @@
--- :Minify:--
+--:Minify:--
 local kernel = ...
 local apis = kernel.apis
 local native = apis.peripheral
@@ -243,6 +243,22 @@ local function serializeBool(bool)
 end
 
 local function newtty(obj, id, ev)
+    obj.setPaletteColor(0x1, 0xFFFFFF) -- #000000
+    obj.setPaletteColor(0x2, 0xFF0000) -- #FFFFFF
+    obj.setPaletteColor(0x4, 0x00FF00) -- #FF0000
+    obj.setPaletteColor(0x8, 0x0000FF) -- #00FF00
+    obj.setPaletteColor(0x10, 0x00FFFF) -- #0000FF
+    obj.setPaletteColor(0x20, 0xFF00FF) -- #00FFFF
+    obj.setPaletteColor(0x40, 0xFFFF00) -- #FF00FF
+    obj.setPaletteColor(0x80, 0xFF6D00) -- #FFFF00
+    obj.setPaletteColor(0x100, 0x6DFF55) -- #FF6D00
+    obj.setPaletteColor(0x200, 0x24FFFF) -- #6DFF55
+    obj.setPaletteColor(0x400, 0x924900) -- #24FFFF
+    obj.setPaletteColor(0x800, 0x6D6D55) -- #924900
+    obj.setPaletteColor(0x1000, 0xDBDBAA) -- #6D6D55
+    obj.setPaletteColor(0x2000, 0x6D00FF) -- #DBDBAA
+    obj.setPaletteColor(0x4000, 0xB6FF00) -- #6D00FF
+    obj.setPaletteColor(0x8000, 0x000000) -- #B6FF00
     kernel.devfs.data["tty"][id] = function(op, mode)
         if op=="type" then
             return "character device"
@@ -317,7 +333,18 @@ kernel.processes.cctmond = function()
             local eventType = event[1]
             local charOrKey = event[3]
 
-            -- Update modifier keys
+            local ctrlKeyMap = {
+                [apis.keys.a]=1,  [apis.keys.b]=2,  [apis.keys.c]=3,
+                [apis.keys.d]=4,  [apis.keys.e]=5,  [apis.keys.f]=6,
+                [apis.keys.g]=7,  [apis.keys.h]=8,  [apis.keys.i]=9,
+                [apis.keys.j]=10, [apis.keys.k]=11, [apis.keys.l]=12,
+                [apis.keys.m]=13, [apis.keys.n]=14, [apis.keys.o]=15,
+                [apis.keys.p]=16, [apis.keys.q]=17, [apis.keys.r]=18,
+                [apis.keys.s]=19, [apis.keys.t]=20, [apis.keys.u]=21,
+                [apis.keys.v]=22, [apis.keys.w]=23, [apis.keys.x]=24,
+                [apis.keys.y]=25, [apis.keys.z]=26,
+            }
+
             if eventType == "keyPressed" then
                 if charOrKey == apis.keys.leftCtrl or charOrKey == apis.keys.rightCtrl then
                     ctrl = true
@@ -325,11 +352,31 @@ kernel.processes.cctmond = function()
                     alt = true
                 end
 
-                -- Handle Ctrl+C
-                if ctrl and charOrKey == apis.keys.c then
-                    for _, task in ipairs(syscall.getTasks()) do
-                        syscall.sigsend(task, 1) -- SIGINT
+                if ctrl then
+                    local ctrlByte = ctrlKeyMap[charOrKey]
+                    if ctrlByte then
+                        if ctrlByte == 3 then
+                            for _, task in ipairs(syscall.getTasks()) do
+                                syscall.sigsend(task, 1)
+                            end
+                        else
+                            fifo.push(string.char(ctrlByte))
+                        end
                     end
+                else
+                    local specialKeyMap = {
+                        [apis.keys.up]        = "[A",
+                        [apis.keys.down]      = "[B",
+                        [apis.keys.right]     = "[C",
+                        [apis.keys.left]      = "[D",
+                        [apis.keys.home]      = "[H",
+                        [apis.keys["end"]]    = "[F",
+                        [apis.keys.pageUp]    = "[5~",
+                        [apis.keys.pageDown]  = "[6~",
+                        [apis.keys.delete]    = "[3~",
+                    }
+                    local special = specialKeyMap[charOrKey]
+                    if special then fifo.push(special) end
                 end
 
             elseif eventType == "keyReleased" then
@@ -354,10 +401,10 @@ kernel.processes.cctmond = function()
     end
 end
 
-newtty(apis.term, "TTY1", fifo.pop)
+newtty(apis.term, "1", fifo.pop)
 
 for i,v in ipairs({peripheral.find("monitor")}) do
     v.setTextScale(.5)
     v.write("Initializing...")
-    newtty(v,"TTY"..tostring(i+1),function () end)
+    newtty(v,tostring(i+1),function () end)
 end

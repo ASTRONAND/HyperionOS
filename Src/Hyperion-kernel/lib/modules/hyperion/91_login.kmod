@@ -1,8 +1,8 @@
--- :Minify:--
+--:Minify:--
 local kernel = ...
 
 kernel.processes.login = function()
-    local ok, err = pcall(syscall.execspawn, "/bin/login", "login")
+    local ok, err = pcall(kernel.hpv.execspawn, "/bin/login", "login")
     if not ok then
         kernel.log("Failed to exec /bin/login: " .. tostring(err), "ERROR", 2)
     end

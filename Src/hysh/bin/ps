@@ -1,0 +1,5 @@
+--:Minify:--
+for i,v in ipairs(syscall.getTasks()) do
+    local task = syscall.getTask(v)
+    print(task.pid,task.username,task.name,task.status)
+end

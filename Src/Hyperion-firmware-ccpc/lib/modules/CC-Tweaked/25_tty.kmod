@@ -1,0 +1,394 @@
+--:Minify:--
+local kernel = ...
+local apis = kernel.apis
+local native = apis.peripheral
+local sides = {"top", "bottom", "left", "right", "front", "back"}
+local peripheral={}
+
+function peripheral.getNames()
+    local results = {}
+    for n = 1, #sides do
+        local side = sides[n]
+        if native.isPresent(side) then
+            table.insert(results, side)
+            if native.hasType(side, "peripheral_hub") then
+                local remote = native.call(side, "getNamesRemote")
+                for _, name in ipairs(remote) do
+                    table.insert(results, name)
+                end
+            end
+        end
+    end
+    return results
+end
+
+function peripheral.isPresent(name)
+    if native.isPresent(name) then
+        return true
+    end
+
+    for n = 1, #sides do
+        local side = sides[n]
+        if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", name) then
+            return true
+        end
+    end
+    return false
+end
+
+function peripheral.getType(peripheral)
+    if type(peripheral) == "string" then
+        if native.isPresent(peripheral) then
+            return native.getType(peripheral)
+        end
+        for n = 1, #sides do
+            local side = sides[n]
+            if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", peripheral) then
+                return native.call(side, "getTypeRemote", peripheral)
+            end
+        end
+        return nil
+    else
+        local mt = getmetatable(peripheral)
+        if not mt or mt.__name ~= "peripheral" or type(mt.types) ~= "table" then
+            error("bad argument #1 (table is not a peripheral)", 2)
+        end
+        return table.unpack(mt.types)
+    end
+end
+
+function peripheral.hasType(peripheral, peripheral_type)
+    if type(peripheral) == "string" then
+        if native.isPresent(peripheral) then
+            return native.hasType(peripheral, peripheral_type)
+        end
+        for n = 1, #sides do
+            local side = sides[n]
+            if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", peripheral) then
+                return native.call(side, "hasTypeRemote", peripheral, peripheral_type)
+            end
+        end
+        return nil
+    else
+        local mt = getmetatable(peripheral)
+        if not mt or mt.__name ~= "peripheral" or type(mt.types) ~= "table" then
+            error("bad argument #1 (table is not a peripheral)", 2)
+        end
+        return mt.types[peripheral_type] ~= nil
+    end
+end
+
+function peripheral.getMethods(name)
+    if native.isPresent(name) then
+        return native.getMethods(name)
+    end
+    for n = 1, #sides do
+        local side = sides[n]
+        if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", name) then
+            return native.call(side, "getMethodsRemote", name)
+        end
+    end
+    return nil
+end
+
+function peripheral.getName(peripheral)
+    local mt = getmetatable(peripheral)
+    if not mt or mt.__name ~= "peripheral" or type(mt.name) ~= "string" then
+        error("bad argument #1 (table is not a peripheral)", 2)
+    end
+    return mt.name
+end
+
+function peripheral.call(name, method, ...)
+    if native.isPresent(name) then
+        return native.call(name, method, ...)
+    end
+
+    for n = 1, #sides do
+        local side = sides[n]
+        if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", name) then
+            return native.call(side, "callRemote", name, method, ...)
+        end
+    end
+    return nil
+end
+
+function peripheral.wrap(name)
+    local methods = peripheral.getMethods(name)
+    if not methods then
+        return nil
+    end
+
+    local types = { peripheral.getType(name) }
+    for i = 1, #types do types[types[i]] = true end
+    local result = setmetatable({}, {
+        __name = "peripheral",
+        name = name,
+        type = types[1],
+        types = types,
+    })
+    for _, method in ipairs(methods) do
+        result[method] = function(...)
+            return peripheral.call(name, method, ...)
+        end
+    end
+    return result
+end
+
+function peripheral.find(ty, filter)
+    local results = {}
+    for _, name in ipairs(peripheral.getNames()) do
+        if peripheral.hasType(name, ty) then
+            local wrapped = peripheral.wrap(name)
+            if filter == nil or filter(name, wrapped) then
+                table.insert(results, wrapped)
+            end
+        end
+    end
+    return table.unpack(results)
+end
+
+local icolors = {
+    [0x1] = 1, -- #000000
+    [0x2] = 2, -- #FFFFFF
+    [0x4] = 3, -- #FF0000
+    [0x8] = 4, -- #00FF00
+    [0x10] = 5, -- #0000FF
+    [0x20] = 6, -- #00FFFF
+    [0x40] = 7, -- #FF00FF
+    [0x80] = 8, -- #FFFF00
+    [0x100] = 9, -- #FF6D00
+    [0x200] = 10, -- #6DFF55
+    [0x400] = 11, -- #24FFFF
+    [0x800] = 12, -- #924900
+    [0x1000] = 13, -- #6D6D55
+    [0x2000] = 14, -- #DBDBAA
+    [0x4000] = 15, -- #6D00FF
+    [0x8000] = 16 -- #B6FF00
+}
+
+local colors = {
+    0x0001, -- #000000
+    0x0002, -- #FFFFFF
+    0x0004, -- #FF0000
+    0x0008, -- #00FF00
+    0x0010, -- #0000FF
+    0x0020, -- #00FFFF
+    0x0040, -- #FF00FF
+    0x0080, -- #FFFF00
+    0x0100, -- #FF6D00
+    0x0200, -- #6DFF55
+    0x0400, -- #24FFFF
+    0x0800, -- #924900
+    0x1000, -- #6D6D55
+    0x2000, -- #DBDBAA
+    0x4000, -- #6D00FF
+    0x8000 -- #B6FF00
+}
+
+local function write(text, term)
+    local x, y = term.getCursorPos()
+    local w, h = term.getSize()
+
+    for i = 1, #text do
+        local c = text:sub(i, i)
+
+        if c == "\n" then
+            y = y + 1
+            x = 1
+        elseif c == "\t" then
+            local tabSize = 4
+            local spaces = tabSize - ((x - 1) % tabSize)
+            term.write(string.rep(" ", spaces))
+            x = x + spaces
+        elseif c == "\b" then
+            if x > 1 then
+                x = x - 1
+                term.setCursorPos(x, y)
+                term.write(" ")
+                term.setCursorPos(x, y)
+            end
+        else
+            if x <= w and y <= h then
+                term.setCursorPos(x, y)
+                term.write(c)
+                x = x + 1
+            end
+        end
+
+        if x > w then
+            x = 1
+            y = y + 1
+        end
+
+        if y - 1 >= h then
+            term.scroll(1)
+            y = h
+            term.setCursorPos(x, y)
+        end
+    end
+
+    term.setCursorPos(x, y)
+end
+
+kernel.devfs.data.tty={}
+local ctrl,alt = false, false
+
+local function serializeBool(bool)
+    if bool then
+        return "T"
+    else
+        return "F"
+    end
+end
+
+local function newtty(obj, id, ev)
+    kernel.devfs.data["tty"][id] = function(op, mode)
+        if op=="type" then
+            return "character device"
+        elseif op=="open" then
+            local h = {
+                read=function(amount)
+                    local rv=""
+                    for i=1, amount or 1 do
+                        local event = {ev()}
+                        if event[1] then
+                            rv=rv..event[1]
+                        end
+                    end
+                    if rv=="" then rv=nil end
+                    return rv
+                end,
+                write=function(content)
+                    write(content, obj)
+                end,
+                size=function()
+                    local s={obj.getSize()}
+                    return table.concat(s,";")
+                end,
+                clear=function()
+                    obj.clear()
+                    obj.setCursorPos(1,1)
+                end,
+                gpos=function()
+                    local s={obj.getCursorPos()}
+                    return table.concat(s,";")
+                end,
+                spos=function(x,y)
+                    return obj.setCursorPos(x,y)
+                end,
+                sfgc=function(c)
+                    return obj.setTextColor(colors[c])
+                end,
+                sbgc=function(c)
+                    return obj.setBackgroundColor(colors[c])
+                end,
+                gfgc=function()
+                    return icolors[obj.getTextColor()]
+                end,
+                gbgc=function()
+                    return icolors[obj.getBackgroundColor()]
+                end,
+                gctrl=function()
+                    return serializeBool(ctrl)..";"..serializeBool(alt)
+                end
+            }
+            if mode=="rw" then
+                return h
+            elseif mode=="r" then
+                h["write"]=nil
+                return h
+            elseif mode=="w" then
+                h["read"]=nil
+                return h
+            end
+        end
+    end
+end
+
+local fifo = kernel.newFifo()
+
+kernel.processes.cctmond = function()
+    local timeout = false
+    while true do
+        local event = {kernel.computer:getMachineEvent()}
+
+        if event[1] then
+            local eventType = event[1]
+            local charOrKey = event[3]
+
+            local ctrlKeyMap = {
+                [apis.keys.a]=1,  [apis.keys.b]=2,  [apis.keys.c]=3,
+                [apis.keys.d]=4,  [apis.keys.e]=5,  [apis.keys.f]=6,
+                [apis.keys.g]=7,  [apis.keys.h]=8,  [apis.keys.i]=9,
+                [apis.keys.j]=10, [apis.keys.k]=11, [apis.keys.l]=12,
+                [apis.keys.m]=13, [apis.keys.n]=14, [apis.keys.o]=15,
+                [apis.keys.p]=16, [apis.keys.q]=17, [apis.keys.r]=18,
+                [apis.keys.s]=19, [apis.keys.t]=20, [apis.keys.u]=21,
+                [apis.keys.v]=22, [apis.keys.w]=23, [apis.keys.x]=24,
+                [apis.keys.y]=25, [apis.keys.z]=26,
+            }
+
+            if eventType == "keyPressed" then
+                if charOrKey == apis.keys.leftCtrl or charOrKey == apis.keys.rightCtrl then
+                    ctrl = true
+                elseif charOrKey == apis.keys.leftAlt or charOrKey == apis.keys.rightAlt then
+                    alt = true
+                end
+
+                if ctrl then
+                    local ctrlByte = ctrlKeyMap[charOrKey]
+                    if ctrlByte then
+                        if ctrlByte == 3 then
+                            for _, task in ipairs(syscall.getTasks()) do
+                                syscall.sigsend(task, 1)
+                            end
+                        else
+                            fifo.push(string.char(ctrlByte))
+                        end
+                    end
+                else
+                    local specialKeyMap = {
+                        [apis.keys.up]        = "[A",
+                        [apis.keys.down]      = "[B",
+                        [apis.keys.right]     = "[C",
+                        [apis.keys.left]      = "[D",
+                        [apis.keys.home]      = "[H",
+                        [apis.keys["end"]]    = "[F",
+                        [apis.keys.pageUp]    = "[5~",
+                        [apis.keys.pageDown]  = "[6~",
+                        [apis.keys.delete]    = "[3~",
+                    }
+                    local special = specialKeyMap[charOrKey]
+                    if special then fifo.push(special) end
+                end
+
+            elseif eventType == "keyReleased" then
+                if charOrKey == apis.keys.leftCtrl or charOrKey == apis.keys.rightCtrl then
+                    ctrl = false
+                elseif charOrKey == apis.keys.leftAlt or charOrKey == apis.keys.rightAlt then
+                    alt = false
+                end
+
+            elseif eventType == "keyTyped" then
+                if charOrKey then fifo.push(charOrKey) end
+            end
+
+            timeout = false
+        else
+            timeout = true
+        end
+
+        if timeout then
+            sleep(0.05)
+        end
+    end
+end
+
+newtty(apis.term, "1", fifo.pop)
+
+for i,v in ipairs({peripheral.find("monitor")}) do
+    v.setTextScale(.5)
+    v.write("Initializing...")
+    newtty(v,tostring(i+1),function () end)
+end

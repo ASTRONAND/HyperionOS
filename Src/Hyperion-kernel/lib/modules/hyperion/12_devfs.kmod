@@ -16,7 +16,7 @@ proxy.getLabel = function() return "devfs" end
 proxy.attributes = function(path) return {
     size = 0,
     modified = 0,
-    created = 0,
+    created = 0
 } end
 
 function proxy:open(path, mode)

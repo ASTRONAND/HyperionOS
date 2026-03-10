@@ -1,4 +1,4 @@
--- :Minify:--
+--:Minify:--
 -- Supports:
 --   AF_UNIX  - local IPC via /var/run/*.sock paths
 --   AF_INET  - network sockets with three backends:

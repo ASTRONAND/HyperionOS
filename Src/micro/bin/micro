@@ -1,0 +1,419 @@
+--:Minify:--
+--   Arrows          move cursor       Home/End        line start/end
+--   PgUp/PgDn       page up/down      Backspace       delete left
+--   Ctrl-D/Delete   delete right      Tab             4 spaces
+--   Ctrl-W          save              Ctrl-X          save + quit
+--   Ctrl-P          quit              Ctrl-K          cut line
+--   Ctrl-U          paste             Ctrl-F          find
+--   Ctrl-N          find next         Ctrl-G          go to line
+--   Ctrl-A          line start        Ctrl-E          line end
+--   Ctrl-B          page up           Ctrl-L          page down
+
+local args = { ... }
+
+local function termSize()
+    local s = syscall.devctl(1, "size")
+    return tonumber(s:match("^(%d+)")) or 80,
+           tonumber(s:match(";(%d+)$")) or 24
+end
+local function tpos(x,y)  syscall.devctl(1,"spos",x,y) end
+local function tfg(c)     syscall.devctl(1,"sfgc",c)   end
+local function tbg(c)     syscall.devctl(1,"sbgc",c)   end
+local function twrite(s)  if s and s~="" then syscall.write(1,s) end end
+local function tclear()   syscall.devctl(1,"clear")    end
+
+local W, H  = termSize()
+local ROWS  = H - 2
+
+local lines      = {""}
+local cx         = 1
+local cy         = 1
+local scrollY    = 0
+local dirty      = true
+local fname      = nil
+local msg        = ""
+local msgErr     = false
+local clip       = nil
+local sPat       = ""
+local sLine      = 0
+local blinkState = false
+
+local function absPath(p)
+    if p:sub(1,1) == "/" then return p end
+    local cwd = syscall.getcwd()
+    cwd = cwd:gsub("/+$", "")
+    return cwd .. "/" .. p
+end
+
+local function loadFile(path)
+    if not syscall.exists(path) then
+        lines = {""}; msg = "[new file]"; return
+    end
+    local fd = syscall.open(path, "r")
+    local buf = ""
+    while true do
+        local c = syscall.read(fd, 4096)
+        if not c or c == "" then break end
+        buf = buf .. c
+    end
+    syscall.close(fd)
+    lines = {}
+    for ln in (buf.."\n"):gmatch("([^\n]*)\n") do
+        table.insert(lines, ln)
+    end
+    if #lines > 1 and lines[#lines] == "" and buf:sub(-1) == "\n" then
+        table.remove(lines)
+    end
+    if #lines == 0 then lines = {""} end
+end
+
+local function saveFile(path)
+    local ok, err = pcall(function()
+        local fd = syscall.open(path, "w")
+        for i, ln in ipairs(lines) do
+            syscall.write(fd, ln)
+            if i < #lines then syscall.write(fd, "\n") end
+        end
+        syscall.write(fd, "\n")
+        syscall.close(fd)
+    end)
+    if ok then
+        msg = "Saved: "..path; msgErr = false
+    else
+        msg = "Save failed: "..tostring(err); msgErr = true
+    end
+end
+
+local function wrappedRows(lineStr)
+    return math.max(1, math.ceil(#lineStr / W))
+end
+
+local function logicalToScreen(li, col)
+    return math.floor((col - 1) / W)
+end
+
+local function buildScreenMap()
+    local map = {}
+    local sr  = 0
+    for li = 1, #lines do
+        local len  = #lines[li]
+        local nrows = wrappedRows(lines[li])
+        for r = 0, nrows - 1 do
+            sr = sr + 1
+            map[sr] = {li, r * W + 1}
+        end
+    end
+    return map, sr
+end
+
+local function cursorScreenRow(map)
+    local offset = logicalToScreen(cy, cx)
+    for sr, entry in ipairs(map) do
+        if entry[1] == cy and math.floor((entry[2]-1)/W) == offset then
+            return sr
+        end
+    end
+    return 1
+end
+
+local function clampCx()
+    local m = #lines[cy] + 1
+    if cx > m then cx = m end
+    if cx < 1 then cx = 1 end
+end
+
+local function clampScroll(map)
+    local csr = cursorScreenRow(map)
+    if csr - 1 < scrollY          then scrollY = csr - 1 end
+    if csr - 1 >= scrollY + ROWS  then scrollY = csr - ROWS end
+    if scrollY < 0                then scrollY = 0 end
+end
+
+local function pad(s, w)
+    if #s >= w then return s:sub(1, w) end
+    return s .. string.rep(" ", w - #s)
+end
+
+local function drawTop()
+    tpos(1,1); tbg(4); tfg(16)
+    local left  = " edit" .. (fname and (" - "..fname) or "")
+    if dirty then left = left .. " [+]" end
+    local right = tostring(cy)..","..tostring(cx).." "
+    twrite(pad(left..string.rep(" ", math.max(1, W-#left-#right))..right, W))
+    tbg(16); tfg(1)
+end
+
+local function drawBottom()
+    tpos(1, H); tbg(4); tfg(16)
+    if msg ~= "" then
+        if msgErr then tbg(2) end
+        twrite(pad(" "..msg, W))
+        msg = ""; msgErr = false
+    else
+        twrite(pad(" ^W Save  ^X Quit+Save  ^P Quit  ^K Cut  ^U Paste  ^F Find  ^G Go", W))
+    end
+    tbg(16); tfg(1)
+end
+
+local function drawLines(map)
+    local curSR    = cursorScreenRow(map)
+    local curRowOffset = logicalToScreen(cy, cx)
+    local curColInRow  = cx - curRowOffset * W
+
+    for row = 1, ROWS do
+        local sr = scrollY + row
+        tpos(1, row + 1)
+        local entry = map[sr]
+        if entry then
+            local li       = entry[1]
+            local startCol = entry[2]
+            local seg      = lines[li]:sub(startCol, startCol + W - 1)
+            local isCursorRow = (sr == curSR)
+
+            if isCursorRow then
+                local ci = curColInRow
+                ci = math.min(ci, #seg + 1)
+                local before = seg:sub(1, ci-1)
+                local curCh  = ci > #seg and " " or seg:sub(ci, ci)
+                local after  = seg:sub(ci+1)
+
+                tfg(1); tbg(16); twrite(before)
+                if blinkState then tfg(16); tbg(1) else tfg(1); tbg(16) end
+                twrite(curCh)
+                tfg(1); tbg(16); twrite(after)
+                local drawn = #before + 1 + #after
+                if drawn < W then twrite(string.rep(" ", W - drawn)) end
+            else
+                if li == sLine and sPat ~= "" and entry[2] == 1 then
+                    local s, e = seg:find(sPat)
+                    if s then
+                        tfg(1);  tbg(16); twrite(seg:sub(1,s-1))
+                        tfg(16); tbg(3);  twrite(seg:sub(s,e))
+                        tfg(1);  tbg(16); twrite(seg:sub(e+1))
+                        twrite(string.rep(" ", W - #seg))
+                    else
+                        tfg(1); tbg(16); twrite(pad(seg, W))
+                    end
+                else
+                    tfg(1); tbg(16); twrite(pad(seg, W))
+                end
+            end
+        else
+            tfg(13); tbg(16); twrite(pad("~", W)); tfg(1)
+        end
+    end
+end
+
+local function redraw()
+    W, H = termSize(); ROWS = H - 2
+    local map = buildScreenMap()
+    clampScroll(map)
+    drawTop()
+    drawLines(map)
+    drawBottom()
+    tpos(1, H)
+    tbg(16); tfg(1)
+end
+
+local function prompt(label, default)
+    local inp = default or ""
+    while true do
+        tpos(1, H); tbg(3); tfg(16)
+        twrite(pad(" "..label..inp.." ", W))
+        tbg(16); tfg(1)
+        local key = syscall.read(0)
+        if not key or key == "" then sleep(0.02)
+        elseif key == "" then return nil
+        elseif key == "\n"  then return inp
+        elseif key == "\b"  then if #inp > 0 then inp = inp:sub(1,-2) end
+        else
+            local b = key:byte(1)
+            if b >= 32 and b < 127 then inp = inp..key:sub(1,1) end
+        end
+    end
+end
+
+local function insChar(c)
+    local ln = lines[cy]
+    lines[cy] = ln:sub(1,cx-1)..c..ln:sub(cx)
+    cx = cx+1; dirty = true
+end
+
+local function delLeft()
+    if cx > 1 then
+        local ln = lines[cy]
+        lines[cy] = ln:sub(1,cx-2)..ln:sub(cx)
+        cx = cx-1; dirty = true
+    elseif cy > 1 then
+        local above = lines[cy-1]
+        cx = #above+1
+        lines[cy-1] = above..lines[cy]
+        table.remove(lines, cy)
+        cy = cy-1; dirty = true
+    end
+end
+
+local function delRight()
+    local ln = lines[cy]
+    if cx <= #ln then
+        lines[cy] = ln:sub(1,cx-1)..ln:sub(cx+1); dirty = true
+    elseif cy < #lines then
+        lines[cy] = ln..lines[cy+1]
+        table.remove(lines, cy+1); dirty = true
+    end
+end
+
+local function newline()
+    local ln   = lines[cy]
+    local pre  = ln:sub(1,cx-1)
+    local post = ln:sub(cx)
+    local ind  = pre:match("^(%s*)") or ""
+    lines[cy]  = pre
+    table.insert(lines, cy+1, ind..post)
+    cy = cy+1; cx = #ind+1; dirty = true
+end
+
+local function cutLine()
+    clip = lines[cy]
+    table.remove(lines, cy)
+    if #lines == 0 then lines = {""} end
+    if cy > #lines then cy = #lines end
+    cx = 1; dirty = true; msg = "Cut"
+end
+
+local function pasteLine()
+    if not clip then msg = "Nothing to paste"; return end
+    table.insert(lines, cy, clip)
+    cy = cy+1; cx = 1; dirty = true; msg = "Pasted"
+end
+
+local function findNext()
+    if sPat == "" then
+        local p = prompt("Find: ", "")
+        if not p or p == "" then dirty = true; return end
+        sPat = p; sLine = 0
+    end
+    local start = sLine > 0 and sLine or cy
+    for i = 1, #lines do
+        local idx = (start-1+i) % #lines + 1
+        if lines[idx]:find(sPat) then
+            cy = idx; sLine = idx
+            cx = lines[idx]:find(sPat) or 1
+            msg = "Found: line "..idx; dirty = true; return
+        end
+    end
+    msg = "Not found: "..sPat; msgErr = true; dirty = true
+end
+
+local function goToLine()
+    local p = prompt("Go to line: ", "")
+    if not p then dirty = true; return end
+    local n = tonumber(p)
+    if not n then msg = "Not a number"; msgErr = true; dirty = true; return end
+    cy = math.max(1, math.min(#lines, math.floor(n)))
+    cx = 1; msg = "Line "..cy; dirty = true
+end
+
+local function doSave()
+    if not fname then
+        local p = prompt("Save as: ", "")
+        dirty = true
+        if not p or p == "" then return false end
+        fname = absPath(p)
+    end
+    saveFile(fname); dirty = true; return not msgErr
+end
+
+local function moveCursorUp(map)
+    local csr = cursorScreenRow(map)
+    if csr <= 1 then return end
+    local prev = map[csr - 1]
+    if not prev then return end
+    local newLi  = prev[1]
+    local newCol = prev[2] + (cx - 1) % W
+    cx = math.min(newCol, #lines[newLi] + 1)
+    cy = newLi
+end
+
+local function moveCursorDown(map)
+    local csr = cursorScreenRow(map)
+    local next = map[csr + 1]
+    if not next then return end
+    local newLi  = next[1]
+    local newCol = next[2] + (cx - 1) % W
+    cx = math.min(newCol, #lines[newLi] + 1)
+    cy = newLi
+end
+
+if args[1] then
+    fname = absPath(args[1])
+    loadFile(fname)
+end
+
+tclear()
+
+local running = true
+while running do
+    local map = buildScreenMap()
+
+    local key = syscall.read(0)
+    if key and key ~= "" then
+        local b = key:byte(1)
+        if     key == "[A"  then moveCursorUp(map); dirty=true
+        elseif key == "[B"  then moveCursorDown(map); dirty=true
+        elseif key == "[C"  then
+            if cx <= #lines[cy] then cx=cx+1
+            elseif cy < #lines then cy=cy+1; cx=1 end
+            dirty=true
+        elseif key == "[D"  then
+            if cx > 1 then cx=cx-1
+            elseif cy > 1 then cy=cy-1; cx=#lines[cy]+1 end
+            dirty=true
+        elseif key == "[H"  then cx=1; dirty=true
+        elseif key == "[F"  then cx=#lines[cy]+1; dirty=true
+        elseif key == "[5~" then for _=1,ROWS do moveCursorUp(map) end; dirty=true
+        elseif key == "[6~" then for _=1,ROWS do moveCursorDown(map) end; dirty=true
+        elseif key == "[3~" then delRight()
+        elseif key == "\n"  then newline()
+        elseif key == "\b"  then delLeft()
+        elseif key == "\t"  then for _=1,4 do insChar(" ") end
+        elseif b == 6  then
+            local p=prompt("Find: ",sPat); dirty=true
+            if p then sPat=p; sLine=0; findNext() end
+        elseif b == 7  then goToLine()
+        elseif b == 11 then cutLine()
+        elseif b == 14 then
+            if sPat=="" then
+                local p=prompt("Find: ",""); dirty=true
+                if p then sPat=p; sLine=0 end
+            end
+            findNext()
+        elseif b == 16 then
+            if dirty then
+                local p=prompt("Unsaved changes. Quit? [y/N] ","")
+                dirty=true
+                if p and p:lower()=="y" then running=false end
+            else running=false end
+        elseif b == 21 then pasteLine()
+        elseif b == 23 then doSave()
+        elseif b == 24 then doSave(); running=false
+        else
+            if b >= 32 and b < 127 then insChar(key:sub(1,1)) end
+        end
+    end
+
+    local curBlink = (math.floor(syscall.getUptime() / 500) % 2) == 0
+    if curBlink ~= blinkState then
+        blinkState = curBlink
+        dirty = true
+    end
+
+    if dirty then
+        clampCx()
+        redraw()
+        dirty = false
+    end
+end
+
+tclear(); tfg(1); tbg(16); tpos(1,1)
+print("edit: exited"..(fname and (" - "..fname) or ""))

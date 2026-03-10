@@ -1,0 +1,38 @@
+local ini = {}
+
+function ini.parse(str)
+    local config = {}
+    local section = nil
+
+    for line in str:gmatch("[^\r\n]+") do
+        -- trim whitespace
+        line = line:match("^%s*(.-)%s*$")
+
+        -- skip empty lines and comments
+        if line ~= "" and not line:match("^[;#]") then
+            -- section
+            local sec = line:match("^%[(.-)%]$")
+            if sec then
+                section = sec
+                config[section] = config[section] or {}
+            else
+                -- key=value
+                local key, value = line:match("^(.-)=(.*)$")
+                if key then
+                    key = key:match("^%s*(.-)%s*$")
+                    value = value:match("^%s*(.-)%s*$")
+
+                    if section then
+                        config[section][key] = value
+                    else
+                        config[key] = value
+                    end
+                end
+            end
+        end
+    end
+
+    return config
+end
+
+return ini
