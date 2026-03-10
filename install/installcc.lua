@@ -11,10 +11,10 @@ end
 
 ::install::
 print("Installing tar but bad...")
-shell.run("wget https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/install/data/tarbad /tar.lua")
+shell.run("wget https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/1.2-dev/install/data/tarbad /tar.lua")
 print("Installing HyperionOS...")
 print("Installing precompiled tar")
-shell.run("wget https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/install/data/Build.tar /Build.tar")
+shell.run("wget https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/1.2-dev/install/data/Build.tar /Build.tar")
 shell.run("tar Build.tar /")
 shell.run("rm $")
 shell.run("cp Build $")
