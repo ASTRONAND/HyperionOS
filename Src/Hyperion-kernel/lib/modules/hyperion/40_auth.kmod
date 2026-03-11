@@ -248,7 +248,6 @@ function auth.login(uid, password)
         return nil, "Authentication failure"
     end
 
-    local uid = tonumber(entry[1])
     local sEntry = getShadowByUID(uid)
     if not sEntry then
         hashPassword(password, "aaaaaaaaaaaaaaaa")
@@ -273,7 +272,7 @@ function auth.login(uid, password)
         _task.egid = tonumber(entry[2]) or uid
     end
 
-    kernel.log("AUTH: login uid=" .. tostring(uid) .. " (" .. username .. ")")
+    kernel.log("AUTH: login uid=" .. tostring(uid) .. " (" .. getPasswdByUID(uid)[3] .. ")")
     return true
 end
 
