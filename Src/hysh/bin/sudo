@@ -55,7 +55,7 @@ if currentUid ~= 0 then
         end
     end
 
-    local ok, err = syscall.elevate("root", pw)
+    local ok, err = syscall.login(0, pw)
     if not ok then
         sleep(1)
         print("sudo: Authentication failure")

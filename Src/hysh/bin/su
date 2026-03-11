@@ -1,7 +1,12 @@
 --:Minify:--
-local targetUser = ({ ... })[1] or "root"
+local targetUser = ({ ... })[1]
 local currentUid = syscall.getuid()
-local targetUid  = syscall.getuidbyname(targetUser)
+local targetUid
+if targetUser then
+    targetUid = syscall.getuidbyname(targetUser)
+else
+    targetUid = 0
+end
 
 if not targetUid then
     print("su: user '" .. targetUser .. "' does not exist")
@@ -25,20 +30,21 @@ if currentUid ~= 0 then
         end
     end
 
-    local ok, err = syscall.elevate(targetUser, pw)
+    local ok, err = syscall.login(targetUid, pw)
     if not ok then
         sleep(1)
         print("su: Authentication failure")
         syscall.exit(1)
         return
     end
+else
+    syscall.setuid(targetUid)
 end
-
-syscall.setuid(targetUid)
 
 local pwent   = syscall.getpasswd(targetUid)
 local shell   = (pwent and pwent.shell)   or "/bin/hysh"
 local homedir = (pwent and pwent.homedir) or "/"
+local username= (pwent and pwent.username)or "Unknown"
 
 local ok_cd, err_cd = pcall(syscall.chdir, homedir)
 if not ok_cd then
@@ -46,7 +52,7 @@ if not ok_cd then
     syscall.chdir(homedir)
 end
 syscall.setEnviron("HOME",  homedir)
-syscall.setEnviron("USER",  targetUser)
+syscall.setEnviron("USER",  username)
 syscall.setEnviron("SHELL", shell)
 
 local ok, err = pcall(syscall.exec, shell)
