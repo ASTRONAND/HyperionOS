@@ -132,6 +132,17 @@ function proxy:open(path, mode)
         if type(step[steps[#steps]]) == "function" then
             return step[steps[#steps]]("open", mode)
         end
+    elseif tostring(steps[1])=="self" then
+        local task=kernel.currentTask
+        local step = newtaskproxy(task)
+        for i=2, #steps-1 do
+            local dat = step[steps[i]]
+            if type(dat) ~= "table" then error("ENFILE") end
+            step=dat
+        end
+        if type(step[steps[#steps]]) == "function" then
+            return step[steps[#steps]]("open", mode)
+        end
     else
         for i=1, #steps-1 do
             local dat = step[steps[i]]
@@ -166,6 +177,21 @@ function proxy:type(path, mode)
         if type(step[steps[#steps]]) == "table" then
             return "directory"
         end
+    elseif tostring(steps[1])=="self" then
+        local task=kernel.currentTask
+        if #steps==1 then return "directory" end
+        local step = newtaskproxy(task)
+        for i=2, #steps-1 do
+            local dat = step[steps[i]]
+            if type(dat) ~= "table" then error("ENFILE") end
+            step=dat
+        end
+        if type(step[steps[#steps]]) == "function" then
+            return step[steps[#steps]]("type", mode)
+        end
+        if type(step[steps[#steps]]) == "table" then
+            return "directory"
+        end
     else
         for i=1, #steps-1 do
             local dat = step[steps[i]]
@@ -186,10 +212,22 @@ function proxy:list(path)
     local steps = kernel.vfs.splitPath(path)
     local step = data
     if #steps == 0 then
-        return table.merge(table.keys(data),table.keys(kernel.tasks))
+        return table.merge(table.keys(data),table.keys(kernel.tasks),{"self"})
     end
     if tonumber(steps[1]) then
         local task=kernel.tasks[steps[1]]
+        local step = newtaskproxy(task)
+        if #steps==1 then return table.keys(step) end
+        for i=2, #steps-1 do
+            local dat = step[steps[i]]
+            if type(dat) ~= "table" then error("ENOENT") end
+            step=dat
+        end
+        if type(step[steps[#steps]]) == "table" then
+            return table.keys(step[steps[#steps]])
+        end
+    elseif tostring(steps[1])=="self" then
+        local task=kernel.currentTask
         local step = newtaskproxy(task)
         if #steps==1 then return table.keys(step) end
         for i=2, #steps-1 do
