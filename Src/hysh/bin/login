@@ -130,8 +130,9 @@ local function doLogin()
 
         syscall.write(1, "Password: ")
         local password = readLine("*")
-
-        local ok, err = syscall.login(username, password)
+        local uid = syscall.getuidbyname(username)
+        
+        local ok, err = syscall.login(uid, password)
         if ok then
             local uid     = syscall.getuid()
             local pwent   = syscall.getpasswd(uid)

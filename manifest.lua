@@ -3,6 +3,8 @@
 --- @diagnostic disable: duplicate-set-field
 syscall={}
 
+--- @alias userinfo {username:string,homedir:string,shell:string,uid:number,gid:number}
+
 --- Sets home directory of User with corresponding uid to homedir
 --- @param uid integer
 --- @param homedir string
@@ -164,7 +166,7 @@ syscall.setpassword=function(uid, newPassword) end
 
 --- Set environment variable
 --- @param key string
---- @param value string
+--- @param value any
 --- @return boolean
 syscall.setEnviron=function(key, value) end
 
@@ -197,7 +199,7 @@ syscall.exit=function(code) end
 
 --- Get environment variable
 --- @param key string
---- @return string|nil
+--- @return any
 syscall.getEnviron=function(key) end
 
 --- Continue a stopped task
@@ -337,7 +339,7 @@ syscall.remove=function(path) end
 --- @return string|nil
 syscall.type=function(path) end
 
---- Elevate to another user with password
+--- Elevate to root with password (Disabled due to VULN)
 --- @param targetUsername string
 --- @param password string
 --- @return boolean
@@ -374,11 +376,11 @@ syscall.setusername=function(uid, newUsername) end
 --- @return integer
 syscall.geteuid=function() end
 
---- Login user
---- @param username string
+--- Login as user
+--- @param uid integer
 --- @param password string
 --- @return boolean
-syscall.login=function(username, password) end
+syscall.login=function(uid, password) end
 
 --- Get system hostname
 --- @return string
@@ -514,9 +516,9 @@ syscall.access=function(path, mode) end
 --- Ignore current signal
 syscall.sigignore=function() end
 
---- Get user password hash
+--- Get user information
 --- @param uid integer
---- @return string|nil
+--- @return userinfo|nil
 syscall.getpasswd=function(uid) end
 
 --- Get OS version

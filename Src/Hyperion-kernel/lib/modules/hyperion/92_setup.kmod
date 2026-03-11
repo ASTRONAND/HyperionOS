@@ -96,8 +96,8 @@ if kernel.firstBoot then
         {"sbin", REG, 0, 0, RWX_RX_RX},
         {"tmp",  REG, 0, 0, RWXRWXRWX},
         {"usr",  REG, 0, 0, RWX_RX_RX},
-        {"var",  REG, 0, 0, RWX_RX_RX},
-        {"opt",  REG, 0, 0, RWXRWXRWX},
+        {"var",  REG, 0, 0, RWXRWXRWX},
+        {"opt",  REG, 0, 0, RWX_RX_RX},
     })
 
     mergeMeta("/bin", {

@@ -236,19 +236,18 @@ local function nextUID()
     return max + 1
 end
 
-function auth.login(username, password)
-    if type(username) ~= "string" or type(password) ~= "string" then
+function auth.login(uid, password)
+    if type(uid) ~= "number" or type(password) ~= "string" then
         return nil, "Authentication failure"
     end
 
-    local entry = getPasswdByUsername(username)
+    local entry = getPasswdByUID(uid)
     if not entry then
         -- timing attack resistance
         hashPassword(password, "aaaaaaaaaaaaaaaa")
         return nil, "Authentication failure"
     end
 
-    local uid = tonumber(entry[1])
     local sEntry = getShadowByUID(uid)
     if not sEntry then
         hashPassword(password, "aaaaaaaaaaaaaaaa")
@@ -273,7 +272,7 @@ function auth.login(username, password)
         _task.egid = tonumber(entry[2]) or uid
     end
 
-    kernel.log("AUTH: login uid=" .. tostring(uid) .. " (" .. username .. ")")
+    kernel.log("AUTH: login uid=" .. tostring(uid) .. " (" .. getPasswdByUID(uid)[3] .. ")")
     return true
 end
 
