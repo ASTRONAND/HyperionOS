@@ -126,36 +126,35 @@ local function doLogin()
         syscall.write(1, "Username: ")
         local username = readLine(nil)
 
-        if username == "" then goto continue end
+        if username ~= "" then
 
-        syscall.write(1, "Password: ")
-        local password = readLine("*")
-        local uid = syscall.getuidbyname(username)
-        
-        local ok, err = syscall.login(uid, password)
-        if ok then
-            local uid     = syscall.getuid()
-            local pwent   = syscall.getpasswd(uid)
+            syscall.write(1, "Password: ")
+            local password = readLine("*")
+            local uid = syscall.getuidbyname(username)
 
-            local shell   = (pwent and pwent.shell)   or "/bin/hysh"
-            local homedir = (pwent and pwent.homedir) or "/"
+            local ok, err = syscall.login(uid, password)
+            if ok then
+                local uid     = syscall.getuid()
+                local pwent   = syscall.getpasswd(uid)
 
-            syscall.devctl(1, "sfgc", 3)
-            syscall.write(1, "\nWelcome, " .. username .. "!\n")
-            syscall.devctl(1, "sfgc", 1)
-            sleep(0.3)
+                local shell   = (pwent and pwent.shell)   or "/bin/hysh"
+                local homedir = (pwent and pwent.homedir) or "/"
 
-            spawnShell(username, uid, shell, homedir)
-            return -- back to login prompt
-        else
-            attempts = attempts + 1
-            sleep(1)
-            syscall.devctl(1, "sfgc", 2)
-            syscall.write(1, "Login incorrect.\n\n")
-            syscall.devctl(1, "sfgc", 1)
+                syscall.devctl(1, "sfgc", 3)
+                syscall.write(1, "\nWelcome, " .. username .. "!\n")
+                syscall.devctl(1, "sfgc", 1)
+                sleep(0.3)
+
+                spawnShell(username, uid, shell, homedir)
+                return -- back to login prompt
+            else
+                attempts = attempts + 1
+                sleep(1)
+                syscall.devctl(1, "sfgc", 2)
+                syscall.write(1, "Login incorrect.\n\n")
+                syscall.devctl(1, "sfgc", 1)
+            end
         end
-
-        ::continue::
     end
 
     syscall.devctl(1, "sfgc", 2)

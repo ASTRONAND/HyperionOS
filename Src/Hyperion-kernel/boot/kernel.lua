@@ -136,7 +136,7 @@ for i,v in ipairs(split(fstab,"\n")) do
         local id=""
         for i=3,#v do
             if v:sub(i,i)==";" then
-                if i==3 then kernel.log("Invalid fstab line... Skipping.","WARN") skip == true; break end
+                if i==3 then kernel.log("Invalid fstab line... Skipping.","WARN") skip = true break end
                 id=v:sub(3,i-1)
             end
         end

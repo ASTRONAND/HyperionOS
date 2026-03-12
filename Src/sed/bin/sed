@@ -139,72 +139,68 @@ local function parseCommands(src)
         local c = src:sub(pos, pos)
         if c == "\n" or c == ";" then
             pos = pos + 1
-            goto continue
-        end
-        if c == "#" then
+        elseif c == "#" then
             while pos <= len and src:sub(pos,pos) ~= "\n" do pos = pos + 1 end
-            goto continue
-        end
-
-        local addr1, addr2
-        addr1, pos = parseAddr(src, pos)
-        skip()
-        if addr1 and pos <= len and src:sub(pos,pos) == "," then
-            pos = pos + 1
-            skip()
-            addr2, pos = parseAddr(src, pos)
-        end
-        skip()
-
-        if pos > len then break end
-        local cmd = src:sub(pos, pos)
-        pos = pos + 1
-
-        if cmd == "s" then
-            local delim = src:sub(pos, pos); pos = pos + 1
-            local pat,  p1 = parseDelim(src, pos, delim);    pos = p1
-            local repl, p2 = parseDelim(src, pos, delim);    pos = p2
-            local flags = ""
-            while pos <= len and src:sub(pos,pos):match("[giIp]") do
-                flags = flags .. src:sub(pos,pos); pos = pos + 1
-            end
-            table.insert(cmds, { addr1=addr1, addr2=addr2, cmd="s",
-                pat=pat, repl=repl, flags=flags })
-
-        elseif cmd == "y" then
-            local delim = src:sub(pos, pos); pos = pos + 1
-            local srcch, p1 = parseDelim(src, pos, delim); pos = p1
-            local dstch, p2 = parseDelim(src, pos, delim); pos = p2
-            table.insert(cmds, { addr1=addr1, addr2=addr2, cmd="y",
-                src=srcch, dst=dstch })
-
-        elseif cmd == "d" or cmd == "p" or cmd == "q" or cmd == "=" then
-            table.insert(cmds, { addr1=addr1, addr2=addr2, cmd=cmd })
-
-        elseif cmd == "{" then
-            local depth = 1
-            local start = pos
-            while pos <= len and depth > 0 do
-                local ch = src:sub(pos,pos)
-                if ch == "{" then depth = depth + 1
-                elseif ch == "}" then depth = depth - 1 end
-                pos = pos + 1
-            end
-            local inner = src:sub(start, pos - 2)
-            local innerCmds = parseCommands(inner)
-            for _, ic in ipairs(innerCmds) do
-                ic.addr1 = ic.addr1 or addr1
-                ic.addr2 = ic.addr2 or addr2
-            end
-            for _, ic in ipairs(innerCmds) do
-                table.insert(cmds, ic)
-            end
-
-        elseif cmd == "\n" or cmd == ";" then
         else
-        end
 
-        ::continue::
+            local addr1, addr2
+            addr1, pos = parseAddr(src, pos)
+            skip()
+            if addr1 and pos <= len and src:sub(pos,pos) == "," then
+                pos = pos + 1
+                skip()
+                addr2, pos = parseAddr(src, pos)
+            end
+            skip()
+
+            if pos > len then break end
+            local cmd = src:sub(pos, pos)
+            pos = pos + 1
+
+            if cmd == "s" then
+                local delim = src:sub(pos, pos); pos = pos + 1
+                local pat,  p1 = parseDelim(src, pos, delim);    pos = p1
+                local repl, p2 = parseDelim(src, pos, delim);    pos = p2
+                local flags = ""
+                while pos <= len and src:sub(pos,pos):match("[giIp]") do
+                    flags = flags .. src:sub(pos,pos); pos = pos + 1
+                end
+                table.insert(cmds, { addr1=addr1, addr2=addr2, cmd="s",
+                    pat=pat, repl=repl, flags=flags })
+
+            elseif cmd == "y" then
+                local delim = src:sub(pos, pos); pos = pos + 1
+                local srcch, p1 = parseDelim(src, pos, delim); pos = p1
+                local dstch, p2 = parseDelim(src, pos, delim); pos = p2
+                table.insert(cmds, { addr1=addr1, addr2=addr2, cmd="y",
+                    src=srcch, dst=dstch })
+
+            elseif cmd == "d" or cmd == "p" or cmd == "q" or cmd == "=" then
+                table.insert(cmds, { addr1=addr1, addr2=addr2, cmd=cmd })
+
+            elseif cmd == "{" then
+                local depth = 1
+                local start = pos
+                while pos <= len and depth > 0 do
+                    local ch = src:sub(pos,pos)
+                    if ch == "{" then depth = depth + 1
+                    elseif ch == "}" then depth = depth - 1 end
+                    pos = pos + 1
+                end
+                local inner = src:sub(start, pos - 2)
+                local innerCmds = parseCommands(inner)
+                for _, ic in ipairs(innerCmds) do
+                    ic.addr1 = ic.addr1 or addr1
+                    ic.addr2 = ic.addr2 or addr2
+                end
+                for _, ic in ipairs(innerCmds) do
+                    table.insert(cmds, ic)
+                end
+
+            elseif cmd == "\n" or cmd == ";" then
+            else
+            end
+        end
     end
 
     return cmds

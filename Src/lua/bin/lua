@@ -308,16 +308,16 @@ local history = {}
 
 while true do
     local code = getUserInput("lua> ", history)
-    if code == "" then goto continue end
+    if code ~= "" then
 
-    while isIncomplete(code) do
-        code = code .. "\n" .. getUserInput("...  ", nil)
+        while isIncomplete(code) do
+            code = code .. "\n" .. getUserInput("...  ", nil)
+        end
+
+        if code ~= history[#history] then
+            history[#history+1] = code
+        end
+
+        runCode(code)
     end
-
-    if code ~= history[#history] then
-        history[#history+1] = code
-    end
-
-    runCode(code)
-    ::continue::
 end
