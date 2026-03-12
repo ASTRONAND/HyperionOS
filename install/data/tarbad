@@ -1,4 +1,3 @@
-
 local function octal_to_number(str)
     str = str:gsub("%z", ""):match("^%s*(.-)%s*$")
     return tonumber(str, 8) or 0
@@ -100,7 +99,7 @@ local function unpack_tar(tarstr)
 
         if name ~= "" then
 
-            local is_dir = typeflag == "5" or name:sub(-1) == "/
+            local is_dir = typeflag == "5" or name:sub(-1) == "/"
             local clean_name = name:gsub("/$", "")
             
             if clean_name ~= "" then
