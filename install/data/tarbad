@@ -1,4 +1,3 @@
-
 local function octal_to_number(str)
     str = str:gsub("%z", ""):match("^%s*(.-)%s*$")
     return tonumber(str, 8) or 0
@@ -98,29 +97,30 @@ local function unpack_tar(tarstr)
         local pad = (512 - (size % 512)) % 512
         i = i + size + pad
 
-        if name == "" then goto continue end
+        if name ~= "" then
 
-                local is_dir = typeflag == "5" or name:sub(-1) == "/"
+            local is_dir = typeflag == "5" or name:sub(-1) == "/"
+            local clean_name = name:gsub("/$", "")
+            
+            if clean_name ~= "" then
 
-                local clean_name = name:gsub("/$", "")
-        if clean_name == "" then goto continue end
+                local parent_path = clean_name:match("(.+)/")
+                local fname = clean_name:match("([^/]+)$")
+                if not fname then
 
-        local parent_path = clean_name:match("(.+)/")
-        local fname = clean_name:match("([^/]+)$")
-        if not fname then goto continue end
-
-        local parent = root
-        if parent_path then
-            parent = make_dirs(root, parent_path .. "/")
+                    local parent = root
+                    if parent_path then
+                        parent = make_dirs(root, parent_path .. "/")
+                    end
+                
+                    if is_dir then
+                        parent[fname] = parent[fname] or { __type = "dir", __entries = {} }
+                    else
+                        parent[fname] = { __type = "file", __contents = contents }
+                    end
+                end
+            end
         end
-
-        if is_dir then
-            parent[fname] = parent[fname] or { __type = "dir", __entries = {} }
-        else
-            parent[fname] = { __type = "file", __contents = contents }
-        end
-
-        ::continue::
     end
 
     return flatten(root)

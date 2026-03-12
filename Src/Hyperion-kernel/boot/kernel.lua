@@ -130,18 +130,22 @@ if not initCfgStatus then
 end
 kernel.config = config
 
+local skip=false
 for i,v in ipairs(split(fstab,"\n")) do
     if v:sub(1,1)=="U" then
         local id=""
         for i=3,#v do
             if v:sub(i,i)==";" then
-                if i==3 then kernel.log("Invalid fstab line... Skipping.","WARN") goto endline end
+                if i==3 then kernel.log("Invalid fstab line... Skipping.","WARN") skip == true; break end
                 id=v:sub(3,i-1)
             end
         end
-        local path=v:sub(#id+4)
-        ifs.mount(id,path)
-        ::endline::
+        if not skip then
+            local path=v:sub(#id+4)
+            ifs.mount(id,path)
+        else
+            skip=false
+        end
     end
 end
 kernel.log("Disks initialized")
@@ -265,15 +269,13 @@ for _,p in ipairs(modules) do
         if kernel.config.showModLoad then kernel.log("Loading module "..v, "DBUG", 5) end
         local code=ifs.readAllText(v)
         if not code then
-            kernel.log("ModuReadErr: "..v, "WARN", 8)
-            goto skip
+            kernel.panic("Failed to read module "..v)
         end
         local func,err=load(code,"@"..v)
-        if not func then kernel.panic("ModuLoadErr: "..tostring(err)) goto skip end
+        if not func then kernel.panic("ModuLoadErr: "..tostring(err)) end
         local status, err = xpcall(func,debug.traceback, kernel)
         if not status then kernel.panic("ModuRunErr: "..tostring(err)) end
         if kernel.config.showModLoad then kernel.log("Loaded module "..v, "DBUG", 5) end
-        ::skip::
     end
 end
 
