@@ -4,24 +4,18 @@ term.clear()
 print("Do you want to install HyperionOS? [Y/n]")
 local input=read()
 if input=="y" or input=="Y" or input=="" then
-    goto install
-else
-    goto exit
+    print("Installing tar but bad...")
+    shell.run("wget https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/1.2-dev/install/data/tarbad /tar.lua")
+    print("Installing HyperionOS...")
+    print("Installing precompiled tar")
+    shell.run("wget https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/1.2-dev/install/data/Build.tar /Build.tar")
+    shell.run("tar Build.tar /")
+    print("Removing tar but bad...")
+    shell.run("rm /tar.lua")
+    shell.run("rm $")
+    shell.run("cp Build $")
+    shell.run("rm Build")
+    shell.run("rm Build.tar")
+    fs.copy("/$/boot/cct/eeprom","/startup.lua")
+    dofile("startup.lua")
 end
-
-::install::
-print("Installing tar but bad...")
-shell.run("wget https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/1.2-dev/install/data/tarbad /tar.lua")
-print("Installing HyperionOS...")
-print("Installing precompiled tar")
-shell.run("wget https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/1.2-dev/install/data/Build.tar /Build.tar")
-shell.run("tar Build.tar /")
-print("Removing tar but bad...")
-shell.run("rm /tar.lua")
-shell.run("rm $")
-shell.run("cp Build $")
-shell.run("rm Build")
-shell.run("rm Build.tar")
-fs.copy("/$/boot/cct/eeprom","/startup.lua")
-dofile("startup.lua")
-::exit::
