@@ -87,7 +87,9 @@ end
 
 local releases,page={},1
 while true do
-    local raw=http.get("https://git.astronand.dev/api/v1/repos/Hyperion/HyperionOS/releases?page="..tostring(page).."&limit=1")
+    local handle=http.get("https://git.astronand.dev/api/v1/repos/Hyperion/HyperionOS/releases?page="..tostring(page).."&limit=1")
+    local raw=handle.readAll()
+    handle.close()
     if raw=="[]" then
         break
     end
@@ -114,6 +116,7 @@ local function makePage(start, num)
                     return
                 end
                 local func, err = load(data.readAll(), "@Installer")
+                data.close()
                 if not func then
                     term.clear()
                     term.setCursorPos(1,1)
