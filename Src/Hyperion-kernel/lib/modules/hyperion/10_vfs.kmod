@@ -555,8 +555,9 @@ function vfs.mount(target, diskOrId)
     if _euid ~= 0 then error("EPERM") end
     if not target then error("EINVAL") end
     target = normalizeMountPoint(target)
-    if not vfs.exists(target) then vfs.mkdir(target) end
-    if vfs.type(target) ~= "directory" then error("EINVAL") end
+    local drive, path = resolvePath(target)
+    if not drive:directoryExists(path) then drive:makeDirectory(path) end
+    if drive:type(target) ~= "directory" then error("EINVAL") end
 
     local disk, id
     if type(diskOrId) == "string" then
@@ -946,7 +947,11 @@ function vfs.exists(path)
     if meta.etype == 0x01 then return true end
     local ok, disk, diskPath = pcall(resolvePath, path)
     if not ok then return false end
-    return disk:fileExists(diskPath)
+    if disk:type(diskPath) then
+        return true
+    else
+        return false
+    end
 end
 
 function vfs.type(path)

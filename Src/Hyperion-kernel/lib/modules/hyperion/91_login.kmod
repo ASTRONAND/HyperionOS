@@ -1,5 +1,6 @@
 --:Minify:--
 local kernel = ...
+if not kernel.vfs.exists("/root") then kernel.vfs.mkdir("/root") end
 
 kernel.processes.login = function()
     local ok, err = pcall(kernel.hpv.execspawn, "/bin/login", "login")

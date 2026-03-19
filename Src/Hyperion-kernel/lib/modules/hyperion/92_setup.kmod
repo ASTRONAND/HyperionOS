@@ -92,6 +92,7 @@ if kernel.firstBoot then
         {"etc",  REG, 0, 0, RWX_RX_RX},
         {"home", REG, 0, 0, RWX_RX_RX},
         {"lib",  REG, 0, 0, RWX_RX_RX},
+        {"proc", REG, 0, 0, RWXRWXRWX},
         {"root", REG, 0, 0, RW____   },
         {"sbin", REG, 0, 0, RWX_RX_RX},
         {"tmp",  REG, 0, 0, RWXRWXRWX},

@@ -6,7 +6,7 @@ local disks=EFI.disks
 local arch=EFI.architecture
 local kernel = {}
 kernel.LOG_Text=""
-kernel.version="HyperionOS V1.2.3"
+kernel.version="HyperionOS V1.2.4"
 kernel.process = "Kernel"
 kernel.users={[0]="root",[1]="User"}
 kernel.hostname = "hyperion"
@@ -291,7 +291,6 @@ kernel.saveLog()
 kernel.status="running"
 screen:disable()
 kernel.main()
-kernel.panic("Exited main???")
 if kernel.status=="panic" then
     kernel.panic(kernel.reason)
 end

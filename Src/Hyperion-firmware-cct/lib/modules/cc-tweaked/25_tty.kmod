@@ -22,6 +22,25 @@ local colors = {
     [0x000000]=0x8000
 }
 
+local plt = {
+    0xFFFFFF,
+    0xFF0000,
+    0x00FF00,
+    0x0000FF,
+    0x00FFFF,
+    0xFF00FF,
+    0xFFFF00,
+    0xFF6D00,
+    0x6DFF55,
+    0x24FFFF,
+    0x924900,
+    0x6D6D55,
+    0xDBDBAA,
+    0x6D00FF,
+    0xB6FF00,
+    0x000000
+}
+
 local fg,bg=0x6D6D55,0x000000
 local l1f,l1d,l2,ops={},{},{},0
 
@@ -155,7 +174,7 @@ local function newtty(obj, id, ev)
     obj.setPaletteColor(0x8000, 0x000000) -- #B6FF00
     kernel.devfs.data["tty"][id] = function(op, mode)
         if op=="type" then
-            return "character device"
+            return "Terminal"
         elseif op=="open" then
             local h = {
                 read=function(amount)
@@ -203,6 +222,9 @@ local function newtty(obj, id, ev)
                 end,
                 gctrl=function()
                     return serializeBool(ctrl)..";"..serializeBool(alt)
+                end,
+                gplt=function()
+                    return plt
                 end
             }
             if mode=="rw" then

@@ -1,4 +1,4 @@
--- :Minify:--
+--:Minify:--
 local BOOT_DRIVE_PATH = ({...})[1] or "/$"
 ---@diagnostic disable-next-line: undefined-global
 local term = term
@@ -71,7 +71,6 @@ local ok, err = xpcall(function()
         collectgarbage = true,
         error = true,
         gcinfo = true,
-        getfenv = true,
         getmetatable = true,
         ipairs = true,
         __inext = true,
@@ -85,7 +84,6 @@ local ok, err = xpcall(function()
         rawlen = true,
         rawset = true,
         select = true,
-        setfenv = true,
         setmetatable = true,
         string = true,
         table = true,
@@ -154,17 +152,106 @@ local ok, err = xpcall(function()
     if not initFs then displaySuperBadError("Could not load initdisks.") end
     if not fs then displaySuperBadError("Could not load initfs.") end
 
+    if not apis.fs.exists("/nvram.dat") then
+        local file = apis.fs.open("/nvram.dat", "w")
+        file.write("Hello, World!")
+        file.close()
+    end
+
+    local eeprom
+    if apis.fs.exists("/startup.lua") then
+        eeprom="/startup.lua"
+    elseif apis.fs.exists("/eeprom") then
+        eeprom="/eeprom"
+    end
+
     local eventQueue = {}
 
     local function queueEvent(event, ...)
         table.insert(eventQueue, {event, ...})
     end
 
-    local computer = {
-        time = function() return apis.os.epoch("utc") end,
-        clock = function() return apis.os.clock() * 1000 end,
-        shutdown = apis.os.shutdown,
-        reboot = apis.os.reboot,
+    local colors = {
+        [0x000000]=0x0001,
+        [0xFFFFFF]=0x0002,
+        [0xFF0000]=0x0004,
+        [0x00FF00]=0x0008,
+        [0x0000FF]=0x0010,
+        [0x00FFFF]=0x0020,
+        [0xFF00FF]=0x0040,
+        [0xFFFF00]=0x0080,
+        [0xFF6D00]=0x0100,
+        [0x6DFF55]=0x0200,
+        [0x24FFFF]=0x0400,
+        [0x924900]=0x0800,
+        [0x6D6D55]=0x1000,
+        [0xDBDBAA]=0x2000,
+        [0x6D00FF]=0x4000,
+        [0xB6FF00]=0x8000
+    }
+
+    local fg,bg=0x6D6D55,0x000000
+    local l1f,l1d,l2,ops={},{},{},0
+
+    local function findClosest(tbl, target)
+        local closest = nil
+        local smallestDiff = math.huge
+
+        for k, _ in pairs(tbl) do
+            local diff = math.abs(k - target)
+            if diff < smallestDiff then
+                smallestDiff = diff
+                closest = k
+            end
+        end
+
+        return closest
+    end
+
+    local function aprox(c24)
+        ops = ops + 1
+
+        if ops % 1024 == 0 then
+            l1d = {}
+            l1f = {}
+        end
+
+        if ops % 8192 == 0 then
+            l2 = {}
+        end
+
+        if l2[c24] ~= nil then
+            return l2[c24]
+        end
+
+        if l1d[c24] ~= nil then
+            l1f[c24] = l1f[c24] + 1
+
+            if l1f[c24] >= 16 then
+                l2[c24] = l1d[c24]
+                l1d[c24] = nil
+                l1f[c24] = nil
+                return l2[c24]
+            end
+
+            return l1d[c24]
+        end
+
+        local closestKey = findClosest(colors, c24)
+        if not closestKey then return nil end
+
+        local value = colors[closestKey]
+
+        l1d[c24] = value
+        l1f[c24] = 1
+
+        return value
+    end
+
+    local EFI = {
+        getEpochMs = function() return apis.os.epoch("utc") end,
+        getUptime = function() return apis.os.clock() * 1000 end,
+        date = function() return apis.os.date("!%Y-%m-%dT%H:%M:%SZ", apis.os.epoch("utc") / 1000) end,
         getMachineEvent = function()
             if #eventQueue > 0 then
                 return table.unpack(table.remove(eventQueue, 1))
@@ -172,61 +259,15 @@ local ok, err = xpcall(function()
                 return nil
             end
         end,
-        getEEPROM = function() return getFile("/startup.lua") end,
+        getEEPROM = function() return getFile(eeprom) end,
         setEEPROM = function(_, text)
-            local h = apis.fs.open("/startup.lua", "w")
+            local h = apis.fs.open(eeprom, "w")
             h.write(text)
             h.close()
-        end
-    }
-
-    local icolors = {
-        [0x1] = 1, -- #000000
-        [0x2] = 2, -- #FFFFFF
-        [0x4] = 3, -- #FF0000
-        [0x8] = 4, -- #00FF00
-        [0x10] = 5, -- #0000FF
-        [0x20] = 6, -- #00FFFF
-        [0x40] = 7, -- #FF00FF
-        [0x80] = 8, -- #FFFF00
-        [0x100] = 9, -- #FF6D00
-        [0x200] = 10, -- #6DFF55
-        [0x400] = 11, -- #24FFFF
-        [0x800] = 12, -- #924900
-        [0x1000] = 13, -- #6D6D55
-        [0x2000] = 14, -- #DBDBAA
-        [0x4000] = 15, -- #6D00FF
-        [0x8000] = 16 -- #B6FF00
-    }
-
-    local colors = {
-        0x0001, -- #000000
-        0x0002, -- #FFFFFF
-        0x0004, -- #FF0000
-        0x0008, -- #00FF00
-        0x0010, -- #0000FF
-        0x0020, -- #00FFFF
-        0x0040, -- #FF00FF
-        0x0080, -- #FFFF00
-        0x0100, -- #FF6D00
-        0x0200, -- #6DFF55
-        0x0400, -- #24FFFF
-        0x0800, -- #924900
-        0x1000, -- #6D6D55
-        0x2000, -- #DBDBAA
-        0x4000, -- #6D00FF
-        0x8000 -- #B6FF00
-    }
-
-    apis.term.setBackgroundColor(0x8000)
-    apis.term.setTextColor(0x1000)
-    apis.term.clear()
-    apis.term.setCursorPos(1, 1)
-
-    local kernelCoro = coroutine.create(function()
-        ---@diagnostic disable-next-line: param-type-mismatch
-        local ok, err = xpcall(Kernel, debug.traceback, apis, initFs, "cct", "/sbin/init",
-        {
+        end,
+        initfs=fs,
+        disks=initFs,
+        screenCtl={
             print = function(_, text) write(text .. "\n") end,
             printInline = function(_, text) write(text) end,
             clear = function()
@@ -239,25 +280,51 @@ local ok, err = xpcall(function()
             getCursorPos = function() return apis.term.getCursorPos() end,
             getSize = function() return apis.term.getSize() end,
             setBackgroundColor = function(_, color)
-                apis.term.setBackgroundColor(colors[color])
+                apis.term.setBackgroundColor(aprox(color))
             end,
             setTextColor = function(_, color)
-                apis.term.setTextColor(colors[color])
+                apis.term.setTextColor(aprox(color))
             end,
             getBackgroundColor = function()
-                return icolors[apis.term.getBackgroundColor()]
+                return bg
             end,
             getTextColor = function()
-                return icolors[apis.term.getTextColor()]
-            end
-        }, computer, fs, "$")
-        if not ok then displaySuperBadError(err) end
+                return fg
+            end,
+            enable=function() end,
+            disable=function() end
+        },
+        architecture="cct",
+        getNvram = function() return getFile("/nvram.dat") end,
+        setNvram = function(_, text)
+            local h = apis.fs.open("/nvram.dat", "w")
+            h.write(text)
+            h.close()
+        end,
+        firmware=apis,
+        reboot=false
+    }
+
+    apis.term.setBackgroundColor(0x8000)
+    apis.term.setTextColor(0x1000)
+    apis.term.clear()
+    apis.term.setCursorPos(1, 1)
+
+    local kernelCoro = coroutine.create(function()
+        ---@diagnostic disable-next-line: param-type-mismatch
+        local ok, err = xpcall(Kernel, debug.traceback, EFI)
+        if not ok and not EFI.reboot then displaySuperBadError(err) end
+        if err then
+            apis.os.reboot()
+        else
+            apis.os.shutdown()
+        end
     end)
 
     function coroutine.resumeWithTimeout(co, timeout, ...)
-        local startTime = computer.time()
+        local startTime = EFI.getEpochMs()
         debug.sethook(co, function()
-            if computer.time() > startTime + timeout then
+            if EFI.getEpochMs() > startTime + timeout then
                 return coroutine.yield("timeout")
             end
         end, "", 1000)
@@ -306,11 +373,15 @@ local ok, err = xpcall(function()
             end
         end
         if status == "error" or coroutine.status(kernelCoro) == "dead" then
+            if EFI.reboot then
+                apis.os.reboot()
+            end
             displaySuperBadError("Kernel error: " .. tostring(err))
             coroutine.yield("key")
         end
+        initFs:refresh()
     end
 end, debug.traceback)
 
 if not ok then displaySuperBadError("Fatal error during boot: " .. err) end
-while true do coroutine.yield() end
+while true do coroutine.yield("key") end

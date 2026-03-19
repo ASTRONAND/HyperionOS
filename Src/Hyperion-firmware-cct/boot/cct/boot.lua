@@ -158,6 +158,13 @@ local ok, err = xpcall(function()
         file.close()
     end
 
+    local eeprom
+    if apis.fs.exists("/startup.lua") then
+        eeprom="/startup.lua"
+    elseif apis.fs.exists("/eeprom") then
+        eeprom="/eeprom"
+    end
+
     local eventQueue = {}
 
     local function queueEvent(event, ...)
@@ -252,9 +259,9 @@ local ok, err = xpcall(function()
                 return nil
             end
         end,
-        getEEPROM = function() return getFile("/startup.lua") end,
+        getEEPROM = function() return getFile(eeprom) end,
         setEEPROM = function(_, text)
-            local h = apis.fs.open("/startup.lua", "w")
+            local h = apis.fs.open(eeprom, "w")
             h.write(text)
             h.close()
         end,
