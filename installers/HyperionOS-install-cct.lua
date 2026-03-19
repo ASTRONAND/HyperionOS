@@ -63,7 +63,7 @@ end
 
 local function menu(m)
     local exit,sel=false,1
-    while not exit or not exitall do
+    while not exit and not exitall do
         printTitle()
         drawMenu(m, sel)
         local _,key = os.pullEvent("key")
@@ -87,24 +87,27 @@ end
 
 local releases,page={},1
 while true do
-    local raw=http.get("https://git.astronand.dev/api/v1/repos/Hyperion/HyperionOS/releases?page="..tostring(page).."&limit=1")
-    if raw=="[]" then
+    local handle=http.get("https://git.astronand.dev/api/v1/repos/Hyperion/HyperionOS/releases?page="..tostring(page).."&limit=1")
+    local raw=handle.readAll()
+    handle.close()
+    if raw=="[]\n" then
         break
     end
-    releases[#releases+1]=json.decode(raw)[1]
+    releases[page]=json.decode(raw)[1]
+    page=page+1
 end
 
 local function makePage(start, num)
-    local m,nonext={},false
+    local m={}
     for i=start, num do
-        if not releases[i] then nonext=true; break end
+        if not releases[i] then break end
         local release=releases[i]
         m[#m+1]={
             name=release.name,
             desc=release.body,
             color=release.prerelease and colors.orange or colors.white,
             func=function()
-                local data, err=http.get("https://git.astronand.dev/Hyperion/HyperionOS/raw/tag/"..release.tag_name.."/misc/cct/installcc.lua")
+                local data, err=http.get("https://git.astronand.dev/Hyperion/HyperionOS/raw/tag/"..release.tag_name.."/misc/cct/installcct.lua")
                 releasename=release.tag_name
                 if not data then
                     term.clear()
@@ -113,7 +116,8 @@ local function makePage(start, num)
                     sleep(3)
                     return
                 end
-                local func, err = load(data.readAll(), "@Installer")
+                local func, err = load(data.readAll(), "@Installer","t",_ENV)
+                data.close()
                 if not func then
                     term.clear()
                     term.setCursorPos(1,1)
@@ -122,10 +126,11 @@ local function makePage(start, num)
                     return
                 end
                 install=func
+                exitall=true
             end
         }
     end
-    if not nonext then
+    if #releases>start+num then
         m[#m+1]={
             name="Next",
             desc="Next menu",
@@ -136,6 +141,7 @@ local function makePage(start, num)
             end
         }
     end
+    return m
 end
 
 menu(makePage(1,5))
@@ -143,7 +149,7 @@ term.clear()
 term.setCursorPos(1,1)
 term.setTextColor(colors.white)
 term.write("Formating disk in ")
-for i=5, 0, -1 do
+for i=5, 1, -1 do
     term.write(tostring(i))
     sleep(.25)
     for v=1, 3 do
@@ -151,6 +157,7 @@ for i=5, 0, -1 do
         sleep(.25)
     end
 end
+print("")
 
 local function printc(text, c)
     term.setTextColor(c)
@@ -171,8 +178,12 @@ local function delDir(dir)
             fs.delete(dir..list[i])
             printc("rm "..dir..list[i], colors.orange)
         end
+        sleep(.01)
     end
 end
 
 delDir("/")
+term.clear()
+term.setCursorPos(1,1)
+term.setTextColor(colors.white)
 install(releasename)
