@@ -150,16 +150,11 @@ end
 local pepper = getFile("/etc/pam.d/secret")
 
 local function genSalt()
-    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./"
-    local s = ""
-    for i = 1, 16 do
-        s = s .. chars:sub(math.random(1, #chars), math.random(1, #chars))
-    end
-    return s
+    return toHex(math.random(0,2^32))
 end
 
 local function hashPassword(password, salt)
-    local key = (pepper .. salt):sub(1, 32)
+    local key = (pepper .. salt)
     return blake2s(password, key)
 end
 
