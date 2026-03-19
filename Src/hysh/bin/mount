@@ -69,17 +69,17 @@ if #args == 0 and not opts.o then
     end
 
     if next(loDevs) == nil then
-        syscall.devctl(1, "sfgc", 14)
+        syscall.devctl(1, "sfgc", 0xFF00FF)
         print("(no loop devices attached)")
-        syscall.devctl(1, "sfgc", 1)
+        syscall.devctl(1, "sfgc", 0xFFFFFF)
         return
     end
 
     for id, info in pairs(loDevs) do
-        local colour = info.mode == "image" and 5 or 4
+        local colour = info.mode == "image" and 0x00FFFF or 0x0000FF
         syscall.devctl(1, "sfgc", colour)
         printInline(info.mode.." "..id)
-        syscall.devctl(1, "sfgc", 1)
+        syscall.devctl(1, "sfgc", 0xFFFFFF)
         print(" on "..info.path)
     end
     return
@@ -119,9 +119,9 @@ if opts.o and opts.o:lower() == "loop" then
         print(name..": mount: "..msg); syscall.exit(1); return
     end
 
-    syscall.devctl(1, "sfgc", 10)
+    syscall.devctl(1, "sfgc", 0x00FFFF)
     print(name..": "..loopId.." mounted at "..dest)
-    syscall.devctl(1, "sfgc", 1)
+    syscall.devctl(1, "sfgc", 0xFFFFFF)
     return
 end
 
@@ -141,9 +141,9 @@ if #args == 2 then
         print(name..": "..msg); syscall.exit(1); return
     end
 
-    syscall.devctl(1, "sfgc", 10)
+    syscall.devctl(1, "sfgc", 0x00FFFF)
     print(name..": "..loopId.." mounted at "..dest)
-    syscall.devctl(1, "sfgc", 1)
+    syscall.devctl(1, "sfgc", 0xFFFFFF)
     return
 end
 

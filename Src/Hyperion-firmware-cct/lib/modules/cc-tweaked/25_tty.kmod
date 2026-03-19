@@ -1,191 +1,84 @@
 --:Minify:--
-
 local kernel = ...
-local apis = kernel.apis
-local native = apis.peripheral
-local sides = {"top", "bottom", "left", "right", "front", "back"}
-local peripheral={}
-
-function peripheral.getNames()
-    local results = {}
-    for n = 1, #sides do
-        local side = sides[n]
-        if native.isPresent(side) then
-            table.insert(results, side)
-            if native.hasType(side, "peripheral_hub") then
-                local remote = native.call(side, "getNamesRemote")
-                for _, name in ipairs(remote) do
-                    table.insert(results, name)
-                end
-            end
-        end
-    end
-    return results
-end
-
-function peripheral.isPresent(name)
-    if native.isPresent(name) then
-        return true
-    end
-
-    for n = 1, #sides do
-        local side = sides[n]
-        if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", name) then
-            return true
-        end
-    end
-    return false
-end
-
-function peripheral.getType(peripheral)
-    if type(peripheral) == "string" then
-        if native.isPresent(peripheral) then
-            return native.getType(peripheral)
-        end
-        for n = 1, #sides do
-            local side = sides[n]
-            if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", peripheral) then
-                return native.call(side, "getTypeRemote", peripheral)
-            end
-        end
-        return nil
-    else
-        local mt = getmetatable(peripheral)
-        if not mt or mt.__name ~= "peripheral" or type(mt.types) ~= "table" then
-            error("bad argument #1 (table is not a peripheral)", 2)
-        end
-        return table.unpack(mt.types)
-    end
-end
-
-function peripheral.hasType(peripheral, peripheral_type)
-    if type(peripheral) == "string" then
-        if native.isPresent(peripheral) then
-            return native.hasType(peripheral, peripheral_type)
-        end
-        for n = 1, #sides do
-            local side = sides[n]
-            if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", peripheral) then
-                return native.call(side, "hasTypeRemote", peripheral, peripheral_type)
-            end
-        end
-        return nil
-    else
-        local mt = getmetatable(peripheral)
-        if not mt or mt.__name ~= "peripheral" or type(mt.types) ~= "table" then
-            error("bad argument #1 (table is not a peripheral)", 2)
-        end
-        return mt.types[peripheral_type] ~= nil
-    end
-end
-
-function peripheral.getMethods(name)
-    if native.isPresent(name) then
-        return native.getMethods(name)
-    end
-    for n = 1, #sides do
-        local side = sides[n]
-        if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", name) then
-            return native.call(side, "getMethodsRemote", name)
-        end
-    end
-    return nil
-end
-
-function peripheral.getName(peripheral)
-    local mt = getmetatable(peripheral)
-    if not mt or mt.__name ~= "peripheral" or type(mt.name) ~= "string" then
-        error("bad argument #1 (table is not a peripheral)", 2)
-    end
-    return mt.name
-end
-
-function peripheral.call(name, method, ...)
-    if native.isPresent(name) then
-        return native.call(name, method, ...)
-    end
-
-    for n = 1, #sides do
-        local side = sides[n]
-        if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", name) then
-            return native.call(side, "callRemote", name, method, ...)
-        end
-    end
-    return nil
-end
-
-function peripheral.wrap(name)
-    local methods = peripheral.getMethods(name)
-    if not methods then
-        return nil
-    end
-
-    local types = { peripheral.getType(name) }
-    for i = 1, #types do types[types[i]] = true end
-    local result = setmetatable({}, {
-        __name = "peripheral",
-        name = name,
-        type = types[1],
-        types = types,
-    })
-    for _, method in ipairs(methods) do
-        result[method] = function(...)
-            return peripheral.call(name, method, ...)
-        end
-    end
-    return result
-end
-
-function peripheral.find(ty, filter)
-    local results = {}
-    for _, name in ipairs(peripheral.getNames()) do
-        if peripheral.hasType(name, ty) then
-            local wrapped = peripheral.wrap(name)
-            if filter == nil or filter(name, wrapped) then
-                table.insert(results, wrapped)
-            end
-        end
-    end
-    return table.unpack(results)
-end
-
-local icolors = {
-    [0x1] = 1, -- #000000
-    [0x2] = 2, -- #FFFFFF
-    [0x4] = 3, -- #FF0000
-    [0x8] = 4, -- #00FF00
-    [0x10] = 5, -- #0000FF
-    [0x20] = 6, -- #00FFFF
-    [0x40] = 7, -- #FF00FF
-    [0x80] = 8, -- #FFFF00
-    [0x100] = 9, -- #FF6D00
-    [0x200] = 10, -- #6DFF55
-    [0x400] = 11, -- #24FFFF
-    [0x800] = 12, -- #924900
-    [0x1000] = 13, -- #6D6D55
-    [0x2000] = 14, -- #DBDBAA
-    [0x4000] = 15, -- #6D00FF
-    [0x8000] = 16 -- #B6FF00
-}
+local peripheral=kernel.cct.peripheral
+local keys=kernel.apis.keys
 
 local colors = {
-    0x0001, -- #000000
-    0x0002, -- #FFFFFF
-    0x0004, -- #FF0000
-    0x0008, -- #00FF00
-    0x0010, -- #0000FF
-    0x0020, -- #00FFFF
-    0x0040, -- #FF00FF
-    0x0080, -- #FFFF00
-    0x0100, -- #FF6D00
-    0x0200, -- #6DFF55
-    0x0400, -- #24FFFF
-    0x0800, -- #924900
-    0x1000, -- #6D6D55
-    0x2000, -- #DBDBAA
-    0x4000, -- #6D00FF
-    0x8000 -- #B6FF00
+    [0xFFFFFF]=0x0001,
+    [0xFF0000]=0x0002,
+    [0x00FF00]=0x0004,
+    [0x0000FF]=0x0008,
+    [0x00FFFF]=0x0010,
+    [0xFF00FF]=0x0020,
+    [0xFFFF00]=0x0040,
+    [0xFF6D00]=0x0080,
+    [0x6DFF55]=0x0100,
+    [0x24FFFF]=0x0200,
+    [0x924900]=0x0400,
+    [0x6D6D55]=0x0800,
+    [0xDBDBAA]=0x1000,
+    [0x6D00FF]=0x2000,
+    [0xB6FF00]=0x4000,
+    [0x000000]=0x8000
 }
+
+local fg,bg=0x6D6D55,0x000000
+local l1f,l1d,l2,ops={},{},{},0
+
+local function findClosest(tbl, target)
+    local closest = nil
+    local smallestDiff = math.huge
+
+    for k, _ in pairs(tbl) do
+        local diff = math.abs(k - target)
+        if diff < smallestDiff then
+            smallestDiff = diff
+            closest = k
+        end
+    end
+
+    return closest
+end
+
+local function aprox(c24)
+    ops = ops + 1
+
+    if ops % 1024 == 0 then
+        l1d = {}
+        l1f = {}
+    end
+
+    if ops % 8192 == 0 then
+        l2 = {}
+    end
+
+    if l2[c24] ~= nil then
+        return l2[c24]
+    end
+
+    if l1d[c24] ~= nil then
+        l1f[c24] = l1f[c24] + 1
+
+        if l1f[c24] >= 16 then
+            l2[c24] = l1d[c24]
+            l1d[c24] = nil
+            l1f[c24] = nil
+            return l2[c24]
+        end
+
+        return l1d[c24]
+    end
+
+    local closestKey = findClosest(colors, c24)
+    if not closestKey then return nil end
+
+    local value = colors[closestKey]
+
+    l1d[c24] = value
+    l1f[c24] = 1
+
+    return value
+end
 
 local function write(text, term)
     local x, y = term.getCursorPos()
@@ -244,18 +137,18 @@ local function serializeBool(bool)
 end
 
 local function newtty(obj, id, ev)
-    obj.setPaletteColor(0x1, 0xFFFFFF) -- #000000
-    obj.setPaletteColor(0x2, 0xFF0000) -- #FFFFFF
-    obj.setPaletteColor(0x4, 0x00FF00) -- #FF0000
-    obj.setPaletteColor(0x8, 0x0000FF) -- #00FF00
-    obj.setPaletteColor(0x10, 0x00FFFF) -- #0000FF
-    obj.setPaletteColor(0x20, 0xFF00FF) -- #00FFFF
-    obj.setPaletteColor(0x40, 0xFFFF00) -- #FF00FF
-    obj.setPaletteColor(0x80, 0xFF6D00) -- #FFFF00
-    obj.setPaletteColor(0x100, 0x6DFF55) -- #FF6D00
-    obj.setPaletteColor(0x200, 0x24FFFF) -- #6DFF55
-    obj.setPaletteColor(0x400, 0x924900) -- #24FFFF
-    obj.setPaletteColor(0x800, 0x6D6D55) -- #924900
+    obj.setPaletteColor(0x1,    0xFFFFFF) -- #000000
+    obj.setPaletteColor(0x2,    0xFF0000) -- #FFFFFF
+    obj.setPaletteColor(0x4,    0x00FF00) -- #FF0000
+    obj.setPaletteColor(0x8,    0x0000FF) -- #00FF00
+    obj.setPaletteColor(0x10,   0x00FFFF) -- #0000FF
+    obj.setPaletteColor(0x20,   0xFF00FF) -- #00FFFF
+    obj.setPaletteColor(0x40,   0xFFFF00) -- #FF00FF
+    obj.setPaletteColor(0x80,   0xFF6D00) -- #FFFF00
+    obj.setPaletteColor(0x100,  0x6DFF55) -- #FF6D00
+    obj.setPaletteColor(0x200,  0x24FFFF) -- #6DFF55
+    obj.setPaletteColor(0x400,  0x924900) -- #24FFFF
+    obj.setPaletteColor(0x800,  0x6D6D55) -- #924900
     obj.setPaletteColor(0x1000, 0xDBDBAA) -- #6D6D55
     obj.setPaletteColor(0x2000, 0x6D00FF) -- #DBDBAA
     obj.setPaletteColor(0x4000, 0xB6FF00) -- #6D00FF
@@ -295,16 +188,18 @@ local function newtty(obj, id, ev)
                     return obj.setCursorPos(x,y)
                 end,
                 sfgc=function(c)
-                    return obj.setTextColor(colors[c])
+                    fg=c
+                    return obj.setTextColor(aprox(c))
                 end,
                 sbgc=function(c)
-                    return obj.setBackgroundColor(colors[c])
+                    bg=c
+                    return obj.setBackgroundColor(aprox(c))
                 end,
                 gfgc=function()
-                    return icolors[obj.getTextColor()]
+                    return fg
                 end,
                 gbgc=function()
-                    return icolors[obj.getBackgroundColor()]
+                    return bg
                 end,
                 gctrl=function()
                     return serializeBool(ctrl)..";"..serializeBool(alt)
@@ -328,28 +223,28 @@ local fifo = kernel.newFifo()
 kernel.processes.cctmond = function()
     local timeout = false
     while true do
-        local event = {kernel.computer:getMachineEvent()}
+        local event = {kernel.EFI:getMachineEvent()}
 
         if event[1] then
             local eventType = event[1]
             local charOrKey = event[3]
 
             local ctrlKeyMap = {
-                [apis.keys.a]=1,  [apis.keys.b]=2,  [apis.keys.c]=3,
-                [apis.keys.d]=4,  [apis.keys.e]=5,  [apis.keys.f]=6,
-                [apis.keys.g]=7,  [apis.keys.h]=8,  [apis.keys.i]=9,
-                [apis.keys.j]=10, [apis.keys.k]=11, [apis.keys.l]=12,
-                [apis.keys.m]=13, [apis.keys.n]=14, [apis.keys.o]=15,
-                [apis.keys.p]=16, [apis.keys.q]=17, [apis.keys.r]=18,
-                [apis.keys.s]=19, [apis.keys.t]=20, [apis.keys.u]=21,
-                [apis.keys.v]=22, [apis.keys.w]=23, [apis.keys.x]=24,
-                [apis.keys.y]=25, [apis.keys.z]=26,
+                [keys.a]=1,  [keys.b]=2,  [keys.c]=3,
+                [keys.d]=4,  [keys.e]=5,  [keys.f]=6,
+                [keys.g]=7,  [keys.h]=8,  [keys.i]=9,
+                [keys.j]=10, [keys.k]=11, [keys.l]=12,
+                [keys.m]=13, [keys.n]=14, [keys.o]=15,
+                [keys.p]=16, [keys.q]=17, [keys.r]=18,
+                [keys.s]=19, [keys.t]=20, [keys.u]=21,
+                [keys.v]=22, [keys.w]=23, [keys.x]=24,
+                [keys.y]=25, [keys.z]=26,
             }
 
             if eventType == "keyPressed" then
-                if charOrKey == apis.keys.leftCtrl or charOrKey == apis.keys.rightCtrl then
+                if charOrKey == keys.leftCtrl or charOrKey == keys.rightCtrl then
                     ctrl = true
-                elseif charOrKey == apis.keys.leftAlt or charOrKey == apis.keys.rightAlt then
+                elseif charOrKey == keys.leftAlt or charOrKey == keys.rightAlt then
                     alt = true
                 end
 
@@ -366,24 +261,24 @@ kernel.processes.cctmond = function()
                     end
                 else
                     local specialKeyMap = {
-                        [apis.keys.up]        = "[A",
-                        [apis.keys.down]      = "[B",
-                        [apis.keys.right]     = "[C",
-                        [apis.keys.left]      = "[D",
-                        [apis.keys.home]      = "[H",
-                        [apis.keys["end"]]    = "[F",
-                        [apis.keys.pageUp]    = "[5~",
-                        [apis.keys.pageDown]  = "[6~",
-                        [apis.keys.delete]    = "[3~",
+                        [keys.up]        = "[A",
+                        [keys.down]      = "[B",
+                        [keys.right]     = "[C",
+                        [keys.left]      = "[D",
+                        [keys.home]      = "[H",
+                        [keys["end"]]    = "[F",
+                        [keys.pageUp]    = "[5~",
+                        [keys.pageDown]  = "[6~",
+                        [keys.delete]    = "[3~",
                     }
                     local special = specialKeyMap[charOrKey]
                     if special then fifo.push(special) end
                 end
 
             elseif eventType == "keyReleased" then
-                if charOrKey == apis.keys.leftCtrl or charOrKey == apis.keys.rightCtrl then
+                if charOrKey == keys.leftCtrl or charOrKey == keys.rightCtrl then
                     ctrl = false
-                elseif charOrKey == apis.keys.leftAlt or charOrKey == apis.keys.rightAlt then
+                elseif charOrKey == keys.leftAlt or charOrKey == keys.rightAlt then
                     alt = false
                 end
 
@@ -402,7 +297,7 @@ kernel.processes.cctmond = function()
     end
 end
 
-newtty(apis.term, "1", fifo.pop)
+newtty(kernel.apis.term, "1", fifo.pop)
 
 for i,v in ipairs({peripheral.find("monitor")}) do
     v.setTextScale(.5)

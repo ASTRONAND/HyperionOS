@@ -60,18 +60,18 @@ if opts.l then
         local info   = devs[id]
         local mode   = (type(info) == "table" and info.mode) or "bind"
         local path   = (type(info) == "table" and info.path) or tostring(info)
-        local colour = mode == "image" and 5 or 4
-        syscall.devctl(1, "sfgc", 3)
+        local colour = mode == "image" and 0x00FFFF or 0x0000FF
+        syscall.devctl(1, "sfgc", 0x00FF00)
         printInline(string.format("%-10s", id))
         syscall.devctl(1, "sfgc", colour)
         printInline(string.format("%-7s", "["..mode.."]"))
-        syscall.devctl(1, "sfgc", 1)
+        syscall.devctl(1, "sfgc", 0xFFFFFF)
         print(" "..path)
     end
     if not any then
-        syscall.devctl(1, "sfgc", 14)
+        syscall.devctl(1, "sfgc", 0x6D00FF)
         print(name..": no loop devices attached")
-        syscall.devctl(1, "sfgc", 1)
+        syscall.devctl(1, "sfgc", 0xFFFFFF)
     end
     return
 end
@@ -92,9 +92,9 @@ if opts.d then
         end
         print(name..": "..msg); syscall.exit(1); return
     end
-    syscall.devctl(1, "sfgc", 10)
+    syscall.devctl(1, "sfgc", 0x00FFFF)
     print(name..": detached "..id)
-    syscall.devctl(1, "sfgc", 1)
+    syscall.devctl(1, "sfgc", 0xFFFFFF)
     return
 end
 

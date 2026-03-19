@@ -9,11 +9,13 @@ if not initOk then
 end
 
 local handle = kernel.vfs.open(kernel.config.initPath, "r")
+if not handle then kernel.panic("Failed to open "..kernel.config.initPath) end
 local data   = kernel.vfs.read(handle, 1024 * 1024 * 4)
+if not handle then kernel.panic("Failed to read "..kernel.config.initPath) end
 kernel.vfs.close(handle)
 
 local initFunc, err = load(data, "@sysinit", "t", kernel._U)
-if not initFunc then error("Failed to load init system: " .. err) end
+if not initFunc then kernel.PANIC("Failed to load init system: " .. err) end
 
 kernel.tasks["1"] = {
     coro = coroutine.create(function()

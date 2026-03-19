@@ -59,9 +59,9 @@ if opts.l then
         end
         print(name..": "..msg); syscall.exit(1); return
     end
-    syscall.devctl(1, "sfgc", 10)
+    syscall.devctl(1, "sfgc", 0x00FFFF)
     print(name..": detached "..id)
-    syscall.devctl(1, "sfgc", 1)
+    syscall.devctl(1, "sfgc", 0xFFFFFF)
     return
 end
 
@@ -95,17 +95,17 @@ if not ok then
     print(name..": "..msg); syscall.exit(1); return
 end
 
-syscall.devctl(1, "sfgc", 10)
+syscall.devctl(1, "sfgc", 0x00FFFF)
 print(name..": unmounted "..mpt)
-syscall.devctl(1, "sfgc", 1)
+syscall.devctl(1, "sfgc", 0xFFFFFF)
 
 if loopIdToDetach then
     for _, id in ipairs(loopIdToDetach) do
         local dok = pcall(syscall.lodetach, id)
         if dok then
-            syscall.devctl(1, "sfgc", 14)
+            syscall.devctl(1, "sfgc", 0xFF00FF)
             print(name..": auto-detached "..id)
-            syscall.devctl(1, "sfgc", 1)
+            syscall.devctl(1, "sfgc", 0xFFFFFF)
         end
     end
 end

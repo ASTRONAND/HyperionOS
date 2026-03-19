@@ -311,7 +311,7 @@ local fifo = kernel.newFifo()
 kernel.processes.cctmond = function()
     local timeout = false
     while true do
-        local event = {kernel.computer:getMachineEvent()}
+        local event = {kernel.EFI:getMachineEvent()}
 
         if event[1] then
             local eventType = event[1]

@@ -37,9 +37,9 @@ local function firstBoot()
 
     syscall.devctl(1, "clear")
     syscall.devctl(1, "spos", 1, 1)
-    syscall.devctl(1, "sfgc", 3)
+    syscall.devctl(1, "sfgc", 0x00FF00)
     syscall.write(1, "HyperionOS First Boot Setup\n")
-    syscall.devctl(1, "sfgc", 1)
+    syscall.devctl(1, "sfgc", 0xFFFFFF)
     syscall.write(1, "No root password is set. Please create one now.\n\n")
 
     while true do
@@ -49,25 +49,25 @@ local function firstBoot()
         local pw2 = readLine("*")
 
         if pw1 ~= pw2 then
-            syscall.devctl(1, "sfgc", 2)
+            syscall.devctl(1, "sfgc", 0xFF0000)
             syscall.write(1, "Passwords do not match. Try again.\n\n")
-            syscall.devctl(1, "sfgc", 1)
+            syscall.devctl(1, "sfgc", 0xFFFFFF)
         elseif #pw1 < 6 then
-            syscall.devctl(1, "sfgc", 2)
+            syscall.devctl(1, "sfgc", 0xFF0000)
             syscall.write(1, "Password too short (minimum 6 characters).\n\n")
-            syscall.devctl(1, "sfgc", 1)
+            syscall.devctl(1, "sfgc", 0xFFFFFF)
         else
             local ok, err = syscall.setpassword(0, pw1)
             if ok then
-                syscall.devctl(1, "sfgc", 3)
+                syscall.devctl(1, "sfgc", 0x00FF00)
                 syscall.write(1, "Root password set.\n\n")
-                syscall.devctl(1, "sfgc", 1)
+                syscall.devctl(1, "sfgc", 0xFFFFFF)
                 sleep(0.5)
                 break
             else
-                syscall.devctl(1, "sfgc", 2)
+                syscall.devctl(1, "sfgc", 0xFF0000)
                 syscall.write(1, "Error: " .. tostring(err) .. "\n")
-                syscall.devctl(1, "sfgc", 1)
+                syscall.devctl(1, "sfgc", 0xFFFFFF)
             end
         end
     end
@@ -112,8 +112,8 @@ end
 
 local function doLogin()
     syscall.devctl(1, "clear")
-    syscall.devctl(1, "sfgc", 1)
-    syscall.devctl(1, "sbgc", 16)
+    syscall.devctl(1, "sfgc", 0xFFFFFF)
+    syscall.devctl(1, "sbgc", 0x000000)
     syscall.devctl(1, "spos", 1, 1)
 
     local hostname = syscall.getHostname() or "hyperion"
@@ -122,7 +122,7 @@ local function doLogin()
 
     local attempts = 0
     while attempts < MAX_ATTEMPTS do
-        syscall.devctl(1, "sfgc", 1)
+        syscall.devctl(1, "sfgc", 0xFFFFFF)
         syscall.write(1, "Username: ")
         local username = readLine(nil)
 
@@ -140,9 +140,9 @@ local function doLogin()
                 local shell   = (pwent and pwent.shell)   or "/bin/hysh"
                 local homedir = (pwent and pwent.homedir) or "/"
 
-                syscall.devctl(1, "sfgc", 3)
+                syscall.devctl(1, "sfgc", 0x00FF00)
                 syscall.write(1, "\nWelcome, " .. username .. "!\n")
-                syscall.devctl(1, "sfgc", 1)
+                syscall.devctl(1, "sfgc", 0xFFFFFF)
                 sleep(0.3)
 
                 spawnShell(username, uid, shell, homedir)
@@ -150,16 +150,16 @@ local function doLogin()
             else
                 attempts = attempts + 1
                 sleep(1)
-                syscall.devctl(1, "sfgc", 2)
+                syscall.devctl(1, "sfgc", 0xFF0000)
                 syscall.write(1, "Login incorrect.\n\n")
-                syscall.devctl(1, "sfgc", 1)
+                syscall.devctl(1, "sfgc", 0xFFFFFF)
             end
         end
     end
 
-    syscall.devctl(1, "sfgc", 2)
+    syscall.devctl(1, "sfgc", 0xFF0000)
     syscall.write(1, "Maximum login attempts exceeded.\n")
-    syscall.devctl(1, "sfgc", 1)
+    syscall.devctl(1, "sfgc", 0xFFFFFF)
     sleep(5)
 end
 

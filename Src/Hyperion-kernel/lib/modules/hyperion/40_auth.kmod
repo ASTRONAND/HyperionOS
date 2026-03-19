@@ -139,7 +139,7 @@ end
 if not blake2s then error("Failed to load blake2s") end
 
 if not kernel.vfs.exists("/etc/pam.d/secret") then
-    kernel.log("PAM SECRET REGENERATING PLEASE USE ROOT")
+    kernel.log("PAM SECRET REGENERATING PLEASE USE ROOT", "WARN", 0xFF8800)
     local key = ""
     for i = 1, 256 do key = key .. string.char(math.random(0, 255)) end
     local handle = kernel.vfs.open("/etc/pam.d/secret", "w")

@@ -1,9 +1,11 @@
 --:Minify:--
-local apis = ({...})[1]
-local BOOT_DRIVE_PATH = apis.BOOT_DRIVE_PATH
-local fs = apis.fs
+-- CCT driver peripheral helper
+local kernel=...
+kernel.cct={}
+kernel.cct.peripheral={}
+local peripheral=kernel.cct.peripheral
+local apis = kernel.apis
 local native = apis.peripheral
-local peripheral = {}
 local sides = {"top", "bottom", "left", "right", "front", "back"}
 
 function peripheral.getNames()
@@ -148,125 +150,3 @@ function peripheral.find(ty, filter)
     end
     return table.unpack(results)
 end
-
-local disks = {}
-local internal = {}
-
-local function norm(path)
-    if not path or path == "" then return "/" end
-    return fs.combine("/", path)
-end
-
-local function createDisk(id, basePath, readonly, periph)
-    basePath = norm(basePath)
-
-    local disk = {address = id, isReadOnly = function() return readonly end}
-
-    function disk:spaceUsed()
-        return fs.getCapacity(basePath) - fs.getFreeSpace(basePath)
-    end
-
-    function disk:spaceTotal() return fs.getCapacity(basePath) end
-
-    function disk:list(path)
-        local p = fs.combine(basePath, path)
-        if not fs.exists(p) or not fs.isDir(p) then
-            return nil, "not directory"
-        end
-        return fs.list(p)
-    end
-
-    function disk:fileExists(path)
-        local p = fs.combine(basePath, path)
-        return fs.exists(p) and not fs.isDir(p)
-    end
-
-    function disk:directoryExists(path)
-        local p = fs.combine(basePath, path)
-        return fs.exists(p) and fs.isDir(p)
-    end
-
-    function disk:type(path)
-        local p = fs.combine(basePath, path)
-        if not fs.exists(p) then
-            return nil
-        elseif fs.isDir(p) then
-            return "directory"
-        else
-            return "file"
-        end
-    end
-
-    function disk:makeDirectory(path)
-        local p = fs.combine(basePath, path)
-        fs.makeDir(p)
-        return true
-    end
-
-    function disk:remove(path)
-        local p = fs.combine(basePath, path)
-        if fs.exists(p) then fs.delete(p) end
-        return true
-    end
-
-    function disk:setLabel(label) periph.setLabel(label) end
-
-    function disk:getLabel(label) return periph.getLabel() end
-
-    function disk:attributes(path)
-        local p = fs.combine(basePath, path)
-        return fs.attributes(p)
-    end
-
-    function disk:open(path, mode)
-        local p = fs.combine(basePath, path)
-        return fs.open(p, mode)
-    end
-
-    return disk
-end
-
-internal["$"] = createDisk("$", BOOT_DRIVE_PATH, false, {
-    setLabel = function(label)
-        local h = fs.open("/.label", "w")
-        h.write(label)
-        h.close()
-    end,
-    getLabel = function()
-        local h = fs.open("/.label", "r")
-        if not h then return "$" end
-        local label = h.readAll()
-        h.close()
-        return label
-    end
-})
-
-internal["rom"] = createDisk("rom", "/rom", true, {
-    setLabel = function(label)
-        error("Device is read-only")
-    end,
-    getLabel = function()
-        return "cctrom"
-    end
-})
-
-local function refresh()
-    disks={}
-    for _, disk in ipairs({peripheral.find("drive")}) do
-        if disk.isDiskPresent() then
-            disks[tostring(disk.getDiskID())]=createDisk("cctdisk"..tostring(disk.getDiskID()), disk.getMountPath(), false, fs)
-        end
-    end
-end
-
-local function iter()
-    refresh()
-    local combined = {}
-
-    for id, obj in pairs(internal) do combined[id] = obj end
-    for id, obj in pairs(disks) do combined[id] = obj end
-
-    return pairs(combined)
-end
-
-return {refresh = refresh, list = iter}

@@ -1,6 +1,9 @@
 --:Minify:--
 local targetUser = ({ ... })[1]
 local currentUid = syscall.getuid()
+if syscall.geteuid()~=0 then
+    syscall.exec("/bin/su", {...})
+end
 local targetUid
 if targetUser then
     targetUid = syscall.getuidbyname(targetUser)

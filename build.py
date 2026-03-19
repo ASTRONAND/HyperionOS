@@ -74,7 +74,7 @@ def compress_lz4(data: bytes) -> bytes:
     return lz4.frame.compress(data)
 
 
-def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool):
+def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool, arch:Union[str, None]):
     print(f"Building from {src_root}")
     print(f"Output to      {out_root}")
     print()
@@ -82,6 +82,10 @@ def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool):
     for pkg_dir in sorted(src_root.iterdir()):
         if not pkg_dir.is_dir():
             continue
+        
+        if pkg_dir.name[:18] == "Hyperion-firmware-":
+            if pkg_dir.name != f"Hyperion-firmware-{arch}":
+                continue
 
         print(f"== Package: {pkg_dir.name} ==")
 
@@ -134,7 +138,7 @@ def run_build(minify: bool, micro: bool, include_test: bool, arch: Union[str, No
 
     out_root = BUILD_ROOT / "$" if arch else BUILD_ROOT
 
-    process_root(SRC_ROOT, out_root, minify, micro)
+    process_root(SRC_ROOT, out_root, minify, micro, arch)
     if include_test:
         process_root(TEST_ROOT, out_root, minify, micro)
 

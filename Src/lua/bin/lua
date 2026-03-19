@@ -1,14 +1,14 @@
 --:Minify:--
-local C_PROMPT = 7
-local C_CONT   = 13
-local C_OUT    = 5
-local C_ERR    = 2
-local C_KEY    = 3
-local C_STR    = 9
-local C_NUM    = 10
-local C_BOOL   = 8
-local C_NIL    = 12
-local C_TABLE  = 13
+local C_PROMPT = 0xFFFF00
+local C_CONT   = 0xDBDBDB
+local C_OUT    = 0x00FFFF
+local C_ERR    = 0xFF0000
+local C_KEY    = 0x00FF00
+local C_STR    = 0x00FF88
+local C_NUM    = 0x24FFFF
+local C_BOOL   = 0xFF6D00
+local C_NIL    = 0x6D6D6D
+local C_TABLE  = 0xDBDBDB
 
 local function c(col) syscall.devctl(1, "sfgc", col) end
 local function w(s)   syscall.write(1, tostring(s)) end
@@ -250,9 +250,9 @@ local function getUserInput(prompt, history)
     local function redraw()
         syscall.devctl(1, "spos", ox, oy)
         w(input:sub(1, cursor-1))
-        if blink then syscall.devctl(1,"sfgc",16); syscall.devctl(1,"sbgc",1) end
+        if blink then syscall.devctl(1,"sfgc",0x000000); syscall.devctl(1,"sbgc",1) end
         w(cursor > #input and " " or input:sub(cursor, cursor))
-        syscall.devctl(1,"sfgc",1); syscall.devctl(1,"sbgc",16)
+        syscall.devctl(1,"sfgc",0xFFFFFF); syscall.devctl(1,"sbgc",16)
         w(input:sub(cursor+1) .. " ")
         dirty = false
     end
@@ -284,7 +284,7 @@ local function getUserInput(prompt, history)
                     cursor = cursor - 1; dirty = true
                 end
             elseif key == "\n" then
-                syscall.devctl(1,"sfgc",1); syscall.devctl(1,"sbgc",16)
+                syscall.devctl(1,"sfgc",0xFFFFFF); syscall.devctl(1,"sbgc",16)
                 syscall.devctl(1,"spos",ox,oy)
                 w(input .. " \n")
                 return input

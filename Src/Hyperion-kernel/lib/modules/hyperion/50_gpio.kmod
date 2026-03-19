@@ -9,8 +9,20 @@ sysc["gpio_write"]=function(pin, data)
     end
 end
 
+sysc["gpio_writeAnalog"]=function(pin, data)
+    if kernel.gpio[pin] then
+        return kernel.gpio[pin]("wa", data)
+    end
+end
+
 sysc["gpio_read"]=function(pin)
     if kernel.gpio[pin] then
         return kernel.gpio[pin]("r")
+    end
+end
+
+sysc["gpio_readAnalog"]=function(pin)
+    if kernel.gpio[pin] then
+        return kernel.gpio[pin]("ra")
     end
 end

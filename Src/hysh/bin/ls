@@ -136,26 +136,26 @@ if cloptions.l then
         printInline(tostring(mtime) .. " ")
 
         if isSym then
-            syscall.devctl(1, "sfgc", 6)
+            syscall.devctl(1, "sfgc", 0xFF00FF)
             printInline(v)
-            syscall.devctl(1, "sfgc", 1)
+            syscall.devctl(1, "sfgc", 0xFFFFFF)
             local ok, target = pcall(syscall.readlink, fullPath)
             if ok then
                 printInline(" -> ")
                 local targetExists = pcall(syscall.stat, fullPath)
-                syscall.devctl(1, "sfgc", targetExists and 6 or 2)
+                syscall.devctl(1, "sfgc", targetExists and 0xFF00FF or 0xFF0000)
                 printInline(target)
-                syscall.devctl(1, "sfgc", 1)
+                syscall.devctl(1, "sfgc", 0xFFFFFF)
             end
         elseif isDir then
-            syscall.devctl(1, "sfgc", 14)
+            syscall.devctl(1, "sfgc", 0x6D00FF)
             printInline(v)
-            syscall.devctl(1, "sfgc", 1)
+            syscall.devctl(1, "sfgc", 0xFFFFFF)
         else
             local isExec = stat and stat.perms and (math.floor(stat.perms / (2^9)) % 2 == 1)
-            syscall.devctl(1, "sfgc", isExec and 3 or 1)
+            syscall.devctl(1, "sfgc", isExec and 0x00FF00 or 0xFFFFFF)
             printInline(v)
-            syscall.devctl(1, "sfgc", 1)
+            syscall.devctl(1, "sfgc", 0xFFFFFF)
         end
         print("")
     end
@@ -175,16 +175,16 @@ for i, v in ipairs(list) do
     local isSym    = stat and stat.etype == 0x01
 
     if isSym then
-        syscall.devctl(1, "sfgc", 6)
+        syscall.devctl(1, "sfgc", 0xFF00FF)
     elseif isDir then
-        syscall.devctl(1, "sfgc", 14)
+        syscall.devctl(1, "sfgc", 0x6D00FF)
     else
         local isExec = stat and stat.perms and (math.floor(stat.perms / (2^9)) % 2 == 1)
-        syscall.devctl(1, "sfgc", isExec and 3 or 1)
+        syscall.devctl(1, "sfgc", isExec and 0x00FF00 or 0xFFFFFF)
     end
 
     printInline(v)
-    syscall.devctl(1, "sfgc", 1)
+    syscall.devctl(1, "sfgc", 0xFFFFFF)
     printInline((" "):rep(colWidth - #v))
 
     if i % numCols == 0 then print("") end

@@ -144,8 +144,13 @@ syscall.dup=function(fd) end
 
 --- Read GPIO pin
 --- @param pin integer
---- @return number|nil
+--- @return boolean|nil
 syscall.gpio_read=function(pin) end
+
+--- Read GPIO pin analog
+--- @param pin integer
+--- @return number|nil
+syscall.gpio_readAnalog=function(pin) end
 
 --- Get SUID bit from fd
 --- @param fd integer
@@ -154,9 +159,13 @@ syscall.fget_suid=function(fd) end
 
 --- Write GPIO pin
 --- @param pin integer
---- @param data number
---- @return boolean
+--- @param data boolean
 syscall.gpio_write=function(pin, data) end
+
+--- Write GPIO pin analog
+--- @param pin integer
+--- @param data number
+syscall.gpio_writeAnalog=function(pin, data) end
 
 --- Set password for user
 --- @param uid integer

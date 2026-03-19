@@ -135,16 +135,16 @@ local function pad(s, w)
 end
 
 local function drawTop()
-    tpos(1,1); tbg(4); tfg(16)
+    tpos(1,1); tbg(0x0000FF); tfg(0x000000)
     local left  = " edit" .. (fname and (" - "..fname) or "")
     if dirty then left = left .. " [+]" end
     local right = tostring(cy)..","..tostring(cx).." "
     twrite(pad(left..string.rep(" ", math.max(1, W-#left-#right))..right, W))
-    tbg(16); tfg(1)
+    tbg(0x000000); tfg(0xFFFFFF)
 end
 
 local function drawBottom()
-    tpos(1, H); tbg(4); tfg(16)
+    tpos(1, H); tbg(0x0000FF); tfg(0x000000)
     if msg ~= "" then
         if msgErr then tbg(2) end
         twrite(pad(" "..msg, W))
@@ -152,7 +152,7 @@ local function drawBottom()
     else
         twrite(pad(" ^W Save  ^X Quit+Save  ^P Quit  ^K Cut  ^U Paste  ^F Find  ^G Go", W))
     end
-    tbg(16); tfg(1)
+    tbg(0x000000); tfg(0xFFFFFF)
 end
 
 local function drawLines(map)
@@ -177,29 +177,29 @@ local function drawLines(map)
                 local curCh  = ci > #seg and " " or seg:sub(ci, ci)
                 local after  = seg:sub(ci+1)
 
-                tfg(1); tbg(16); twrite(before)
-                if blinkState then tfg(16); tbg(1) else tfg(1); tbg(16) end
+                tfg(0xFFFFFF); tbg(0x000000); twrite(before)
+                if blinkState then tfg(0x000000); tbg(0xFFFFFF) else tfg(0xFFFFFF); tbg(0x000000) end
                 twrite(curCh)
-                tfg(1); tbg(16); twrite(after)
+                tfg(0xFFFFFF); tbg(0x000000); twrite(after)
                 local drawn = #before + 1 + #after
                 if drawn < W then twrite(string.rep(" ", W - drawn)) end
             else
                 if li == sLine and sPat ~= "" and entry[2] == 1 then
                     local s, e = seg:find(sPat)
                     if s then
-                        tfg(1);  tbg(16); twrite(seg:sub(1,s-1))
-                        tfg(16); tbg(3);  twrite(seg:sub(s,e))
-                        tfg(1);  tbg(16); twrite(seg:sub(e+1))
+                        tfg(0xFFFFFF);  tbg(0x000000); twrite(seg:sub(1,s-1))
+                        tfg(0x000000); tbg(0x00FF00);  twrite(seg:sub(s,e))
+                        tfg(0xFFFFFF);  tbg(0x000000); twrite(seg:sub(e+1))
                         twrite(string.rep(" ", W - #seg))
                     else
-                        tfg(1); tbg(16); twrite(pad(seg, W))
+                        tfg(0xFFFFFF); tbg(0x000000); twrite(pad(seg, W))
                     end
                 else
-                    tfg(1); tbg(16); twrite(pad(seg, W))
+                    tfg(0xFFFFFF); tbg(0x000000); twrite(pad(seg, W))
                 end
             end
         else
-            tfg(13); tbg(16); twrite(pad("~", W)); tfg(1)
+            tfg(0xDBDBDB); tbg(0x000000); twrite(pad("~", W)); tfg(0xFFFFFF)
         end
     end
 end
@@ -212,15 +212,15 @@ local function redraw()
     drawLines(map)
     drawBottom()
     tpos(1, H)
-    tbg(16); tfg(1)
+    tbg(0x000000); tfg(0xFFFFFF)
 end
 
 local function prompt(label, default)
     local inp = default or ""
     while true do
-        tpos(1, H); tbg(3); tfg(16)
+        tpos(1, H); tbg(0x00FF00); tfg(0x000000)
         twrite(pad(" "..label..inp.." ", W))
-        tbg(16); tfg(1)
+        tbg(0x000000); tfg(0xFFFFFF)
         local key = syscall.read(0)
         if not key or key == "" then sleep(0.02)
         elseif key == "" then return nil
@@ -415,5 +415,5 @@ while running do
     end
 end
 
-tclear(); tfg(1); tbg(16); tpos(1,1)
+tclear(); tfg(0xFFFFFF); tbg(0x000000); tpos(1,1)
 print("edit: exited"..(fname and (" - "..fname) or ""))

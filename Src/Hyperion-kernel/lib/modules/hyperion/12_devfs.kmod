@@ -50,7 +50,7 @@ function proxy:type(path, mode)
     if type(step[steps[#steps]]) == "table" then
         return "directory"
     end
-    error("ENOENT")
+    error(type(step[steps[#steps]]))
 end
 
 function proxy:list(path)
@@ -134,6 +134,68 @@ function data.zero(op, mode)
         elseif mode=="w" or mode=="a" then
             return {
                 write=function() end
+            }
+        else error("EACCES")
+        end
+    end
+end
+
+function data.eeprom(op, mode)
+    if op=="type" then
+        return "character device"
+    elseif op=="open" then
+        if mode=="r" then
+            local ptr,eeprom=1,kernel.EFI:getEEPROM()
+            return {
+                read=function(amount)
+                    ptr=ptr+amount
+                    return eeprom:sub(ptr-amount, ptr)
+                end
+            }
+        elseif mode=="w" then
+            if kernel.uid~=0 then error("EACCES") end
+            return {
+                write=function(data)
+                    kernel.EFI:setEEPROM(data)
+                end
+            }
+        elseif mode=="a" then
+            if kernel.uid~=0 then error("EACCES") end
+            return {
+                write=function(data)
+                    kernel.EFI:setEEPROM(kernel.EFI:getEEPROM()..data)
+                end
+            }
+        else error("EACCES")
+        end
+    end
+end
+
+function data.nvram(op, mode)
+    if op=="type" then
+        return "character device"
+    elseif op=="open" then
+        if mode=="r" then
+            local ptr,nvram=1,kernel.EFI:getNvram()
+            return {
+                read=function(amount)
+                    ptr=ptr+amount
+                    return nvram:sub(ptr-amount, ptr)
+                end
+            }
+        elseif mode=="w" then
+            if kernel.uid~=0 then error("EACCES") end
+            return {
+                write=function(data)
+                    kernel.EFI:setNvram(data)
+                end
+            }
+        elseif mode=="a" then
+            if kernel.uid~=0 then error("EACCES") end
+            return {
+                write=function(data)
+                    kernel.EFI:setNvram(kernel.EFI:getNvram()..data)
+                end
             }
         else error("EACCES")
         end

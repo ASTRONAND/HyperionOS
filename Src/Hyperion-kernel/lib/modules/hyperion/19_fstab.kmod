@@ -21,7 +21,7 @@ for _, line in ipairs(string.split(kernel.fstab, "\n")) do
         end
 
         if not semicolon_pos or semicolon_pos == 3 then
-            kernel.log("Invalid fstab line: "..line.." ... Skipping.", "WARN", 8)
+            kernel.log("Invalid fstab line: "..line.." ... Skipping.", "WARN", 0xFF8800)
         else
             local id = line:sub(3, semicolon_pos - 1)
             local path = trim(line:sub(semicolon_pos + 1))

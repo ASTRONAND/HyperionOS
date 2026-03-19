@@ -110,9 +110,9 @@ if opts.x then
     pcall(syscall.umount, tmpMnt)
     pcall(syscall.lodetach, loopId)
 
-    syscall.devctl(1, "sfgc", 10)
+    syscall.devctl(1, "sfgc", 0x00FFFF)
     print(name..": extracted "..count.." file(s) to "..destPath)
-    syscall.devctl(1, "sfgc", 1)
+    syscall.devctl(1, "sfgc", 0xFFFFFF)
     return
 end
 
@@ -150,8 +150,8 @@ local lineCount = 0
 for _ in imgStr:gmatch("\n") do lineCount = lineCount + 1 end
 local byteCount = #imgStr
 
-syscall.devctl(1, "sfgc", 10)
+syscall.devctl(1, "sfgc", 0x00FFFF)
 print(name..": image written to "..imgPath)
-syscall.devctl(1, "sfgc", 14)
+syscall.devctl(1, "sfgc", 0x6D00FF)
 print(string.format("  %d records, %d bytes", lineCount - 1, byteCount))
-syscall.devctl(1, "sfgc", 1)
+syscall.devctl(1, "sfgc", 0xFFFFFF)

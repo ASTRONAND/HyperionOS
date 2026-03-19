@@ -258,7 +258,7 @@ function proxy:fileExists(path)
     return ok
 end
 
-data.uptime=simpleFile(function()return tostring(kernel.computer:getUptime())end,function()error("EACCES")end)
+data.uptime=simpleFile(function()return tostring(kernel.EFI:getUptime())end,function()error("EACCES")end)
 kernel.procfs={}
 kernel.procfs.data=data
 kernel.procfs.proxy=proxy

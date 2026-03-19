@@ -1,11 +1,9 @@
 --:Minify:--
-local args = {...}
-local apis = args[1]
-local disks = args[2]
-local arch = args[3]
-local screen = args[5]
-local computer = args[6]
-local ifs = args[7]
+local EFI=...
+local screen=EFI.screenCtl
+local ifs=EFI.initfs
+local disks=EFI.disks
+local arch=EFI.architecture
 local kernel = {}
 kernel.LOG_Text=""
 kernel.version="HyperionOS V1.2.3"
@@ -26,28 +24,31 @@ _G.sleep=nil
 local windowsExp = false
 
 function kernel.log(msg, level, c)
-    c=c or 12
-    kernel.LOG_Text = kernel.LOG_Text..string.format("%X",c-1).." "..tostring(computer:time()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
+    c=c or 0x6D6D6D
+    kernel.LOG_Text = kernel.LOG_Text..tostring(EFI:date()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
     if kernel.status == "start" then
         screen:setTextColor(c)
-        screen:print(tostring(computer:time()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
+        screen:print(tostring(EFI:date()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
     elseif kernel.status == "term" then
         kernel.standbyTask=kernel.currentTask
         kernel.currentTask=kernel.kernelTask
-        kernel.vfs.devctl(1,"sfgc",c)
-        kernel.vfs.write(1,tostring(computer:time()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n")
+        local file=kernel.vfs.open("/dev/console", "w")
+        kernel.vfs.devctl(file,"sfgc",c)
+        kernel.vfs.write(file,tostring(EFI:date()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n")
+        kernel.vfs.close(file)
         kernel.currentTask=kernel.standbyTask
     end
 end
 
 function kernel.PANIC(msg)
     if kernel.status~="Panic" then
-        kernel.log("PANIC: "..msg, "PANIC")
+        kernel.log("PANIC: "..msg, "PANIC", 0xFF0000)
         pcall(kernel["saveLog"])
         kernel.status="Panic"
         kernel.reason=msg
-        screen:setTextColor(2)
-        screen:setBackgroundColor(16)
+        screen:enable()
+        screen:setTextColor(0xFF0000)
+        screen:setBackgroundColor(0x000000)
         screen:clear()
         screen:setCursorPos(1,1)
         screen:print(kernel.LOG_Text)
@@ -56,18 +57,19 @@ function kernel.PANIC(msg)
         kernel.exitMain = true
     end
     while true do
-        local event={computer:getMachineEvent()}
+        local event={EFI:getMachineEvent()}
         if event[1]=="keyPressed" then
             break
         end
     end
-    computer:reboot()
+    EFI.reboot=true
+    error("KERNEL PANIC")
 end
 kernel.panic=kernel.PANIC
 
 if windowsExp then
-    screen:setTextColor(1)
-    screen:setBackgroundColor(4)
+    screen:setTextColor(0xFFFFFF)
+    screen:setBackgroundColor(0x0000FF)
     screen:clear()
     local w,h = screen:getSize()
     screen:setCursorPos(3,5)
@@ -113,7 +115,7 @@ local split = function(str, delim, maxResultCountOrNil)
 end
 
 if not ifs.isFile("/boot/boot.cfg") then
-    kernel.log("First boot detected writing boot.cfg", "INFO", 3)
+    kernel.log("First boot detected writing boot.cfg", "INFO", 0x00FF00)
     ifs.writeAllText("/boot/boot.cfg",ifs.readAllText("/boot/safeboot.cfg"))
     kernel.firstBoot=true
 end
@@ -136,7 +138,7 @@ for i,v in ipairs(split(fstab,"\n")) do
         local id=""
         for i=3,#v do
             if v:sub(i,i)==";" then
-                if i==3 then kernel.log("Invalid fstab line... Skipping.","WARN") skip = true break end
+                if i==3 then kernel.log("Invalid fstab line... Skipping.","WARN", 0xFF8800) skip = true break end
                 id=v:sub(3,i-1)
             end
         end
@@ -151,7 +153,13 @@ end
 kernel.log("Disks initialized")
 
 function kernel.saveLog()
-    ifs.writeAllText("/var/log/syslog.log", kernel.LOG_Text)
+    if kernel.status=="running" then
+        local file = kernel.vfs.open("/var/log/syslog.log", "w")
+        kernel.vfs.write(file, kernel.LOG_Text)
+        kernel.vfs.close(file)
+    else
+        ifs.writeAllText("/var/log/syslog.log", kernel.LOG_Text)
+    end
 end
 
 function kernel.newFifo()
@@ -191,7 +199,7 @@ kernel.log("Gathering modules")
 for _, i in ipairs(ifs.list("/lib/modules")) do
     local modlist = ifs.list("/lib/modules/"..i)
     if not modlist then
-        kernel.log("WARNING: could not list /lib/modules/"..i.." (skipping)", "WARN", 8)
+        kernel.log("WARNING: could not list /lib/modules/"..i.." (skipping)", "WARN", 0xFF8800)
     else
         for _,v in ipairs(modlist) do
             local prior=tonumber(v:sub(1,2))
@@ -203,8 +211,8 @@ for _, i in ipairs(ifs.list("/lib/modules")) do
 end
 
 kernel.ifs=ifs
-kernel.apis=apis
-kernel.computer=computer
+kernel.apis=EFI.firmware
+kernel.EFI=EFI
 kernel.arch=arch
 kernel.initdisks=disks
 kernel.screen=screen
@@ -233,16 +241,19 @@ kernel.kernelTask = {
 kernel.currentTask = kernel.kernelTask
 
 function kernel.shutdown()
-    kernel.computer:shutdown()
+    kernel.exitMain=true
+    kernel.status="shutdown"
 end
 
 function kernel.reboot()
-    kernel.computer:reboot()
+    kernel.exitMain=true
+    kernel.status="reboot"
 end
 
-kernel.syscalls["time"]=function() return kernel.computer:time() end
+kernel.syscalls["time"]=function() return kernel.EFI:getEpochMs() end
+kernel.syscalls["date"]=function() return kernel.EFI:date() end
 kernel.syscalls["log"]=kernel.log
-kernel.syscalls["getUptime"]=function() return kernel.computer:clock() end
+kernel.syscalls["getUptime"]=function() return kernel.EFI:getUptime() end
 kernel.syscalls["getUsername"]=function(uid) return kernel.users[uid or kernel.uid] end
 kernel.syscalls["getHostname"]=function() return kernel.hostname end
 kernel.syscalls["getHost"]=function() return kernel.apis._HOST end
@@ -256,17 +267,13 @@ kernel.syscalls["sysdump"]=function()
     end
     return rv
 end
-kernel.syscalls["reboot"]=function()
-    kernel.computer:reboot()
-end
-kernel.syscalls["shutdown"]=function()
-    kernel.computer:reboot()
-end
+kernel.syscalls["reboot"]=kernel.reboot
+kernel.syscalls["shutdown"]=kernel.shutdown
 
 kernel.log("Running modules")
 for _,p in ipairs(modules) do
     for _,v in ipairs(p) do
-        if kernel.config.showModLoad then kernel.log("Loading module "..v, "DBUG", 5) end
+        if kernel.config.showModLoad then kernel.log("Loading module "..v, "DBUG", 0x00FFFF) end
         local code=ifs.readAllText(v)
         if not code then
             kernel.panic("Failed to read module "..v)
@@ -275,15 +282,20 @@ for _,p in ipairs(modules) do
         if not func then kernel.panic("ModuLoadErr: "..tostring(err)) end
         local status, err = xpcall(func,debug.traceback, kernel)
         if not status then kernel.panic("ModuRunErr: "..tostring(err)) end
-        if kernel.config.showModLoad then kernel.log("Loaded module "..v, "DBUG", 5) end
+        if kernel.config.showModLoad then kernel.log("Loaded module "..v, "DBUG", 0x00FFFF) end
     end
 end
 
 kernel.log("Kernel initialized successfully.")
 kernel.saveLog()
 kernel.status="running"
+screen:disable()
 kernel.main()
+kernel.panic("Exited main???")
 if kernel.status=="panic" then
-    kernel.panic()
+    kernel.panic(kernel.reason)
 end
-kernel.PANIC("Execution complete")
+if kernel.status=="reboot" then
+    EFI.reboot=true
+    return true
+end

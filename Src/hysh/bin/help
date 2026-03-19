@@ -261,16 +261,16 @@ local function render()
             syscall.write(1, "\n")
         end
     end
-    syscall.devctl(1, "sfgc", 16)
-    syscall.devctl(1, "sbgc", 13)
+    syscall.devctl(1, "sfgc", 0x000000)
+    syscall.devctl(1, "sbgc", 0xDBDBDB)
     local pct = math.floor(math.min(100, (scroll + pageSize) / totalLines * 100))
     local status = string.format(" help -- line %d/%d (%d%%)  [up/down: scroll  q: quit] ",
         scroll + 1, totalLines, pct)
     if #status > screenW then status = status:sub(1, screenW) end
     syscall.devctl(1, "spos", 1, screenH)
     syscall.write(1, status .. string.rep(" ", screenW - #status))
-    syscall.devctl(1, "sfgc", 1)
-    syscall.devctl(1, "sbgc", 16)
+    syscall.devctl(1, "sfgc", 0xFFFFFF)
+    syscall.devctl(1, "sbgc", 0x000000)
     dirty = false
 end
 
@@ -281,7 +281,7 @@ if totalLines <= pageSize then
         syscall.devctl(1, "sfgc", line[2])
         syscall.write(1, line[1] .. "\n")
     end
-    syscall.devctl(1, "sfgc", 1)
+    syscall.devctl(1, "sfgc", 0xFFFFFF)
     return
 end
 
@@ -305,5 +305,5 @@ end
 
 syscall.devctl(1, "clear")
 syscall.devctl(1, "spos", 1, 1)
-syscall.devctl(1, "sfgc", 1)
-syscall.devctl(1, "sbgc", 16)
+syscall.devctl(1, "sfgc", 0xFFFFFF)
+syscall.devctl(1, "sbgc", 0x000000)
