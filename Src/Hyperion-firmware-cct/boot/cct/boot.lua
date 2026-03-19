@@ -198,6 +198,7 @@ local ok, err = xpcall(function()
         local smallestDiff = math.huge
 
         for k, _ in pairs(tbl) do
+            if k==target then return k end
             local diff = math.abs(k - target)
             if diff < smallestDiff then
                 smallestDiff = diff

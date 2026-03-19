@@ -6,10 +6,11 @@ local install,releasename=function()end,""
 local exitall=false
 
 local function download(url)
-    shell.run("wget "..url.." /tmp/download")
-    local lib = require("tmp.download")
-    fs.delete("/tmp/download")
-    return lib
+    local data,err=http.get(url)
+    if not data then error(err) end
+    local func,err=load(data.readAll(),"@download","t",_ENV)
+    if not func then error(err) end
+    return func()
 end
 
 print("Installing JSON...")
