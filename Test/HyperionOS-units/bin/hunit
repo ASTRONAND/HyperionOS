@@ -1,4 +1,4 @@
-local fs=require("sys.fs")
+local fs=require("fs")
 local units=fs.list("/usr/lib/hunit/")
 fs.mkdir("/tmp/hunit/")
 local errors={}

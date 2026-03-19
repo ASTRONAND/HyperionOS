@@ -5,6 +5,7 @@
         "syscall",
         "printf",
         "printInline",
-        "toHex"
+        "toHex",
+        "loadcstr"
     ]
 }

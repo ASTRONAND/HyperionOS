@@ -1,8 +1,0 @@
-local args = {...}
-while true do
-    if #args == 0 then
-        print("y")
-    else
-        print(table.concat(args, " "))
-    end
-end

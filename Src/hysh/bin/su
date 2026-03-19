@@ -1,0 +1,65 @@
+--:Minify:--
+local targetUser = ({ ... })[1]
+local currentUid = syscall.getuid()
+if syscall.geteuid()~=0 then
+    syscall.exec("/bin/su", {...})
+end
+local targetUid
+if targetUser then
+    targetUid = syscall.getuidbyname(targetUser)
+else
+    targetUid = 0
+end
+
+if not targetUid then
+    print("su: user '" .. targetUser .. "' does not exist")
+    syscall.exit(1)
+    return
+end
+
+if currentUid ~= 0 then
+    printInline("Password: ")
+    local pw = ""
+    while true do
+        local ch = syscall.read(0)
+        if not ch or ch == "" then
+        elseif ch == "\n" then
+            syscall.write(1, "\n")
+            break
+        elseif ch == "\b" then
+            if #pw > 0 then pw = pw:sub(1, -2); syscall.write(1, "\b \b") end
+        else
+            pw = pw .. ch; syscall.write(1, "*")
+        end
+    end
+
+    local ok, err = syscall.login(targetUid, pw)
+    if not ok then
+        sleep(1)
+        print("su: Authentication failure")
+        syscall.exit(1)
+        return
+    end
+else
+    syscall.setuid(targetUid)
+end
+
+local pwent   = syscall.getpasswd(targetUid)
+local shell   = (pwent and pwent.shell)   or "/bin/hysh"
+local homedir = (pwent and pwent.homedir) or "/"
+local username= (pwent and pwent.username)or "Unknown"
+
+local ok_cd, err_cd = pcall(syscall.chdir, homedir)
+if not ok_cd then
+    homedir = "/"
+    syscall.chdir(homedir)
+end
+syscall.setEnviron("HOME",  homedir)
+syscall.setEnviron("USER",  username)
+syscall.setEnviron("SHELL", shell)
+
+local ok, err = pcall(syscall.exec, shell)
+if not ok then
+    print("su: cannot exec shell '" .. shell .. "': " .. tostring(err))
+    syscall.exit(1)
+end

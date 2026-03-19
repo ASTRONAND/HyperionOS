@@ -1,0 +1,328 @@
+--:Minify:--
+local kernel = ...
+local peripheral=kernel.cct.peripheral
+local keys=kernel.apis.keys
+
+local colors = {
+    [0xFFFFFF]=0x0001,
+    [0xFF0000]=0x0002,
+    [0x00FF00]=0x0004,
+    [0x0000FF]=0x0008,
+    [0x00FFFF]=0x0010,
+    [0xFF00FF]=0x0020,
+    [0xFFFF00]=0x0040,
+    [0xFF6D00]=0x0080,
+    [0x6DFF55]=0x0100,
+    [0x24FFFF]=0x0200,
+    [0x924900]=0x0400,
+    [0x6D6D55]=0x0800,
+    [0xDBDBAA]=0x1000,
+    [0x6D00FF]=0x2000,
+    [0xB6FF00]=0x4000,
+    [0x000000]=0x8000
+}
+
+local plt = {
+    0xFFFFFF,
+    0xFF0000,
+    0x00FF00,
+    0x0000FF,
+    0x00FFFF,
+    0xFF00FF,
+    0xFFFF00,
+    0xFF6D00,
+    0x6DFF55,
+    0x24FFFF,
+    0x924900,
+    0x6D6D55,
+    0xDBDBAA,
+    0x6D00FF,
+    0xB6FF00,
+    0x000000
+}
+
+local fg,bg=0x6D6D55,0x000000
+local l1f,l1d,l2,ops={},{},{},0
+
+local function findClosest(tbl, target)
+    local closest = nil
+    local smallestDiff = math.huge
+
+    for k, _ in pairs(tbl) do
+        local diff = math.abs(k - target)
+        if diff < smallestDiff then
+            smallestDiff = diff
+            closest = k
+        end
+    end
+
+    return closest
+end
+
+local function aprox(c24)
+    ops = ops + 1
+
+    if ops % 1024 == 0 then
+        l1d = {}
+        l1f = {}
+    end
+
+    if ops % 8192 == 0 then
+        l2 = {}
+    end
+
+    if l2[c24] ~= nil then
+        return l2[c24]
+    end
+
+    if l1d[c24] ~= nil then
+        l1f[c24] = l1f[c24] + 1
+
+        if l1f[c24] >= 16 then
+            l2[c24] = l1d[c24]
+            l1d[c24] = nil
+            l1f[c24] = nil
+            return l2[c24]
+        end
+
+        return l1d[c24]
+    end
+
+    local closestKey = findClosest(colors, c24)
+    if not closestKey then return nil end
+
+    local value = colors[closestKey]
+
+    l1d[c24] = value
+    l1f[c24] = 1
+
+    return value
+end
+
+local function write(text, term)
+    local x, y = term.getCursorPos()
+    local w, h = term.getSize()
+
+    for i = 1, #text do
+        local c = text:sub(i, i)
+
+        if c == "\n" then
+            y = y + 1
+            x = 1
+        elseif c == "\t" then
+            local tabSize = 4
+            local spaces = tabSize - ((x - 1) % tabSize)
+            term.write(string.rep(" ", spaces))
+            x = x + spaces
+        elseif c == "\b" then
+            if x > 1 then
+                x = x - 1
+                term.setCursorPos(x, y)
+                term.write(" ")
+                term.setCursorPos(x, y)
+            end
+        else
+            if x <= w and y <= h then
+                term.setCursorPos(x, y)
+                term.write(c)
+                x = x + 1
+            end
+        end
+
+        if x > w then
+            x = 1
+            y = y + 1
+        end
+
+        if y - 1 >= h then
+            term.scroll(1)
+            y = h
+            term.setCursorPos(x, y)
+        end
+    end
+
+    term.setCursorPos(x, y)
+end
+
+kernel.devfs.data.tty={}
+local ctrl,alt = false, false
+
+local function serializeBool(bool)
+    if bool then
+        return "T"
+    else
+        return "F"
+    end
+end
+
+local function newtty(obj, id, ev)
+    obj.setPaletteColor(0x1,    0xFFFFFF) -- #000000
+    obj.setPaletteColor(0x2,    0xFF0000) -- #FFFFFF
+    obj.setPaletteColor(0x4,    0x00FF00) -- #FF0000
+    obj.setPaletteColor(0x8,    0x0000FF) -- #00FF00
+    obj.setPaletteColor(0x10,   0x00FFFF) -- #0000FF
+    obj.setPaletteColor(0x20,   0xFF00FF) -- #00FFFF
+    obj.setPaletteColor(0x40,   0xFFFF00) -- #FF00FF
+    obj.setPaletteColor(0x80,   0xFF6D00) -- #FFFF00
+    obj.setPaletteColor(0x100,  0x6DFF55) -- #FF6D00
+    obj.setPaletteColor(0x200,  0x24FFFF) -- #6DFF55
+    obj.setPaletteColor(0x400,  0x924900) -- #24FFFF
+    obj.setPaletteColor(0x800,  0x6D6D55) -- #924900
+    obj.setPaletteColor(0x1000, 0xDBDBAA) -- #6D6D55
+    obj.setPaletteColor(0x2000, 0x6D00FF) -- #DBDBAA
+    obj.setPaletteColor(0x4000, 0xB6FF00) -- #6D00FF
+    obj.setPaletteColor(0x8000, 0x000000) -- #B6FF00
+    kernel.devfs.data["tty"][id] = function(op, mode)
+        if op=="type" then
+            return "Terminal"
+        elseif op=="open" then
+            local h = {
+                read=function(amount)
+                    local rv=""
+                    for i=1, amount or 1 do
+                        local event = {ev()}
+                        if event[1] then
+                            rv=rv..event[1]
+                        end
+                    end
+                    if rv=="" then rv=nil end
+                    return rv
+                end,
+                write=function(content)
+                    write(content, obj)
+                end,
+                size=function()
+                    local s={obj.getSize()}
+                    return table.concat(s,";")
+                end,
+                clear=function()
+                    obj.clear()
+                    obj.setCursorPos(1,1)
+                end,
+                gpos=function()
+                    local s={obj.getCursorPos()}
+                    return table.concat(s,";")
+                end,
+                spos=function(x,y)
+                    return obj.setCursorPos(x,y)
+                end,
+                sfgc=function(c)
+                    fg=c
+                    return obj.setTextColor(aprox(c))
+                end,
+                sbgc=function(c)
+                    bg=c
+                    return obj.setBackgroundColor(aprox(c))
+                end,
+                gfgc=function()
+                    return fg
+                end,
+                gbgc=function()
+                    return bg
+                end,
+                gctrl=function()
+                    return serializeBool(ctrl)..";"..serializeBool(alt)
+                end,
+                gplt=function()
+                    return plt
+                end
+            }
+            if mode=="rw" then
+                return h
+            elseif mode=="r" then
+                h["write"]=nil
+                return h
+            elseif mode=="w" then
+                h["read"]=nil
+                return h
+            end
+        end
+    end
+end
+
+local fifo = kernel.newFifo()
+
+kernel.processes.cctmond = function()
+    local timeout = false
+    while true do
+        local event = {kernel.EFI:getMachineEvent()}
+
+        if event[1] then
+            local eventType = event[1]
+            local charOrKey = event[3]
+
+            local ctrlKeyMap = {
+                [keys.a]=1,  [keys.b]=2,  [keys.c]=3,
+                [keys.d]=4,  [keys.e]=5,  [keys.f]=6,
+                [keys.g]=7,  [keys.h]=8,  [keys.i]=9,
+                [keys.j]=10, [keys.k]=11, [keys.l]=12,
+                [keys.m]=13, [keys.n]=14, [keys.o]=15,
+                [keys.p]=16, [keys.q]=17, [keys.r]=18,
+                [keys.s]=19, [keys.t]=20, [keys.u]=21,
+                [keys.v]=22, [keys.w]=23, [keys.x]=24,
+                [keys.y]=25, [keys.z]=26,
+            }
+
+            if eventType == "keyPressed" then
+                if charOrKey == keys.leftCtrl or charOrKey == keys.rightCtrl then
+                    ctrl = true
+                elseif charOrKey == keys.leftAlt or charOrKey == keys.rightAlt then
+                    alt = true
+                end
+
+                if ctrl then
+                    local ctrlByte = ctrlKeyMap[charOrKey]
+                    if ctrlByte then
+                        if ctrlByte == 3 then
+                            for _, task in ipairs(syscall.getTasks()) do
+                                syscall.sigsend(task, 1)
+                            end
+                        else
+                            fifo.push(string.char(ctrlByte))
+                        end
+                    end
+                else
+                    local specialKeyMap = {
+                        [keys.up]        = "[A",
+                        [keys.down]      = "[B",
+                        [keys.right]     = "[C",
+                        [keys.left]      = "[D",
+                        [keys.home]      = "[H",
+                        [keys["end"]]    = "[F",
+                        [keys.pageUp]    = "[5~",
+                        [keys.pageDown]  = "[6~",
+                        [keys.delete]    = "[3~",
+                    }
+                    local special = specialKeyMap[charOrKey]
+                    if special then fifo.push(special) end
+                end
+
+            elseif eventType == "keyReleased" then
+                if charOrKey == keys.leftCtrl or charOrKey == keys.rightCtrl then
+                    ctrl = false
+                elseif charOrKey == keys.leftAlt or charOrKey == keys.rightAlt then
+                    alt = false
+                end
+
+            elseif eventType == "keyTyped" then
+                if charOrKey then fifo.push(charOrKey) end
+            end
+
+            timeout = false
+        else
+            timeout = true
+        end
+
+        if timeout then
+            sleep(0.05)
+        end
+    end
+end
+
+newtty(kernel.apis.term, "1", fifo.pop)
+
+for i,v in ipairs({peripheral.find("monitor")}) do
+    v.setTextScale(.5)
+    v.write("Initializing...")
+    newtty(v,tostring(i+1),function () end)
+end

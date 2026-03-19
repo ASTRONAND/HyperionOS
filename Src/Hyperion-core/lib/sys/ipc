@@ -1,3 +1,0 @@
-local ipc = {}
-
-return ipc

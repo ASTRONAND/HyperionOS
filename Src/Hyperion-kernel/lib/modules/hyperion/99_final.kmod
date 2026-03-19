@@ -1,2 +1,3 @@
+--:Minify:--
 local kernel = ...
 kernel.allowGlobalOverwrites = false

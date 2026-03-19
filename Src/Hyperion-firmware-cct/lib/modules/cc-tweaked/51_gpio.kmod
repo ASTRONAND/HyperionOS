@@ -1,0 +1,25 @@
+--:Minify:--
+local kernel=...
+local rs=kernel.apis.rs
+local sides = {top=1, bottom=2, left=3, right=4, front=5, back=6}
+local function newGPIO(side)
+    return function(mode, data)
+        if mode=="w" then
+            if type(data)~="boolean" then error("data: expected bool") end
+            rs.setOutput(side, data)
+        elseif mode=="wa" then
+            if type(data)~="number" then error("data: expected bool") end
+            rs.setAnalogOutput(side, data)
+        elseif mode=="r" then
+            return rs.getInput(side)
+        elseif mode=="ra" then
+            return rs.getAnalogInput(side)
+        end
+    end
+end
+
+for side, alt in pairs(sides) do
+    local func=newGPIO(side)
+    kernel.gpio[side]=func
+    kernel.gpio[alt]=func
+end

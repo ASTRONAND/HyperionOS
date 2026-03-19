@@ -8,24 +8,23 @@ Run:
 make build
 ```
 
-Optional variables:
+**Optional variables:**
 
-* **`ARCH=`**
+* **`ARCH=`** – Select bootloader type:
 
-  * `cct` Build using the cct bootloader
-  * `oc` Build using the oc bootloader
+  * `cct` – Build using the CCT bootloader  
+  * `oc`  – Build using the OC bootloader
 
-* **`DEV=1`**
+* **`DEV=1`** – Enable development mode:
 
-  * Builds in development mode
-  * Bootloader does not start automatically on system startup
+  * Bootloader does **not** start automatically on system startup  
 
-If `DEV` is not specified:
+**Default behavior (if `DEV` is not specified):**
 
-* Default is release mode
-* Bootloader starts automatically on system startup
+* Builds in **release mode**  
+* Bootloader starts automatically on system startup  
 
-**Examples**
+**Examples:**
 
 ```bash
 make build ARCH=cct
@@ -42,38 +41,46 @@ Run:
 python build.py build
 ```
 
-Optional arguments:
+**Optional arguments:**
 
-* **`--arch {cct|oc}`**
-  Select bootloader
+* **`--arch {cct|oc}`** – Select bootloader:
 
-  * `cct` Use the cct bootloader
-  * `oc` Use the oc bootloader
+  * `cct` – Use the CCT bootloader  
+  * `oc`  – Use the OC bootloader
 
-* **`--dev`**
+* **`--dev`** – Development mode:
 
-  * Development mode
-  * Bootloader does not start automatically. You must run `eeprom` in CraftOS to start Hyperion.
+  * Bootloader does **not** start automatically  
+  * You must run `eeprom` in CraftOS to start Hyperion
 
-* **`--release`** (default)
+* **`--release`** (default) – Release mode:
 
-  * Release mode
   * Bootloader starts automatically
-  
-* **`--makeuser username password`**
-  Makes a username upon startup. Only works for `--dev` builds.
-  
-  * `--makeuser root rootpass`
-  
-  Makes the root account already exist on first boot with rootpass as password
-  
-  * `--makeuser root rootpass --makeuser alice alicepass`
-  
-  Makes the root account and alice account already exist on first boot with defined passwords
 
-**Examples**
+* **`--makeuser username password`** – Pre-create user accounts (only works with `--dev` builds):
+
+  ```bash
+  --makeuser root rootpass
+  --makeuser root rootpass --makeuser alice alicepass
+  ```
+
+  * Example: The first command creates the `root` account with the given password on first boot  
+  * Example: The second command creates both `root` and `alice` accounts with defined passwords on first boot
+
+**Examples:**
 
 ```bash
 python build.py build --arch cct
 python build.py build --arch oc --dev
 ```
+
+---
+
+### Build Requirements
+
+* **`build`** – No additional requirements  
+* **`build-mini`** – Requires [`luamin`](https://www.npmjs.com/package/luamin)  
+* **`build-micro`** – Requires:
+
+  * [`luamin`](https://www.npmjs.com/package/luamin)  
+  * [`LZ4 binaries`](https://github.com/lz4/lz4/releases)
