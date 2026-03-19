@@ -13,7 +13,7 @@ local function download(url)
 end
 
 print("Installing JSON...")
-local json = download("https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/misc/install/data/json")
+local json = download("https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/misc/cct/installdata/json")
 
 local function printTitle()
     term.clear()
