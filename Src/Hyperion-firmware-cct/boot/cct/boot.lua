@@ -249,6 +249,14 @@ local ok, err = xpcall(function()
         return value
     end
 
+    local allscreens = {apis.peripheral.find("monitor")}
+    for i=1, #allscreens do
+        allscreens[i].setTextScale(.5)
+        allscreens[i].clear()
+        allscreens[i].setCursorPos(1,1)
+        allscreens[i].write("Initializing...")
+    end
+
     local EFI = {
         getEpochMs = function() return apis.os.epoch("utc") end,
         getUptime = function() return apis.os.clock() * 1000 end,
@@ -303,7 +311,8 @@ local ok, err = xpcall(function()
             h.close()
         end,
         firmware=apis,
-        reboot=false
+        reboot=false,
+        beep=function() end
     }
 
     apis.term.setBackgroundColor(0x8000)
@@ -340,7 +349,7 @@ local ok, err = xpcall(function()
         end
     end
 
-    write("Loaded in " .. tostring(apis.os.clock()) .. " seconds.\n")
+    EFI.screenCtl:print("Loaded in " .. tostring(apis.os.clock()) .. " seconds.\n")
 
     while true do
         local status, err = coroutine.resumeWithTimeout(kernelCoro, 50)

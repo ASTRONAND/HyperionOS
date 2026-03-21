@@ -11,6 +11,8 @@ Targets:
     build-mini-test
     build-micro-test
     clean
+    prod
+    prod-mini
 
 Arch flags:
     --arch cct
@@ -32,6 +34,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 SRC_ROOT     = PROJECT_ROOT / "Src"
 TEST_ROOT    = PROJECT_ROOT / "Test"
 BUILD_ROOT   = PROJECT_ROOT / "Build"
+PROD_ROOT    = PROJECT_ROOT / "prod"
 
 ARCH_BOOT_DIR = {
     "cct": Path("boot") / "cct",
@@ -43,6 +46,13 @@ def clean():
     if BUILD_ROOT.exists():
         print(f"Removing {BUILD_ROOT} ...")
         shutil.rmtree(BUILD_ROOT)
+    else:
+        print("Nothing to clean.")
+
+def cleanprod():
+    if PROD_ROOT.exists():
+        print(f"Removing {PROD_ROOT} ...")
+        shutil.rmtree(PROD_ROOT)
     else:
         print("Nothing to clean.")
 
@@ -74,9 +84,9 @@ def compress_lz4(data: bytes) -> bytes:
     return lz4.frame.compress(data)
 
 
-def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool, arch:Union[str, None]):
+def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool, arch:Union[str, None], prod:bool):
     print(f"Building from {src_root}")
-    print(f"Output to      {out_root}")
+    print(f"Output to     {out_root}")
     print()
 
     for pkg_dir in sorted(src_root.iterdir()):
@@ -85,7 +95,8 @@ def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool, arch
         
         if pkg_dir.name[:18] == "Hyperion-firmware-":
             if pkg_dir.name != f"Hyperion-firmware-{arch}":
-                continue
+                if prod != True:
+                    continue
 
         print(f"== Package: {pkg_dir.name} ==")
 
@@ -97,8 +108,11 @@ def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool, arch
             
             if rel.name=="$PKGCONFIG.ini":
                 continue
-
+            
             dst = out_root / rel
+            if prod:
+                dst = out_root / pkg_dir.name / rel
+            
             dst.parent.mkdir(parents=True, exist_ok=True)
 
             print(f"  Processing: {src.relative_to(src_root)}")
@@ -132,13 +146,19 @@ def install_bootloader(arch: str, release: bool):
     shutil.copy2(eeprom, BUILD_ROOT / eeprom_dst_name)
 
 
-def run_build(minify: bool, micro: bool, include_test: bool, arch: Union[str, None], release: bool):
+def run_build(minify: bool, micro: bool, include_test: bool, arch: Union[str, None], release: bool, prod: bool):
     clean()
     BUILD_ROOT.mkdir()
-
+    if prod:
+        cleanprod()
+        PROD_ROOT.mkdir()
+    
     out_root = BUILD_ROOT / "$" if arch else BUILD_ROOT
 
-    process_root(SRC_ROOT, out_root, minify, micro, arch)
+    process_root(SRC_ROOT, out_root, minify, micro, arch, False)
+    if prod:
+        process_root(SRC_ROOT, PROD_ROOT, minify, micro, arch, True)
+    
     if include_test:
         process_root(TEST_ROOT, out_root, minify, micro)
 
@@ -200,9 +220,9 @@ def inject_makeusers(users, arch):
 
 def main():
     parser = argparse.ArgumentParser(description="HyperionOS build script")
-    parser.add_argument("target", choices=["build", "build-mini", "build-micro", "build-test", "build-mini-test", "build-micro-test", "clean"])
+    parser.add_argument("target", choices=["build", "build-mini", "build-micro", "build-test", "build-mini-test", "build-micro-test", "clean", "prod", "prod-mini"])
     parser.add_argument("--arch", choices=["cct", "oc"], default=None,
-                        help="Target architecture (cct or oc)")
+                        help="Target architecture")
     parser.add_argument("--release", dest="release", action="store_true", default=True,
                         help="Release build: eeprom placed as startup.lua (default)")
     parser.add_argument("--dev", dest="release", action="store_false",
@@ -226,14 +246,15 @@ def main():
         clean()
         return
 
-    minify       = "mini" in args.target or "micro" in args.target
+    prod         = "prod" in args.target
+    minify       = "mini" in args.target or "micro" in args.target or "prod" in args.target
     micro        = "micro" in args.target
     include_test = "test" in args.target
 
     if micro:
         import lz4.block
     
-    run_build(minify=minify, micro=micro, include_test=include_test, arch=args.arch, release=args.release)
+    run_build(minify=minify, micro=micro, include_test=include_test, arch=args.arch, release=args.release, prod=prod)
 
     if args.makeuser:
         print("Injecting first-boot user setup ...")

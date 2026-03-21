@@ -499,7 +499,7 @@ local function checkperms(meta, mode)
     local bitmap = {
         r = {owner = 5, group = 3, everyone = 1},
         w = {owner = 4, group = 2, everyone = 0},
-        a = {owner = 4, group = 2, everyone = 0},
+        a = {owner = 4, group = 2, everyone = 0}
     }
     local m = bitmap[mode]
     if not m then error("EINVAL") end
@@ -544,7 +544,6 @@ local function newFileObj(handle, mode, path, meta, ftype)
 end
 
 function vfs.newfd(fdobj)
-    checkSystemLimit(); total = total + 1
     local fd = allocFD(kernel.currentTask)
     kernel.currentTask.fd[fd] = fdobj
     return fd
@@ -595,6 +594,21 @@ function vfs.open(path, mode)
     local fd   = allocFD(task)
     local disk, diskPath = resolvePath(path)
     if not disk then error("NODISK") end
+    if (mode=="w" or mode=="a") and disk:isReadOnly() then error("ERDONLY") end
+
+    if kernel.unixSockets[normalizePath(path)] then
+        local meta = kernel.unixSockets[normalizePath(path)].meta
+        if kernel.uid~=0 or kernel.uid~=meta.owner then
+            local groups = (task and task.groups) or kernel.groups or {}
+            local access=false
+            for _, gid in ipairs(groups) do
+                if gid == meta.group then access=true end
+            end
+            if not access then error("EACCES") end
+        end
+        task[fd]=kernel.unixSockets[normalizePath(path)]
+        return fd
+    end
 
     local meta = getFileMeta(path)
     local isNew = (mode == "w" or mode == "a") and not disk:fileExists(diskPath)
@@ -696,10 +710,18 @@ function vfs.sendfile(outfd, infd, count)
 end
 
 function vfs.stat(path)
-    local disk, diskPath = resolvePath(path)
-    local meta  = getFileMeta(path)
-    local ok, attrs = pcall(disk.attributes, disk, diskPath)
-    if not ok then attrs = { size=0, modified=0, created=0 } end
+    local attrs
+    local meta
+    if meta.etype == 0x02 then
+        attrs = { size=0, modified=0, created=0 }
+    else
+        local disk, diskPath = resolvePath(path)
+        meta  = getFileMeta(path)
+        local ok
+        ok, attrs = pcall(disk.attributes, disk, diskPath)
+        if not ok then attrs = { size=0, modified=0, created=0 } end
+    end
+
     return {
         size     = attrs.size,
         modified = attrs.modified,
@@ -714,15 +736,15 @@ end
 
 function vfs.lstat(path)
     local meta = getFileMeta(path, true)
-
     local attrs
-    if meta.etype == 0x01 then
+    if meta.etype == 0x01 or meta.etype == 0x02 then
         attrs = { size=0, modified=0, created=0 }
     else
         local disk, diskPath = resolvePath(path, true)
         local ok, a = pcall(disk.attributes, disk, diskPath)
         attrs = ok and a or { size=0, modified=0, created=0 }
     end
+
     return {
         size     = attrs.size,
         modified = attrs.modified,
@@ -739,8 +761,15 @@ end
 function vfs.fstat(fd)
     local file = kernel.currentTask.fd[fd]
     if not file then error("EBADF") end
-    local disk, diskPath = resolvePath(file.path)
-    local attrs = disk:attributes(diskPath)
+    local attrs
+    if file.meta.etype == 0x02 then
+        attrs = { size=0, modified=0, created=0 }
+    else
+        local disk, diskPath = resolvePath(file.path, true)
+        local ok, a = pcall(disk.attributes, disk, diskPath)
+        attrs = ok and a or { size=0, modified=0, created=0 }
+    end
+
     return {
         size    = attrs.size,
         modified = attrs.modified,
@@ -766,6 +795,14 @@ function vfs.listdir(path)
         if v ~= ".meta" then
             seen[v] = true
             table.insert(out, v)
+        end
+    end
+
+    for k,v in pairs(kernel.unixSockets) do
+        local p=normalizePath(path)
+        if k:match("^(.*)/[^/]+$")==p then
+            seen[v.name]=true
+            table.insert(out, v.name)
         end
     end
 
@@ -797,6 +834,7 @@ function vfs.mkdir(path)
     local parentMeta = getFileMeta(parent)
     checkperms(parentMeta, "w")
     local disk, diskPath = resolvePath(path)
+    if disk:isReadOnly() then error("ERDONLY") end
     disk:makeDirectory(diskPath)
     local task = kernel.currentTask
     local euid = (task and (task.euid or task.uid)) or kernel.uid
@@ -818,8 +856,13 @@ function vfs.remove(path)
 
     local meta = getFileMeta(path, true)
 
-    if kernel.unixSockets and kernel.unixSockets[path] then
-        kernel.unixSockets[path] = nil
+    if kernel.unixSockets and kernel.unixSockets[normalizePath(path)] then
+        if kernel.uid ~= 0 then
+            if kernel.unixSockets[normalizePath(path)].meta.owner~=kernel.uid then
+                error("EACCES")
+            end
+        end
+        kernel.unixSockets[normalizePath(path)] = nil
     end
 
     if meta.etype == 0x01 then
@@ -828,6 +871,7 @@ function vfs.remove(path)
         if parent == "" then parent = "/" end
         local name   = norm:match("[^/]+$")
         local disk, parentDiskPath = resolveMount(parent)
+        if disk:isReadOnly() then error("ERDONLY") end
         local mp
         if parentDiskPath == "/" then mp = ".meta"
         else mp = parentDiskPath:gsub("^/+", "") .. "/.meta" end
@@ -844,6 +888,7 @@ function vfs.remove(path)
         if f2.close then f2.close() end
     else
         local disk, diskPath = resolvePath(path)
+        if disk:isReadOnly() then error("ERDONLY") end
         disk:remove(diskPath)
     end
 end
@@ -852,6 +897,8 @@ function vfs.symlink(target, linkPath)
     if type(target) ~= "string" or type(linkPath) ~= "string" then error("EINVAL") end
     local norm   = normalizePath(linkPath)
     local parent = norm:match("^(.*)/[^/]+$") or "/"
+    local disk = resolveMount(linkPath)
+    if disk:isReadOnly() then error("ERDONLY") end
     if parent == "" then parent = "/" end
     local name   = norm:match("[^/]+$")
     if not name then error("EINVAL") end
@@ -881,7 +928,13 @@ function vfs.readlink(path)
 end
 
 function vfs.access(path, mode)
-    local meta = getFileMeta(path)
+    local meta
+    if kernel.unixSockets[normalizePath(path)] then
+        meta = kernel.unixSockets[normalizePath(path)].meta
+    else
+        meta = getFileMeta(path)
+    end
+
     for i = 1, #mode do
         checkperms(meta, mode:sub(i,i))
     end
@@ -892,6 +945,8 @@ local function updateMeta(path, fn, noFollow)
     local real   = namei(path, noFollow)
     local norm   = real
     local parent = norm:match("^(.*)/[^/]+$") or "/"
+    local disk = resolveMount(path)
+    if disk:isReadOnly() then error("ERDONLY") end
     if parent == "" then parent = "/" end
     local name   = norm:match("[^/]+$")
     if not name then error("EINVAL") end
@@ -918,6 +973,9 @@ local function updateMeta(path, fn, noFollow)
 end
 
 function vfs.chmod(path, perms)
+    if kernel.unixSockets[normalizePath(path)] then error("EINVAL") end
+    local disk = resolveMount(path)
+    if disk:isReadOnly() then error("ERDONLY") end
     local meta = getFileMeta(path)
     local euid = (kernel.currentTask and (kernel.currentTask.euid or kernel.currentTask.uid)) or kernel.uid
     if euid ~= 0 and euid ~= meta.owner then error("EACCES") end
@@ -927,10 +985,14 @@ end
 function vfs.fchmod(fd, perms)
     local file = kernel.currentTask.fd[fd]
     if not file then error("EBADF") end
+    if file.etype==0x02 then error("EINVAL") end
     vfs.chmod(file.path, perms)
 end
 
 function vfs.chown(path, uid, gid)
+    if kernel.unixSockets[normalizePath(path)] then error("EINVAL") end
+    local disk = resolveMount(path)
+    if disk:isReadOnly() then error("ERDONLY") end
     local _euid = (kernel.currentTask and (kernel.currentTask.euid or kernel.currentTask.uid)) or kernel.uid
     if _euid ~= 0 then error("EPERM") end
     updateMeta(path, function(e) e.owner = uid; e.group = gid end)
@@ -939,10 +1001,12 @@ end
 function vfs.fchown(fd, uid, gid)
     local file = kernel.currentTask.fd[fd]
     if not file then error("EBADF") end
+    if file.etype==0x02 then error("EINVAL") end
     vfs.chown(file.path, uid, gid)
 end
 
 function vfs.exists(path)
+    if kernel.unixSockets[normalizePath(path)] then return true end
     local meta = getFileMeta(path, true)
     if meta.etype == 0x01 then return true end
     local ok, disk, diskPath = pcall(resolvePath, path)
@@ -957,6 +1021,9 @@ end
 function vfs.type(path)
     local meta = getFileMeta(path, true)
     if meta.etype == 0x01 then return "symlink" end
+    if kernel.unixSockets[normalizePath(path)] then
+        return "socket"
+    end
     local ok, disk, diskPath = pcall(resolvePath, path)
     if not ok then return nil end
     return disk:type(diskPath)

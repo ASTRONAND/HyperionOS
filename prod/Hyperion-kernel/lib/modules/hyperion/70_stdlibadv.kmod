@@ -1,0 +1,1 @@
+local a=...function print(...)local b={...}local c=""for d=1,#b do c=c..tostring(b[d]).."\t"end;c=c:sub(1,-2)syscall.write(1,c.."\n")end;function printf(e,...)local c=string.format(e,...)syscall.write(1,c.."\n")end;function printInline(...)local b={...}local c=""for d=1,#b do c=c..tostring(b[d]).."\t"end;c=c:sub(1,-2)syscall.write(1,c)end

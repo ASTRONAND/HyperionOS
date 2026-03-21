@@ -6,7 +6,7 @@ local data = {}
 
 proxy.address = "procfs0000"
 proxy.isvirt = true
-proxy.isReadOnly = function() return false end
+proxy.isReadOnly = function() return true end
 proxy.spaceUsed = function() return 0 end
 proxy.spaceTotal = function() return 0 end
 proxy.makeDirectory = function() error("EACCES") end

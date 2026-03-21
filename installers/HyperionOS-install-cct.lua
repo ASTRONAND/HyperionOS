@@ -1,20 +1,42 @@
 term.clear()
+term.setTextColor(colors.white)
 term.setCursorPos(1,1)
 print("HyperionOS CCT Installer //")
 local w,h = term.getSize()
-local install,releasename=function()end,""
-local exitall=false
+local exitall,releasename,packagelist=false,"",{}
 
-local function download(url)
-    local data,err=http.get(url)
-    if not data then error(err) end
-    local func,err=load(data.readAll(),"@download","t",_ENV)
-    if not func then error(err) end
-    return func()
+local function printc(...)
+    local args={...}
+    for i=1, #args do
+        if type(args[i]) == "number" then
+            term.setTextColor(args[i])
+        else
+            term.write(args[i])
+        end
+    end
+    print("")
 end
 
-print("Installing JSON...")
-local json = download("https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/misc/cct/installdata/json")
+local function download(url)
+    printc(colors.gray, "[ ", colors.green, " FETCH ", colors.gray, " ] ", colors.white, url)
+    local data,err=http.get(url)
+    if not data then error(err) end
+    local text=data.readAll()
+    data.close()
+    return text
+end
+
+local function writeFile(path, data)
+    printc(colors.gray, "[ ", colors.green, "WRITING", colors.gray, " ] ", colors.white, path)
+    local file=fs.open(path, "w")
+    file.write(data)
+    file.close()
+end
+
+print("Installing JSON to /hyinstall/json...")
+writeFile("/hyinstall/json",download("https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/misc/json"))
+print("Loading JSON...")
+local json=loadfile("/hyinstall/json")()
 
 local function printTitle()
     term.clear()
@@ -108,25 +130,16 @@ local function makePage(start, num)
             desc=release.body,
             color=release.prerelease and colors.orange or colors.white,
             func=function()
-                local data, err=http.get("https://git.astronand.dev/Hyperion/HyperionOS/raw/tag/"..release.tag_name.."/misc/cct/installcct.lua")
-                releasename=release.tag_name
+                local data=download("https://git.astronand.dev/Hyperion/HyperionOS/raw/tag/"..release.tag_name.."/Src/install.json")
                 if not data then
                     term.clear()
                     term.setCursorPos(1,1)
-                    print("Unable to install "..release.tag_name..":\n"..err)
+                    print("Unable to find package list for ver "..release.tag_name..":\n"..err)
                     sleep(3)
                     return
                 end
-                local func, err = load(data.readAll(), "@Installer","t",_ENV)
-                data.close()
-                if not func then
-                    term.clear()
-                    term.setCursorPos(1,1)
-                    print("Unable to load Installer "..release.tag_name..":\n"..err)
-                    sleep(3)
-                    return
-                end
-                install=func
+                releasename=release.tag_name
+                packagelist=json.decode(data)
                 exitall=true
             end
         }
@@ -160,15 +173,10 @@ for i=5, 1, -1 do
 end
 print("")
 
-local function printc(text, c)
-    term.setTextColor(c)
-    print(text)
-end
-
 local function delDir(dir)
-    printc("ls "..dir, colors.green)
+    printc(colors.gray, "[ ", colors.green, " LSDIR ", colors.gray, " ] ", colors.white, dir)
     local list=fs.list(dir)
-    printc("rm -rf "..dir, colors.red)
+    printc(colors.gray, "[ ", colors.red, " DELET ", colors.gray, " ] ", colors.white, dir)
     for i=1, #list do
         if fs.isDir(dir..list[i]) then
             if dir..list[i] ~= "/rom" then
@@ -177,14 +185,46 @@ local function delDir(dir)
             end
         else
             fs.delete(dir..list[i])
-            printc("rm "..dir..list[i], colors.orange)
+            printc(colors.gray, "[ ", colors.red, " DELET ", colors.gray, " ] ", colors.white, dir..list[i])
         end
-        sleep(.01)
+        sleep(.1)
     end
 end
 
 delDir("/")
-term.clear()
-term.setCursorPos(1,1)
-term.setTextColor(colors.white)
-install(releasename)
+
+print("")
+printc(colors.cyan, "       \\\\Installing//")
+print("")
+printc(colors.white, "Getting package list...")
+local list=json.decode()
+
+local function installdir(path, dir, pkg)
+    local data=json.decode(download("https://git.astronand.dev/api/v1/repos/Hyperion/HyperionOS/contents/prod/"..pkg..dir.."?ref="..releasename))
+    if not data then error("Uh Oh: JSON decode error...") end
+    for i=1, #data do
+        local entry=data[i]
+        if entry.type == "dir" then
+            installdir(path, dir..entry.name.."/", pkg)
+        elseif entry.type == "file" then
+            writeFile(path..dir..entry.name, download(entry.download_url))
+        else
+            error("Uh Oh: unknown entrytype "..entry.path)
+        end
+    end
+end
+
+local function installpkg(pkg)
+    installdir("/$", "/", pkg)
+end
+
+for i=1, #packagelist do
+    installpkg(packagelist[i])
+end
+
+installpkg("Hyperion-firmware-cct")
+fs.copy("/$/boot/cct/eeprom", "/startup.lua")
+
+printc(colors.white, "Rebooting...")
+sleep(1)
+os.reboot()
