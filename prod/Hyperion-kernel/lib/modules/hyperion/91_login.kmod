@@ -1,0 +1,1 @@
+local a=...if not a.vfs.exists("/root")then a.vfs.mkdir("/root")end;a.processes.login=function()local b,c=pcall(a.hpv.execspawn,"/bin/login","login")if not b then a.log("Failed to exec /bin/login: "..tostring(c),"ERROR",0xFF0000)end end

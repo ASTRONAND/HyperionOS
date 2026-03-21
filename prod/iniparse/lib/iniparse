@@ -1,0 +1,1 @@
+local a={}function a.parse(b)local c={}local d=nil;for e in b:gmatch("[^\r\n]+")do e=e:match("^%s*(.-)%s*$")if e~=""and not e:match("^[;#]")then local f=e:match("^%[(.-)%]$")if f then d=f;c[d]=c[d]or{}else local g,h=e:match("^(.-)=(.*)$")if g then g=g:match("^%s*(.-)%s*$")h=h:match("^%s*(.-)%s*$")if d then c[d][g]=h else c[g]=h end end end end end;return c end;return a

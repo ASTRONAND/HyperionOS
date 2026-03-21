@@ -156,7 +156,6 @@ end
 function sys.sleep(s)
     kernel.currentTask.status = "S"
     kernel.currentTask.sleep  = kernel.EFI:getEpochMs() + s * 1000
-    coroutine.yield()
 end
 
 function sys.getTask(pid)
@@ -343,40 +342,42 @@ function kernel.main()
         local taskTimes    = {}
 
         for pid, task in pairs(tasks) do
+            kernel.currentTask = task
+            kernel.uid  = task.euid or task.uid
+            kernel.process = task.name
+
             if task.status == "S" and kernel.EFI:getEpochMs() >= task.sleep then
                 task.status = "R"
                 task.sleep  = 0
             end
 
-            if task.status == "R" then
-                kernel.currentTask = task
+            if task.status == "D" then
+                if task.ksh then
+                    coroutine.resume(task.ksh)
+                end
+            end
 
-                kernel.uid  = task.euid or task.uid
-                kernel.process = task.name
+            if task.status == "R" then
                 N = N + 1
 
                 task.timeSlice = math.min(Tmax, math.max(Tmin, B / (N ^ alpha)))
 
                 if task.sigq and #task.sigq ~= 0 and task.sigh then
                     local coro = coroutine.create(task.sigh)
-                    local sigret = { coroutine.resume(coro, table.remove(task.sigq, 1)) }
-                    while coroutine.status(coro) ~= "dead" do
-                        if sigret[1] == false then break end
-                        if sigret[2] == "syscall" then
-                            local scname = sigret[3]
-                            local sysret
-                            if kernel.syscalls[scname] then
-                                sysret = { xpcall(kernel.syscalls[scname], debug.traceback, table.unpack(sigret, 4)) }
-                            else
-                                sysret = { false, "Unknown syscall: " .. tostring(scname) }
-                            end
-                            if not sysret[1] then
-                                sigret = { coroutine.resume(coro, false, sysret[2]) }
-                            else
-                                sigret = { coroutine.resume(coro, true, table.unpack(sysret, 2)) }
-                            end
-                        else
-                            sigret = { coroutine.resume(coro) }
+                    local status,err=coroutine.resumeWithTimeout(coro, 100, table.remove(task.sigq, 1))
+                    if status=="error" then
+                        task.sigd.error=err
+                        task.sigd.active=false
+                        task.sigh=nil
+                        task.sigq=nil
+                        task.sigd=nil
+                    elseif status=="success" then
+                        if err=="syscall" then
+                            task.sigd.error="Cannot execute syscalls from signals"
+                            task.sigd.active=false
+                            task.sigh=nil
+                            task.sigq=nil
+                            task.sigd=nil
                         end
                     end
                 end
@@ -386,7 +387,11 @@ function kernel.main()
                     local ret
 
                     if kernel.config.preempt then
-                        ret = { resumeWithTimeout(task.coro, task.timeSlice, table.unpack(task.syscallReturn)) }
+                        if not task.debugger then
+                            ret = { resumeWithTimeout(task.coro, task.timeSlice, table.unpack(task.syscallReturn)) }
+                        else
+                            ret = { coroutine.resume(task.coro, table.unpack(task.syscallReturn)) }
+                        end
                     else
                         ret = { coroutine.resume(task.coro, table.unpack(task.syscallReturn)) }
                     end

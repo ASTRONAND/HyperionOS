@@ -110,10 +110,12 @@ if cloptions.l then
         local stat = syscall.lstat and syscall.lstat(fullPath) or syscall.stat(fullPath)
         local isDir  = fs.isDir(fullPath)
         local isSym  = stat and stat.etype == 0x01
+        local isSock = stat and stat.etype == 0x02
 
         local typeChar
-        if isSym    then typeChar = "l"
+        if isSym then typeChar = "l"
         elseif isDir then typeChar = "d"
+        elseif isSock then typeChar = "s"
         else              typeChar = "-" end
 
         local pstr
@@ -136,19 +138,23 @@ if cloptions.l then
         printInline(tostring(mtime) .. " ")
 
         if isSym then
-            syscall.devctl(1, "sfgc", 0xFF00FF)
+            syscall.devctl(1, "sfgc", 0x00FFFF)
             printInline(v)
             syscall.devctl(1, "sfgc", 0xFFFFFF)
             local ok, target = pcall(syscall.readlink, fullPath)
             if ok then
                 printInline(" -> ")
                 local targetExists = pcall(syscall.stat, fullPath)
-                syscall.devctl(1, "sfgc", targetExists and 0xFF00FF or 0xFF0000)
+                syscall.devctl(1, "sfgc", targetExists and 0x00FFFF or 0xFF0000)
                 printInline(target)
                 syscall.devctl(1, "sfgc", 0xFFFFFF)
             end
         elseif isDir then
             syscall.devctl(1, "sfgc", 0x6D00FF)
+            printInline(v)
+            syscall.devctl(1, "sfgc", 0xFFFFFF)
+        elseif isSock then
+            syscall.devctl(1, "sfgc", 0xFF00FF)
             printInline(v)
             syscall.devctl(1, "sfgc", 0xFFFFFF)
         else
@@ -175,9 +181,11 @@ for i, v in ipairs(list) do
     local isSym    = stat and stat.etype == 0x01
 
     if isSym then
-        syscall.devctl(1, "sfgc", 0xFF00FF)
+        syscall.devctl(1, "sfgc", 0x00FFFF)
     elseif isDir then
         syscall.devctl(1, "sfgc", 0x6D00FF)
+    elseif isSock then
+        syscall.devctl(1, "sfgc", 0xFF00FF)
     else
         local isExec = stat and stat.perms and (math.floor(stat.perms / (2^9)) % 2 == 1)
         syscall.devctl(1, "sfgc", isExec and 0x00FF00 or 0xFFFFFF)

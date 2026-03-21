@@ -1,5 +1,6 @@
 --:Minify:--
 local EFI=...
+EFI.beep(440, 500)
 local screen=EFI.screenCtl
 local ifs=EFI.initfs
 local disks=EFI.disks

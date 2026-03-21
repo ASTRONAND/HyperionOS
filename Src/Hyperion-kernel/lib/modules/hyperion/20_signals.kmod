@@ -12,13 +12,24 @@ function signal.sigsend(pid, sig)
 end
 
 function signal.sigcatch(handler)
-    kernel.currentTask.sigh=handler
-    if not kernel.currentTask.sigq then kernel.currentTask.sigq={} end
+    local task=kernel.currentTask
+    task.sigh=handler
+    if not task.sigq then task.sigq={} end
+    local handle={
+        error="",
+        active=true
+    }
+    if task.sigd then task.sigd.active=false; end
+    task.sigd=handle
+    return handle
 end
 
 function signal.sigignore()
-    kernel.currentTask.sigh=nil
-    kernel.currentTask.sigq=nil
+    local task=kernel.currentTask
+    task.sigh=nil
+    task.sigq=nil
+    if task.sigd then task.sigd.active=false end
+    task.sigd=nil
 end
 
 local s=kernel.syscalls

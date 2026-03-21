@@ -1,7 +1,6 @@
 --:Minify:--
 local kernel = ...
 local peripheral=kernel.cct.peripheral
-local keys=kernel.apis.keys
 
 local colors = {
     [0xFFFFFF]=0x0001,
@@ -146,7 +145,7 @@ local function write(text, term)
 end
 
 kernel.devfs.data.tty={}
-local ctrl,alt = false, false
+kernel.cct.ctrl,kernel.cct.alt = false, false
 
 local function serializeBool(bool)
     if bool then
@@ -222,7 +221,7 @@ local function newtty(obj, id, ev)
                     return bg
                 end,
                 gctrl=function()
-                    return serializeBool(ctrl)..";"..serializeBool(alt)
+                    return serializeBool(kernel.cct.ctrl)..";"..serializeBool(kernel.cct.alt)
                 end,
                 gplt=function()
                     return plt
@@ -242,83 +241,7 @@ local function newtty(obj, id, ev)
 end
 
 local fifo = kernel.newFifo()
-
-kernel.processes.cctmond = function()
-    local timeout = false
-    while true do
-        local event = {kernel.EFI:getMachineEvent()}
-
-        if event[1] then
-            local eventType = event[1]
-            local charOrKey = event[3]
-
-            local ctrlKeyMap = {
-                [keys.a]=1,  [keys.b]=2,  [keys.c]=3,
-                [keys.d]=4,  [keys.e]=5,  [keys.f]=6,
-                [keys.g]=7,  [keys.h]=8,  [keys.i]=9,
-                [keys.j]=10, [keys.k]=11, [keys.l]=12,
-                [keys.m]=13, [keys.n]=14, [keys.o]=15,
-                [keys.p]=16, [keys.q]=17, [keys.r]=18,
-                [keys.s]=19, [keys.t]=20, [keys.u]=21,
-                [keys.v]=22, [keys.w]=23, [keys.x]=24,
-                [keys.y]=25, [keys.z]=26,
-            }
-
-            if eventType == "keyPressed" then
-                if charOrKey == keys.leftCtrl or charOrKey == keys.rightCtrl then
-                    ctrl = true
-                elseif charOrKey == keys.leftAlt or charOrKey == keys.rightAlt then
-                    alt = true
-                end
-
-                if ctrl then
-                    local ctrlByte = ctrlKeyMap[charOrKey]
-                    if ctrlByte then
-                        if ctrlByte == 3 then
-                            for _, task in ipairs(syscall.getTasks()) do
-                                syscall.sigsend(task, 1)
-                            end
-                        else
-                            fifo.push(string.char(ctrlByte))
-                        end
-                    end
-                else
-                    local specialKeyMap = {
-                        [keys.up]        = "[A",
-                        [keys.down]      = "[B",
-                        [keys.right]     = "[C",
-                        [keys.left]      = "[D",
-                        [keys.home]      = "[H",
-                        [keys["end"]]    = "[F",
-                        [keys.pageUp]    = "[5~",
-                        [keys.pageDown]  = "[6~",
-                        [keys.delete]    = "[3~",
-                    }
-                    local special = specialKeyMap[charOrKey]
-                    if special then fifo.push(special) end
-                end
-
-            elseif eventType == "keyReleased" then
-                if charOrKey == keys.leftCtrl or charOrKey == keys.rightCtrl then
-                    ctrl = false
-                elseif charOrKey == keys.leftAlt or charOrKey == keys.rightAlt then
-                    alt = false
-                end
-
-            elseif eventType == "keyTyped" then
-                if charOrKey then fifo.push(charOrKey) end
-            end
-
-            timeout = false
-        else
-            timeout = true
-        end
-
-        if timeout then
-            sleep(0.05)
-        end
-    end
-end
+kernel.cct.fifo=fifo
 
 newtty(kernel.apis.term, "1", fifo.pop)
 

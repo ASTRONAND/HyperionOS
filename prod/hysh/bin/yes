@@ -1,0 +1,1 @@
+local a={...}while true do if#a==0 then print("y")else print(table.concat(a," "))end end
