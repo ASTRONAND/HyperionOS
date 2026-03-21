@@ -247,7 +247,7 @@ def main():
         return
 
     prod         = "prod" in args.target
-    minify       = "mini" in args.target or "micro" in args.target or "prod" in args.target
+    minify       = "mini" in args.target or "micro" in args.target
     micro        = "micro" in args.target
     include_test = "test" in args.target
 

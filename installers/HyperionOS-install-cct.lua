@@ -197,7 +197,6 @@ print("")
 printc(colors.cyan, "       \\\\Installing//")
 print("")
 printc(colors.white, "Getting package list...")
-local list=json.decode()
 
 local function installdir(path, dir, pkg)
     local data=json.decode(download("https://git.astronand.dev/api/v1/repos/Hyperion/HyperionOS/contents/prod/"..pkg..dir.."?ref="..releasename))

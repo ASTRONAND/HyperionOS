@@ -1,3 +1,8 @@
 [
-    ""
+    "Hyperion-kernel",
+    "Hyperion-core",
+    "hysh",
+    "lua",
+    "micro",
+    "sysinit"
 ]
