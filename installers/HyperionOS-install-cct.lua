@@ -48,7 +48,6 @@ local function printTitle()
     print("DESCLAIMER: This will wipe your system on install...")
     term.write("Bspc: Back | Enter: execute | Tab: description")
 end
-printTitle()
 
 local function pc(text, y, c)
     local x=(w/2)-#text/2
@@ -110,9 +109,7 @@ end
 
 local releases,page={},1
 while true do
-    local handle=http.get("https://git.astronand.dev/api/v1/repos/Hyperion/HyperionOS/releases?page="..tostring(page).."&limit=1")
-    local raw=handle.readAll()
-    handle.close()
+    local raw=download("https://git.astronand.dev/api/v1/repos/Hyperion/HyperionOS/releases?page="..tostring(page).."&limit=1")
     if raw=="[]\n" then
         break
     end
@@ -130,6 +127,8 @@ local function makePage(start, num)
             desc=release.body,
             color=release.prerelease and colors.orange or colors.white,
             func=function()
+                term.clear()
+                term.setCursorPos(1,1)
                 local data=download("https://git.astronand.dev/Hyperion/HyperionOS/raw/tag/"..release.tag_name.."/Src/install.json")
                 if not data then
                     term.clear()
@@ -158,7 +157,9 @@ local function makePage(start, num)
     return m
 end
 
+printTitle()
 menu(makePage(1,5))
+if not exitall then error("Exited") end
 term.clear()
 term.setCursorPos(1,1)
 term.setTextColor(colors.white)
@@ -187,8 +188,9 @@ local function delDir(dir)
             fs.delete(dir..list[i])
             printc(colors.gray, "[ ", colors.red, " DELET ", colors.gray, " ] ", colors.white, dir..list[i])
         end
-        sleep(.1)
+        sleep(.01)
     end
+    sleep(.15)
 end
 
 delDir("/")
@@ -210,7 +212,9 @@ local function installdir(path, dir, pkg)
         else
             error("Uh Oh: unknown entrytype "..entry.path)
         end
+        sleep(.01)
     end
+    sleep(.15)
 end
 
 local function installpkg(pkg)

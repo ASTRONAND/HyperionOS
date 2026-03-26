@@ -1,1 +1,0 @@
-local a={...}local b;if a[1]then b=syscall.getuid(a[1])if not b then print("id: user '"..a[1].."' does not exist")syscall.exit(1)return end else b=syscall.getuid()end;local c=syscall.getpasswd(b)local d=c and c.username or tostring(b)local e=c and c.gid or b;print(string.format("uid=%d(%s) gid=%d(%s)",b,d,e,d))

@@ -4,5 +4,9 @@
     "hysh",
     "lua",
     "micro",
-    "sysinit"
+    "sysinit",
+    "bit32",
+    "json",
+    "muxzcat",
+    "spm"
 ]

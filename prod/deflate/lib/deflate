@@ -1,9 +1,0 @@
-local deflate=require("LibDeflate")
-local lib={}
-lib.compress=function(data)
-    return deflate:CompressDeflate(data)
-end
-lib.decompress=function(data)
-    return deflate:DecompressDeflate(data)
-end
-return lib

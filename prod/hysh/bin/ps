@@ -1,1 +1,0 @@
-for a,b in ipairs(syscall.getTasks())do local c=syscall.getTask(b)print(c.pid,c.username,c.name,c.status)end

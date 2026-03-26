@@ -1,1 +1,0 @@
-local a=...local debug=debug;a._G.debug={getinfo=debug.getinfo,traceback=debug.traceback}
