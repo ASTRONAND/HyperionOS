@@ -1,134 +1,141 @@
 --:Minify:--
 local kernel = ...
 
-local proxy = {}
-local data = {}
+kernel.vfs.remove("/tmp")
+kernel.vfs.mkdir("/tmp")
+if not kernel.config.tmpToDisk then
+    local proxy = {}
+    local data = {}
 
-proxy.address = "tmpfs0000"
-proxy.isvirt = true
-proxy.isReadOnly = function() return false end
+    proxy.address = "tmpfs0000"
+    proxy.isvirt = true
+    proxy.isReadOnly = function() return false end
 
-proxy.spaceUsed = function() return 0 end
-proxy.spaceTotal = function() return 0 end
+    proxy.spaceUsed = function() return 0 end
+    proxy.spaceTotal = function() return 0 end
 
-proxy.makeDirectory = function(_, path)
-    local steps = kernel.vfs.splitPath(path)
-    local step = data
-    for i=1,#steps do
-        if not step[steps[i]] then
-            step[steps[i]] = {}
-        elseif type(step[steps[i]]) ~= "table" then
-            error("ENOTDIR")
+    proxy.makeDirectory = function(_, path)
+        local steps = kernel.vfs.splitPath(path)
+        local step = data
+        for i=1,#steps do
+            if not step[steps[i]] then
+                step[steps[i]] = {}
+            elseif type(step[steps[i]]) ~= "table" then
+                error("ENOTDIR")
+            end
+            step = step[steps[i]]
         end
-        step = step[steps[i]]
     end
-end
 
-proxy.remove = function(_, path)
-    local steps = kernel.vfs.splitPath(path)
-    local step = data
-    for i=1,#steps-1 do
-        step = step[steps[i]]
-        if not step then error("ENOENT") end
-    end
-    step[steps[#steps]] = nil
-end
-
-proxy.setLabel = function(_, label) end
-proxy.getLabel = function() return "tmpfs" end
-
-proxy.attributes = function(_, path)
-    local steps = kernel.vfs.splitPath(path)
-    local step = data
-    for i=1,#steps do
-        step = step[steps[i]]
-        if not step then error("ENOENT") end
-    end
-    return {
-        size = type(step) == "string" and #step or 0,
-        modified = 0,
-        created = 0,
-    }
-end
-
-function proxy:open(path, mode)
-    local steps = kernel.vfs.splitPath(path)
-    local step = data
-    for i=1,#steps-1 do
-        if not step[steps[i]] then
-            if mode == "w" then step[steps[i]] = {} else error("ENOENT") end
-        elseif type(step[steps[i]]) ~= "table" then
-            error("ENOTDIR")
+    proxy.remove = function(_, path)
+        local steps = kernel.vfs.splitPath(path)
+        local step = data
+        for i=1,#steps-1 do
+            step = step[steps[i]]
+            if not step then error("ENOENT") end
         end
-        step = step[steps[i]]
+        step[steps[#steps]] = nil
     end
-    local filename = steps[#steps]
 
-    if mode == "r" then
-        if type(step[filename]) ~= "string" then error("ENOENT") end
-        local content = step[filename]
-        local pos = 1
+    proxy.setLabel = function(_, label) end
+    proxy.getLabel = function() return "tmpfs" end
+
+    proxy.attributes = function(_, path)
+        local steps = kernel.vfs.splitPath(path)
+        local step = data
+        for i=1,#steps do
+            step = step[steps[i]]
+            if not step then error("ENOENT") end
+        end
         return {
-            read  = function(amount)
-                amount = amount or #content
-                local chunk = content:sub(pos, pos+amount-1)
-                pos = pos + #chunk
-                return chunk
-            end,
-            close = function() end,
+            size = type(step) == "string" and #step or 0,
+            modified = 0,
+            created = 0,
         }
-    elseif mode == "w" then
-        step[filename] = ""
-        local buf = {}
-        return {
-            write = function(str)
-                buf[#buf + 1] = str
-            end,
-            close = function()
-                step[filename] = table.concat(buf)
-            end,
-        }
-    elseif mode == "a" then
-        if type(step[filename]) ~= "string" then step[filename] = "" end
-        return {
-            write = function(str)
-                step[filename] = step[filename] .. str
-            end,
-            close = function() end,
-        }
-    else
-        error("EACCES")
     end
-end
 
-function proxy:type(path)
-    local steps = kernel.vfs.splitPath(path)
-    local step = data
-    if #steps == 0 then return "directory" end
-    for i=1,#steps do
-        step = step[steps[i]]
-        if not step then return false end
+    function proxy:open(path, mode)
+        local steps = kernel.vfs.splitPath(path)
+        local step = data
+        for i=1,#steps-1 do
+            if not step[steps[i]] then
+                if mode == "w" then step[steps[i]] = {} else error("ENOENT") end
+            elseif type(step[steps[i]]) ~= "table" then
+                error("ENOTDIR")
+            end
+            step = step[steps[i]]
+        end
+        local filename = steps[#steps]
+
+        if mode == "r" then
+            if type(step[filename]) ~= "string" then error("ENOENT") end
+            local content = step[filename]
+            local pos = 1
+            return {
+                read  = function(amount)
+                    amount = amount or #content
+                    local chunk = content:sub(pos, pos+amount-1)
+                    pos = pos + #chunk
+                    return chunk
+                end,
+                close = function() end,
+            }
+        elseif mode == "w" then
+            step[filename] = ""
+            local buf = {}
+            return {
+                write = function(str)
+                    buf[#buf + 1] = str
+                end,
+                close = function()
+                    step[filename] = table.concat(buf)
+                end,
+            }
+        elseif mode == "a" then
+            if type(step[filename]) ~= "string" then step[filename] = "" end
+            return {
+                write = function(str)
+                    step[filename] = step[filename] .. str
+                end,
+                close = function() end,
+            }
+        else
+            error("EACCES")
+        end
     end
-    if type(step) == "table" then return "directory" end
-    if type(step) == "string" then return "file" end
-end
 
-function proxy:list(path)
-    local steps = kernel.vfs.splitPath(path)
-    local step = data
-    for i=1,#steps do
-        step = step[steps[i]]
-        if not step then error("ENOENT") end
+    function proxy:type(path)
+        local steps = kernel.vfs.splitPath(path)
+        local step = data
+        if #steps == 0 then return "directory" end
+        for i=1,#steps do
+            step = step[steps[i]]
+            if not step then return false end
+        end
+        if type(step) == "table" then return "directory" end
+        if type(step) == "string" then return "file" end
     end
-    if type(step) ~= "table" then error("ENOTDIR") end
-    local keys = {}
-    for k,_ in pairs(step) do table.insert(keys, k) end
-    return keys
-end
 
-function proxy:fileExists(path)
-    local t = self:type(path)
-    return t == "file" or t == "directory"
-end
+    function proxy:list(path)
+        local steps = kernel.vfs.splitPath(path)
+        local step = data
+        for i=1,#steps do
+            step = step[steps[i]]
+            if not step then error("ENOENT") end
+        end
+        if type(step) ~= "table" then error("ENOTDIR") end
+        local keys = {}
+        for k,_ in pairs(step) do table.insert(keys, k) end
+        return keys
+    end
 
-kernel.disks["tmpfs0000"] = proxy
+    function proxy:fileExists(path)
+        local t = self:type(path)
+        return t == "file" or t == "directory"
+    end
+
+    kernel.disks["tmpfs0000"] = proxy
+else
+    kernel.log("tmpToDisk enabled, skipping tmpfs module")
+    kernel.log("tmpfs0000 will passthrough to /tmp on the disk")
+end

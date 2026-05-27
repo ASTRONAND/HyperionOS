@@ -1,0 +1,29 @@
+
+local function usageError()
+	print(
+		"\nusage: minify <file> or unminify <file>\n" ..
+		"  The modified code will be printed to the stdout, pipe it to a file,\n" ..
+		"  or something else as desired EG:\n\n" ..
+		"        minify minify input.lua > output.lua\n\n" ..
+		"  * minify will minify the code in the file.\n" ..
+		"  * unminify will beautify the code and replace the variable names with easily\n" ..
+		"    find-replacable ones to aide in reverse engineering minified code.\n")
+    syscall.exit(0)
+end
+
+local args = {...}
+
+if #args ~= 2 then
+	usageError()
+end
+
+local minify = require("minify")
+local fs = require("fs")
+
+if args[1] == 'minify' then
+	print(minify.minify(fs.readAllText(args[2])))
+elseif args[1] == 'unminify' then
+	print(minify.beautify(fs.readAllText(args[2])))
+else
+	usageError()
+end

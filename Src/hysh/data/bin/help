@@ -107,6 +107,7 @@ local COMMANDS = {
     { name="whoami",   usage="whoami",                  desc="Print the current username.", flags={} },
     { name="id",       usage="id [username]",            desc="Print user identity (uid, gid).", flags={} },
     { name="ps",       usage="ps",                      desc="List running tasks with pid, user, name, and status.", flags={} },
+    { name="hyperctl", usage="hyperctl <command> [service]", desc="Control system services (start, stop, restart, status, list, enable, disable).", flags={} },
     { name="hostname", usage="hostname [NAME]",          desc="Print or set the system hostname.", flags={} },
     { name="uname",    usage="uname [-asnrm]",           desc="Print system information (OS name, hostname, release, machine).", flags={
         {"-a","Print all fields"},

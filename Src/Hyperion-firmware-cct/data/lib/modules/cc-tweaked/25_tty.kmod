@@ -223,6 +223,9 @@ local function newtty(obj, id, ev)
                 gctrl=function()
                     return serializeBool(kernel.cct.ctrl)..";"..serializeBool(kernel.cct.alt)
                 end,
+                isvirt=function()
+                    return false
+                end,
                 gplt=function()
                     return plt
                 end
@@ -243,8 +246,39 @@ end
 local fifo = kernel.newFifo()
 kernel.cct.fifo=fifo
 
-newtty(kernel.apis.term, "1", fifo.pop)
+newtty(kernel.apis.term, "1", function() end)
 
 for i,v in ipairs({peripheral.find("monitor")}) do
     newtty(v,tostring(i+1),function () end)
+end
+
+kernel.devfs.data["input"]["keyboard1"] = function(op, mode)
+    if op=="type" then
+        return "Keyboard"
+    elseif op=="open" then
+        local h = {
+            read=function(amount)
+                local rv=""
+                for i=1, amount or 1 do
+                    local event = {fifo.pop()}
+                    if event[1] then
+                        rv=rv..event[1]
+                    end
+                end
+                if rv=="" then rv=nil end
+                return rv
+            end,
+            write=function(content)
+            end
+        }
+        if mode=="rw" then
+            return h
+        elseif mode=="r" then
+            h["write"]=nil
+            return h
+        elseif mode=="w" then
+            h["read"]=nil
+            return h
+        end
+    end
 end

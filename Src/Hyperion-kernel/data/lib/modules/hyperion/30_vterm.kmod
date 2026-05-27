@@ -1,0 +1,129 @@
+--:Minify:--
+local kernel = ...
+
+local vterms = {}
+
+local function createVt(id, width, height)
+    local vt = {
+        id = id,
+        width = width,
+        height = height,
+        buffer = {},
+        cursorX = 1,
+        cursorY = 1,
+        fgColor = 0xFFFFFF,
+        bgColor = 0x000000,
+        obj = {}
+    }
+
+    for y = 1, height do
+        vt.buffer[y] = {}
+        for x = 1, width do
+            vt.buffer[y][x] = {char = " ", fgColor = vt.fgColor, bgColor = vt.bgColor}
+        end
+    end
+
+    local function scroll(lines)
+        for _ = 1, lines do
+            table.remove(vt.buffer, 1)
+            vt.buffer[vt.height] = {}
+            for x = 1, vt.width do
+                vt.buffer[vt.height][x] = {char = " ", fgColor = vt.fgColor, bgColor = vt.bgColor}
+            end
+        end
+    end
+
+    function vt.obj:write(content)
+        local x, y = vt.cursorX, vt.cursorY
+        if x>vt.width then return end
+        if y>vt.height then return end
+        for i = 1, #content do
+            local c = content:sub(i, i)
+            if c == "\n" then
+                y = y + 1
+                x = 1
+            elseif c == "\t" then
+                local tabSize = 4
+                local spaces = tabSize - ((x - 1) % tabSize)
+                for _ = 1, spaces do
+                    vt.buffer[y][x] = {char = " ", fgColor = vt.fgColor, bgColor = vt.bgColor}
+                    x = x + 1
+                    if x > vt.width then
+                        x = 1
+                        y = y + 1
+                    end
+                end
+            elseif c == "\b" then
+                if x > 1 then
+                    x = x - 1
+                    vt.buffer[y][x] = {char = " ", fgColor = vt.fgColor, bgColor = vt.bgColor}
+                end
+            else
+                if x <= vt.width and y <= vt.height then
+                    vt.buffer[y][x] = {char = c, fgColor = vt.fgColor, bgColor = vt.bgColor}
+                    x = x + 1
+                end
+            end
+
+            if x > vt.width then
+                x = 1
+                y = y + 1
+            end
+
+            if y > vt.height then
+                scroll(1)
+                y = vt.height
+            end
+        end
+
+        vt.cursorX, vt.cursorY = x, y
+    end
+
+    function vt.obj:spos(x, y)
+        vt.cursorX = tonumber(x)
+        vt.cursorY = tonumber(y)
+    end
+
+    function vt.obj:gpos()
+        return tostring(vt.cursorX)..";"..tostring(vt.cursorY)
+    end
+
+    function vt.obj:sfgc(color)
+        vt.fgColor = tonumber(color)
+    end
+
+    function vt.obj:sbgc(color)
+        vt.bgColor = tonumber(color)
+    end
+
+    function vt.obj:gfgc()
+        return vt.fgColor
+    end
+
+    function vt.obj:gbgc()
+        return vt.bgColor
+    end
+
+    function vt.obj:gplt()
+        return 24
+    end
+
+    function vt.obj:clear()
+        for y = 1, vt.height do
+            for x = 1, vt.width do
+                vt.buffer[y][x] = {char = " ", fgColor = vt.fgColor, bgColor = vt.bgColor}
+            end
+        end
+        vt.cursorX, vt.cursorY = 1, 1
+    end
+
+    function vt.obj:isvirt()
+        return true
+    end
+
+    function vt.obj:gctrl()
+        return serializeBool(vt.ctrl)..";"..serializeBool(vt.alt)
+    end
+
+    return vt
+end

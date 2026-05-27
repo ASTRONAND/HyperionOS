@@ -25,10 +25,11 @@ for _, line in ipairs(string.split(kernel.fstab, "\n")) do
         else
             local id = line:sub(3, semicolon_pos - 1)
             local path = trim(line:sub(semicolon_pos + 1))
-            kernel.log("Mounted "..id.." to "..path)
+            kernel.log("Mounting '"..id.."' to '"..path.."'")
             if id ~= "$" then
                 kernel.vfs.mount(path, id)
             end
+            kernel.log("Mounted "..id.." to "..path)
         end
     end
 end

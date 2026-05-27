@@ -19,26 +19,34 @@ kernel.status = "start"
 kernel.key = {}
 kernel.cache = {}
 kernel.cache.preload = {}
+kernel.unixSockets={}
 kernel._G=_G
 kernel.sleep=sleep
 
 _G.sleep=nil
-local windowsExp = true
+local windowsExp = false
 
-function kernel.log(msg, level, c)
-    c=c or 0x6D6D6D
-    kernel.LOG_Text = kernel.LOG_Text..tostring(EFI:date()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
-    if kernel.status == "start" then
-        screen:setTextColor(c)
-        screen:print(tostring(EFI:date()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
-    elseif kernel.status == "term" then
-        kernel.standbyTask=kernel.currentTask
-        kernel.currentTask=kernel.kernelTask
-        local file=kernel.vfs.open("/dev/console", "w")
-        kernel.vfs.devctl(file,"sfgc",c)
-        kernel.vfs.write(file,tostring(EFI:date()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n")
-        kernel.vfs.close(file)
-        kernel.currentTask=kernel.standbyTask
+function kernel.log(msg, level, c, nopanic)
+    local f=function()
+        c=c or 0x6D6D6D
+        kernel.LOG_Text = kernel.LOG_Text..tostring(EFI:date()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n"
+        if kernel.status == "start" then
+            screen:setTextColor(c)
+            screen:print(tostring(EFI:date()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg)
+        elseif kernel.status == "term" then
+            kernel.standbyTask=kernel.currentTask
+            kernel.currentTask=kernel.kernelTask
+            local file=kernel.vfs.open("/dev/console", "w")
+            kernel.vfs.devctl(file,"sfgc",c)
+            kernel.vfs.write(file,tostring(EFI:date()).." "..kernel.users[kernel.uid].." "..kernel.process.."["..tostring(level or "INFO").."]: "..msg.."\n")
+            kernel.vfs.close(file)
+            kernel.currentTask=kernel.standbyTask
+        end
+    end
+
+    local ok,err = xpcall(f,debug.traceback)
+    if not ok and not nopanic then
+        kernel.panic(err)
     end
 end
 
@@ -246,6 +254,15 @@ function kernel.reboot()
     kernel.status="reboot"
 end
 
+function kernel.halt()
+    kernel.exitMain=true
+    kernel.status="halt"
+end
+
+function kernel.asyncReturn(...)
+    kernel.currentTask.syscallReturn = {...}
+end
+
 kernel.syscalls["time"]=function() return kernel.EFI:getEpochMs() end
 kernel.syscalls["date"]=function() return kernel.EFI:date() end
 kernel.syscalls["log"]=kernel.log
@@ -264,8 +281,21 @@ kernel.syscalls["sysdump"]=function()
     end
     return rv
 end
-kernel.syscalls["reboot"]=kernel.reboot
-kernel.syscalls["shutdown"]=kernel.shutdown
+kernel.syscalls["reboot"]=function()
+    if kernel.uid==0 or kernel.groups.wheel then
+        kernel.reboot()
+    end
+end
+kernel.syscalls["shutdown"]=function()
+    if kernel.uid==0 or kernel.groups.wheel then
+        kernel.shutdown()
+    end
+end
+kernel.syscalls["halt"]=function()
+    if kernel.uid==0 or kernel.groups.wheel then
+        kernel.halt()
+    end
+end
 
 kernel.log("Running modules")
 for _,p in ipairs(modules) do
@@ -287,11 +317,18 @@ kernel.log("Kernel initialized successfully.")
 kernel.saveLog()
 kernel.status="running"
 screen:disable()
-kernel.main()
+local ok,err = xpcall(kernel.main, debug.traceback)
+if not ok then
+    kernel.panic(err)
+end
 if kernel.status=="panic" then
     kernel.panic(kernel.reason)
 end
 if kernel.status=="reboot" then
     EFI.reboot=true
     return true
+elseif kernel.status=="halt" then
+    kernel.log("System halted.")
+    kernel.saveLog()
+    while true do end
 end

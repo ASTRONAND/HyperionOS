@@ -1,0 +1,201 @@
+--:Minify:--
+local http = {}
+
+local syscall = syscall
+
+local function parseUrl(url)
+    local proto, host, path =
+        url:match(
+            "^(https?://)([^/]+)(/.*)$"
+        )
+
+    if not proto then
+        proto, host =
+            url:match(
+                "^(https?://)([^/]+)$"
+            )
+
+        path = "/"
+    end
+
+    if not proto then
+        return nil, "EINVAL"
+    end
+
+    return host, path
+end
+
+local function buildRequest(req)
+    local host, path =
+        parseUrl(req.url)
+
+    if not host then
+        return nil, path
+    end
+
+    local method =
+        req.method or "GET"
+
+    local body =
+        req.body or ""
+
+    local headers =
+        table.deepcopy(
+            req.headers or {}
+        )
+
+    headers.Host =
+        headers.Host or host
+
+    headers.Connection =
+        headers.Connection or "close"
+
+    if body ~= "" then
+        headers["Content-Length"] =
+            tostring(#body)
+    end
+
+    local out = {
+        method ..
+        " " ..
+        path ..
+        " HTTP/1.1"
+    }
+
+    for k, v in pairs(headers) do
+        out[#out + 1] =
+            tostring(k) ..
+            ": " ..
+            tostring(v)
+    end
+
+    out[#out + 1] = ""
+    out[#out + 1] = body
+
+    return table.concat(out, "\r\n")
+end
+
+local function parseResponse(raw)
+    local headerEnd =
+        raw:find(
+            "\r\n\r\n",
+            1,
+            true
+        )
+
+    if not headerEnd then
+        return nil, "EBADMSG"
+    end
+
+    local headerPart =
+        raw:sub(1, headerEnd - 1)
+
+    local body =
+        raw:sub(headerEnd + 4)
+
+    local lines = {}
+
+    for line in headerPart:gmatch("[^\r\n]+") do
+        lines[#lines + 1] = line
+    end
+
+    local _, code, msg =
+        lines[1]:match(
+            "^(HTTP/%S+)%s+(%d+)%s*(.*)$"
+        )
+
+    local headers = {}
+
+    for i = 2, #lines do
+        local k, v =
+            lines[i]:match(
+                "^([^:]+):%s*(.*)$"
+            )
+
+        if k then
+            headers[k:lower()] = v
+        end
+    end
+
+    return {
+        code = tonumber(code),
+        message = msg,
+        headers = headers,
+        body = body
+    }
+end
+
+local function readAll(fd)
+    local out = ""
+
+    while true do
+        local chunk =
+            syscall.read(fd, 4096)
+
+        if not chunk or chunk == "" then
+            break
+        end
+
+        out = out .. chunk
+    end
+
+    return out
+end
+
+function http.request(req)
+    local raw, err =
+        buildRequest(req)
+
+    if not raw then
+        return nil, err
+    end
+
+    local fd =
+        syscall.socket(0, 0)
+
+    if not fd then
+        return nil, "ESOCKET"
+    end
+
+    local ok, err =
+        syscall.connect(fd, req.url)
+
+    if not ok then
+        syscall.close(fd)
+        return nil, err
+    end
+
+    local ok2, err2 =
+        syscall.write(fd, raw)
+
+    if not ok2 then
+        syscall.close(fd)
+        return nil, err2
+    end
+
+    local resp =
+        readAll(fd)
+
+    syscall.close(fd)
+
+    return parseResponse(resp)
+end
+
+function http.get(url, headers)
+    return http.request({
+        url = url,
+        method = "GET",
+        headers = headers
+    })
+end
+
+function http.post(url, body, headers)
+    return http.request({
+        url = url,
+        method = "POST",
+        body = body,
+        headers = headers
+    })
+end
+
+return http

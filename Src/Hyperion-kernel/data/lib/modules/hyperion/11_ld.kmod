@@ -1,0 +1,63 @@
+--:Minify:--
+local kernel = ...
+local cache = {}
+kernel.searchpaths = {
+    "?", "?.lua", "/lib/?", "/lib/?.lua", "/usr/lib/?", "/usr/lib/?.lua",
+    "/usr/local/lib/?", "/usr/local/lib/?.lua"
+}
+kernel.reqcache = cache
+
+local function require(module, ...)
+    if cache[module] then return cache[module].ret end
+    kernel.currentTask.status = "D"
+    local args = {...}
+    kernel.currentTask.ksh = coroutine.create(function()
+        local coro = function()
+            for _, path in ipairs(kernel.searchpaths) do
+                local filepath = path:gsub("?", module)
+                if kernel.vfs.exists(filepath) then
+                    if kernel.vfs.type(filepath) == "directory" then
+                        filepath = filepath .. "/init.lua"
+                        if kernel.vfs.type(filepath) == "directory" then
+                            kernel.asyncReturn(false, "Module not found: "..module)
+                            return
+                        end
+                    end
+                
+                    local fd = kernel.vfs.open(filepath, "r")
+                    local chunks = {}
+                    while true do
+                        local chunk = kernel.vfs.read(fd, 4096)
+                        if not chunk or chunk == "" then break end
+                        chunks[#chunks + 1] = chunk
+                        coroutine.yield()
+                    end
+                    kernel.vfs.close(fd)
+                    local data = table.concat(chunks)
+                    local func, err = load(data, "@"..module, "t", kernel._U)
+                    if not func then
+                        kernel.asyncReturn(false, "Error loading module "..module..": "..tostring(err))
+                        return
+                    end
+                    local ok, ret = xpcall(func, debug.traceback, table.unpack(args))
+                    if not ok then
+                        kernel.asyncReturn(false, "Error running module "..module..": "..tostring(ret))
+                        return
+                    end
+                    cache[module] = {ret = ret, expires = kernel.EFI:getEpochMs() + 120000}
+                    kernel.asyncReturn(true, ret)
+                    return
+                end
+                coroutine.yield()
+            end
+            kernel.asyncReturn(false, "Module not found: "..module)
+        end
+        local status, err = xpcall(coro, debug.traceback)
+        if not status then
+            kernel.asyncReturn(false, "Error in require coroutine for module "..module..": "..tostring(err))
+        end
+    end)
+end
+
+kernel.syscalls["require"] = require
+_G.require = function(...) return syscall.require(...) end

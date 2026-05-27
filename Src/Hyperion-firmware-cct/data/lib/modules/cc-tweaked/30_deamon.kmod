@@ -4,6 +4,7 @@ local keys=kernel.apis.keys
 
 kernel.processes.cctdeamon = function()
     local timeout = false
+    kernel.log("CCT deamon started")
     while true do
         local event = {kernel.EFI:getMachineEvent()}
 
@@ -66,6 +67,12 @@ kernel.processes.cctdeamon = function()
 
             elseif eventType == "keyTyped" then
                 if charOrKey then kernel.cct.fifo.push(charOrKey) end
+            elseif eventType == "mouse_scroll" then
+                if event[2] == 1 then
+                    kernel.cct.fifo.push("[nS")
+                else
+                    kernel.cct.fifo.push("[nT")
+                end
             elseif eventType == "http_success" then
                 kernel.cct.httpqueue[event[2]]=nil
                 kernel.cct.httpresponse[event[2]]=event[3]
@@ -84,3 +91,5 @@ kernel.processes.cctdeamon = function()
         end
     end
 end
+
+kernel.log("CCT deamon queued for execution")

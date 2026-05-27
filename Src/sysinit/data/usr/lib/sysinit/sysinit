@@ -2,6 +2,7 @@
 local kernel=...
 local fs=require("fs")
 kernel.log("Sysinit started...")
+kernel.saveLog()
 
 for i,v in pairs(kernel.processes) do
     kernel.log("Spawning kernel task "..i)
@@ -41,6 +42,7 @@ for i,v in ipairs(files) do
         end
     end
 end
+kernel.saveLog()
 
 while true do
     sleep(5)

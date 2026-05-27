@@ -1,1 +1,306 @@
 --:Minify:--
+local kernel = ...
+
+local handler = {}
+
+local http = kernel.apis.http
+
+kernel.cct.httpqueue = kernel.cct.httpqueue or {}
+kernel.cct.httpresponse = kernel.cct.httpresponse or {}
+kernel.cct.httperror = kernel.cct.httperror or {}
+
+local function parseRawRequest(raw)
+    local sepLen = 4
+
+    local headerEnd =
+        raw:find("\r\n\r\n", 1, true)
+
+    if not headerEnd then
+        headerEnd =
+            raw:find("\n\n", 1, true)
+
+        sepLen = 2
+    end
+
+    local headerPart
+    local body = ""
+
+    if headerEnd then
+        headerPart = raw:sub(1, headerEnd - 1)
+        body = raw:sub(headerEnd + sepLen)
+    else
+        headerPart = raw
+    end
+
+    local lines = {}
+
+    for line in headerPart:gmatch("[^\r\n]+") do
+        lines[#lines + 1] = line
+    end
+
+    if #lines == 0 then
+        return nil, "EINVAL"
+    end
+
+    local method, path =
+        lines[1]:match("^(%S+)%s+(%S+)")
+
+    if not method or not path then
+        return nil, "EBADMSG"
+    end
+
+    local headers = {}
+
+    for i = 2, #lines do
+        local k, v =
+            lines[i]:match("^([^:]+):%s*(.*)$")
+
+        if k then
+            headers[k] = v
+        end
+    end
+
+    local host = headers.Host or headers.host
+
+    if not host and not path:match("^https?://") then
+        return nil, "EHOSTUNREACH"
+    end
+
+    local url
+
+    if path:match("^https?://") then
+        url = path
+    else
+        url = "http://" .. host .. path
+    end
+
+    local req = {
+        url = url,
+        method = method,
+        headers = headers
+    }
+
+    if body ~= "" then
+        req.body = body
+    end
+
+    return req
+end
+
+local function buildResponse(resp)
+    if not resp then
+        return nil, "EINVAL"
+    end
+
+    local code, msg = resp.getResponseCode()
+
+    local headers =
+        resp:getResponseHeaders()
+
+    local body =
+        resp:readAll() or ""
+
+    local out = {
+        "HTTP/1.1 " ..
+        tostring(code) ..
+        " " ..
+        tostring(msg)
+    }
+
+    local hasLength = false
+
+    for k, v in pairs(headers or {}) do
+        if k:lower() == "content-length" then
+            hasLength = true
+        end
+
+        out[#out + 1] =
+            tostring(k) ..
+            ": " ..
+            tostring(v)
+    end
+
+    if not hasLength then
+        out[#out + 1] =
+            "Content-Length: " ..
+            tostring(#body)
+    end
+
+    out[#out + 1] = ""
+    out[#out + 1] = body
+
+    return table.concat(out, "\r\n")
+end
+
+function handler.connect(fd, address)
+    local fdo = kernel.currentTask.fd[fd]
+
+    if not fdo then
+        return nil, "EBADF"
+    end
+
+    fdo.socket.rbuf = ""
+    fdo.socket.closed = false
+    fdo.socket.httpid = nil
+
+    fdo.handle.write = function(raw)
+        local req, err =
+            parseRawRequest(raw)
+
+        if not req then
+            return nil, err
+        end
+
+        local id =
+            tostring(kernel.uuid())
+
+        fdo.socket.httpid = id
+
+        kernel.cct.httpqueue[id] = true
+
+        local ok, err =
+            http.request(req, id)
+
+        if not ok then
+            kernel.cct.httpqueue[id] = nil
+            return nil, err
+        end
+
+        return true
+    end
+
+    fdo.handle.read = function(count)
+        count = count or 4096
+
+        local sock = fdo.socket
+
+        if #sock.rbuf > 0 then
+            local out =
+                sock.rbuf:sub(1, count)
+
+            sock.rbuf =
+                sock.rbuf:sub(count + 1)
+
+            return out
+        end
+
+        local id = sock.httpid
+
+        if not id then
+            return ""
+        end
+
+        local function finish(resp)
+            sock.rbuf =
+                buildResponse(resp) or ""
+
+            local out =
+                sock.rbuf:sub(1, count)
+
+            sock.rbuf =
+                sock.rbuf:sub(count + 1)
+
+            return out
+        end
+
+        if kernel.cct.httpresponse[id] then
+            local resp =
+                kernel.cct.httpresponse[id]
+
+            kernel.cct.httpresponse[id] = nil
+            kernel.cct.httpqueue[id] = nil
+
+            return finish(resp)
+        end
+
+        if kernel.cct.httperror[id] then
+            local err =
+                kernel.cct.httperror[id]
+
+            kernel.cct.httperror[id] = nil
+            kernel.cct.httpqueue[id] = nil
+
+            return nil, err
+        end
+
+        kernel.currentTask.status = "D"
+
+        local coro
+
+        coro = function()
+            if kernel.cct.httpresponse[id] then
+                local resp =
+                    kernel.cct.httpresponse[id]
+
+                kernel.cct.httpresponse[id] = nil
+                kernel.cct.httpqueue[id] = nil
+
+                kernel.asyncReturn(
+                    finish(resp)
+                )
+
+                return
+            end
+
+            if kernel.cct.httperror[id] then
+                local err =
+                    kernel.cct.httperror[id]
+
+                kernel.cct.httperror[id] = nil
+                kernel.cct.httpqueue[id] = nil
+
+                kernel.asyncReturn(
+                    nil,
+                    err
+                )
+
+                return
+            end
+
+            coroutine.yield()
+        end
+
+        kernel.currentTask.ksh =
+            coroutine.create(function()
+                local ok, err =
+                    xpcall(
+                        coro,
+                        debug.traceback
+                    )
+
+                if not ok then
+                    kernel.asyncReturn(
+                        nil,
+                        err
+                    )
+                end
+            end)
+    end
+
+    fdo.handle.close = function()
+        fdo.socket.closed = true
+
+        local id =
+            fdo.socket.httpid
+
+        if id then
+            kernel.cct.httpqueue[id] = nil
+            kernel.cct.httpresponse[id] = nil
+            kernel.cct.httperror[id] = nil
+        end
+
+        return true
+    end
+
+    return true
+end
+
+kernel.socket.registerProtocal(
+    "http://",
+    handler
+)
+
+kernel.socket.registerProtocal(
+    "https://",
+    handler
+)

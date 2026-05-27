@@ -28,6 +28,7 @@ import shutil
 import argparse
 import subprocess
 import json
+import os
 from pathlib import Path
 from typing import Union
 
@@ -71,7 +72,7 @@ def has_minify_header(path: Path) -> bool:
 
 def minify_file(src: Path) -> str:
     result = subprocess.run(
-        ["luamin.cmd", "-f", str(src)],
+        ["npm", "exec", "luamin", "--", "-f", str(src)],
         capture_output=True,
         text=True
     )

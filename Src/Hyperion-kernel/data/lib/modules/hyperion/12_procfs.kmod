@@ -114,7 +114,8 @@ local function newtaskproxy(task)
         },
         children={
             [".meta"]=strFile(buildMeta(children))
-        }
+        },
+        pid=strFile(task.pid)
     }
 end
 

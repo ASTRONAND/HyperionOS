@@ -542,6 +542,7 @@ local function allocFD(task)
     if fd >= kernel.config.maxFilesPerTask then error("ENFILE") end
     return fd
 end
+
 local function checkSystemLimit()
     if total >= kernel.config.maxOpenFiles - 16 then error("ENFILE") end
 end
@@ -555,27 +556,88 @@ function vfs.newfd(fdobj)
     return fd
 end
 
-function vfs.mount(target, diskOrId)
+function vfs.mount(target, diskOrId, bind)
     local _euid = (kernel.currentTask and (kernel.currentTask.euid or kernel.currentTask.uid)) or kernel.uid
     if _euid ~= 0 then error("EPERM") end
     if not target then error("EINVAL") end
     target = normalizeMountPoint(target)
     local drive, path = resolvePath(target)
-    if not drive:directoryExists(path) then drive:makeDirectory(path) end
-    if drive:type(target) ~= "directory" then error("EINVAL") end
-
+    if not drive:directoryExists(path) then
+        drive:makeDirectory(path)
+    end
+    if drive:type(path) ~= "directory" then
+        error("EINVAL")
+    end
     local disk, id
-    if type(diskOrId) == "string" then
-        disk = kernel.disks[diskOrId]
-        if not disk then error("ENODEV") end
-        checkDisk(disk); id = diskOrId
-    elseif type(diskOrId) == "table" then
-        checkDisk(diskOrId); disk = diskOrId
-        id = disk.address; vfs.disks[id] = disk
-    else error("EINVAL") end
-
+    -- bind mount
+    if bind then
+        local src = normalizeMountPoint(diskOrId)
+        local srcDrive = resolvePath(src)
+        if not srcDrive then error("ENOENT") end
+        id = "bind:" .. src
+        disk = {
+            address = id,
+            isBind = true,
+            source = srcDrive,
+            exists = function(_, p)
+                return srcDrive:exists(p)
+            end,
+            type = function(_, p)
+                return srcDrive:type(p)
+            end,
+            list = function(_, p)
+                return srcDrive:list(p)
+            end,
+            open = function(_, ...)
+                return srcDrive:open(...)
+            end,
+            remove = function(_, p)
+                return srcDrive:remove(p)
+            end,
+            makeDirectory = function(_, p)
+                return srcDrive:makeDirectory(p)
+            end,
+            rename = function(_, a, b)
+                return srcDrive:rename(a, b)
+            end,
+            size = function(_, p)
+                return srcDrive:size(p)
+            end,
+            lastModified = function(_, p)
+                return srcDrive:lastModified(p)
+            end,
+            isReadOnly = function()
+                return srcDrive:isReadOnly()
+            end,
+            spaceTotal = function()
+                return srcDrive:spaceTotal()
+            end,
+            spaceUsed = function()
+                return srcDrive:spaceUsed()
+            end
+        }
+        vfs.disks[id] = disk
+    else
+        if type(diskOrId) == "string" then
+            disk = vfs.disks[diskOrId]
+            if not disk then error("ENODEV") end
+            checkDisk(disk)
+            id = diskOrId
+        elseif type(diskOrId) == "table" then
+            checkDisk(diskOrId)
+            disk = diskOrId
+            id = disk.address
+            vfs.disks[id] = disk
+        else
+            error("EINVAL")
+        end
+    end
     if vfs.mounts[id] then error("EBUSY") end
-    for _, mp in pairs(vfs.mounts) do if mp == target then error("EBUSY") end end
+    for _, mp in pairs(vfs.mounts) do
+        if mp == target then
+            error("EBUSY")
+        end
+    end
     vfs.mounts[id] = target
     return true
 end
@@ -588,7 +650,11 @@ function vfs.umount(target)
     for id, mp in pairs(vfs.mounts) do
         if mp == target then
             if id == "$" then error("EBUSY") end
-            vfs.mounts[id] = nil; return true
+            vfs.mounts[id] = nil
+            if vfs.disks[id] and vfs.disks[id].isBind then
+                vfs.disks[id] = nil
+            end
+            return true
         end
     end
     error("EINVAL")

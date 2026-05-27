@@ -229,6 +229,23 @@ function toHex(num)
     return string.format("%X", num)
 end
 
+local st={
+    push=function(self,...) table.insert(self.contents,{...}) end,
+    pop=function(self) return table.unpack(table.remove(self.contents)) end,
+}
+local q={
+    push=function(self,...) table.insert(self.contents,{...}) end,
+    pop=function(self) return table.unpack(table.remove(self.contents,1)) end,
+}
+
+function stack()
+    return setmetatable({contents={}}, {__index=st})
+end
+
+function queue()
+    return setmetatable({contents={}}, {__index=q})
+end
+
 local function makeSyscallProxy()
     local backing = {}
     return setmetatable(backing, {

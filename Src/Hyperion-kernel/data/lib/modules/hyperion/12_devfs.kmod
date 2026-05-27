@@ -140,6 +140,83 @@ function data.zero(op, mode)
     end
 end
 
+local function buildMeta(entries, opts)
+    opts = opts or {}
+    local uid = opts.uid or 0
+    local gid = opts.gid or 0
+    local perms = opts.perms or 0x3F  -- default read/write for owner/group/world
+
+    local chunks = {}
+    table.insert(chunks, string.char(0x02))  -- version header
+
+    for path, target in pairs(entries) do
+        local name = path
+        local nameLen = #name
+        if nameLen > 255 then
+            error("Filename too long (>255 bytes): "..name)
+        end
+
+        -- Determine entry type: 0x01 = symlink if target ~= nil and target ~= ""
+        local entryType = 0x00
+        local cmeta = ""
+        if target and target ~= "" then
+            entryType = 0x01
+            cmeta = target
+        end
+        local cmetaLen = #cmeta
+        if cmetaLen > 255 then
+            error("cmeta too long (>255 bytes) for "..name)
+        end
+
+        -- Build entry as bytes
+        table.insert(chunks, string.char(nameLen))    -- name length
+        table.insert(chunks, name)                    -- name
+        table.insert(chunks, string.char(entryType))  -- entry type
+        table.insert(chunks, string.char(uid % 256, math.floor(uid/256) % 256))  -- uid
+        table.insert(chunks, string.char(gid % 256, math.floor(gid/256) % 256))  -- gid
+        table.insert(chunks, string.char(perms % 256, math.floor(perms/256) % 256)) -- perms
+        table.insert(chunks, string.char(cmetaLen))   -- cmeta length
+        if cmetaLen > 0 then
+            table.insert(chunks, cmeta)
+        end
+    end
+
+    return table.concat(chunks)
+end
+
+local function simpleFile(r,w)
+    return function(op, mode)
+        if op=="type" then
+            return "file"
+        elseif op=="open" then
+            if mode=="r" then
+                return {
+                    read=r
+                }
+            elseif mode=="w" then
+                return {
+                    write=w
+                }
+            end
+        end
+    end
+end
+
+local function strFile(str)
+    local dat=tostring(str)
+    local pos=1
+    return simpleFile(function(amount)
+        pos=pos+amount
+        return dat:sub(pos-amount, pos)
+    end,function() error("EACCES") end)
+end
+
+data[".meta"]=strFile(buildMeta({
+    stdin="/proc/self/fd/0",
+    stdout="/proc/self/fd/1",
+    log="/var/log/syslog.log"
+}))
+
 if kernel.EFI:getEEPROM() then
     function data.eeprom(op, mode)
         if op=="type" then
@@ -216,7 +293,8 @@ if kernel.EFI:getNvram() then
     end
 end
 
-data["disk"]={}
+data["disk"]={["by-id"]={}, ["by-path"]={}, ["by-label"]={}}
+data["input"]={}
 kernel.devfs={}
 kernel.devfs.data=data
 kernel.devfs.proxy=proxy
