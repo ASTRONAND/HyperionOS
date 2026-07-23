@@ -1,0 +1,12 @@
+{
+    "id": "iniparse",
+    "description": "ini parser",
+    "authors": [
+        "Hyperion",
+        "Astronand"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "f26f900027066dc2f498a4ccb8306f48c93210e7869b11f4aef9900f2e00e066",
+    "tarball": "http://localhost:8000/packages/raw/iniparse.tar.xz"
+}

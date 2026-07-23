@@ -1,0 +1,12 @@
+{
+    "id": "Hyperion-firmware-cct",
+    "description": "firmware for ComputerCraft Tweaked",
+    "authors": [
+        "Hyperion",
+        "Astronand"
+    ],
+    "dependencies": [],
+    "version": "1.3.0",
+    "hash": "dd69c26ba6f46acb99d6f839474fc50283524bd99df7f67a5d300a749af86dde",
+    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-cct.tar.xz"
+}

@@ -217,7 +217,7 @@ data[".meta"]=strFile(buildMeta({
     log="/var/log/syslog.log"
 }))
 
-if kernel.EFI:getEEPROM() then
+if kernel.EFI.getEEPROM then
     function data.eeprom(op, mode)
         if op=="type" then
             return "character device"
@@ -255,7 +255,7 @@ if kernel.EFI:getEEPROM() then
     end
 end
 
-if kernel.EFI:getNvram() then
+if kernel.EFI.getNvram then
     function data.nvram(op, mode)
         if op=="type" then
             return "character device"

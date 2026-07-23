@@ -26,8 +26,7 @@ local function parseUrl(url)
 end
 
 local function buildRequest(req)
-    local host, path =
-        parseUrl(req.url)
+    local host, path = parseUrl(req.url)
 
     if not host then
         return nil, path
@@ -75,71 +74,37 @@ local function buildRequest(req)
     return table.concat(out, "\r\n")
 end
 
-local function parseResponse(raw)
-    local headerEnd =
-        raw:find(
-            "\r\n\r\n",
-            1,
-            true
-        )
-
-    if not headerEnd then
-        return nil, "EBADMSG"
+local function parseResponse(response)
+    local headerBlock, body = response:match("^(.-)\r\n\r\n(.*)$")
+    if not headerBlock then
+        return nil, "invalid HTTP response"
     end
-
-    local headerPart =
-        raw:sub(1, headerEnd - 1)
-
-    local body =
-        raw:sub(headerEnd + 4)
-
-    local lines = {}
-
-    for line in headerPart:gmatch("[^\r\n]+") do
-        lines[#lines + 1] = line
-    end
-
-    local _, code, msg =
-        lines[1]:match(
-            "^(HTTP/%S+)%s+(%d+)%s*(.*)$"
-        )
 
     local headers = {}
 
-    for i = 2, #lines do
-        local k, v =
-            lines[i]:match(
-                "^([^:]+):%s*(.*)$"
-            )
+    -- Parse status line
+    local statusLine, rest = headerBlock:match("^(.-)\r\n(.*)$")
+    if not statusLine then
+        statusLine = headerBlock
+        rest = ""
+    end
 
-        if k then
-            headers[k:lower()] = v
+    local version, code, message = statusLine:match("^(HTTP/%d+%.%d+)%s+(%d+)%s+(.*)$")
+
+    -- Parse headers
+    for line in (rest .. "\r\n"):gmatch("(.-)\r\n") do
+        local key, value = line:match("^([^:]+):%s*(.*)$")
+        if key then
+            headers[key:lower()] = value
         end
     end
 
     return {
-        code = tonumber(code),
-        message = msg,
-        headers = headers,
-        body = body
+        code=tonumber(code),
+        message=message,
+        headers=headers,
+        body=body
     }
-end
-
-local function readAll(fd)
-    local out = ""
-
-    while true do
-        local chunk =
-            syscall.read(fd, 4096)
-
-        if not chunk or chunk == "" then
-            break
-        end
-
-        out = out .. chunk
-    end
-
-    return out
 end
 
 function http.request(req)
@@ -151,34 +116,50 @@ function http.request(req)
     end
 
     local fd =
-        syscall.socket(0, 0)
+        syscall.socket()
 
     if not fd then
         return nil, "ESOCKET"
     end
 
-    local ok, err =
-        syscall.connect(fd, req.url)
+    local host, path = parseUrl(req.url)
+
+    if not host then
+        syscall.close(fd)
+        return nil, path
+    end
+
+    local proto = req.url:match("^(https?://)")
+
+    local base = proto .. host
+
+    local ok, err = syscall.connect(fd, base)
 
     if not ok then
         syscall.close(fd)
         return nil, err
     end
 
-    local ok2, err2 =
-        syscall.write(fd, raw)
+    local ok2, err2 = syscall.write(fd, raw)
 
     if not ok2 then
         syscall.close(fd)
         return nil, err2
     end
 
-    local resp =
-        readAll(fd)
+    local out = {}
+
+    while true do
+        local chunk = syscall.read(fd, 4096)
+        if chunk == "" then
+            break
+        end
+
+        out[#out+1] = chunk
+    end
 
     syscall.close(fd)
-
-    return parseResponse(resp)
+    return parseResponse(table.concat(out))
 end
 
 function http.get(url, headers)

@@ -1,28 +1,32 @@
 {
-    "packages":{
-        "spm":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/spm.pkg",
-        "HyperionOS":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/HyperionOS.pkg",
-        "Hyperion-kernel":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/Hyperion-kernel.pkg",
-        "Hyperion-core":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/Hyperion-core.pkg",
-        "Hyperion-firmware-ac":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/Hyperion-firmware-ac.pkg",
-        "Hyperion-firmware-ccpc":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/Hyperion-firmware-ccpc.pkg",
-        "Hyperion-firmware-cct":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/Hyperion-firmware-cct.pkg",
-        "Hyperion-firmware-oc":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/Hyperion-firmware-oc.pkg",
-        "sysinit":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/sysinit.pkg",
-        "hysh":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/hysh.pkg",
-        "bit32":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/bit32.pkg",
-        "blake2s":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/blake2s.pkg",
-        "deflate":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/deflate.pkg",
-        "iniparse":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/iniparse.pkg",
-        "json":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/json.pkg",
-        "lua":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/lua.pkg",
-        "micro":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/micro.pkg",
-        "xz":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/xz.pkg"
+    "packages": {
+        "Hyperion-core": "http://localhost:8000/packages/Hyperion-core.pkg",
+        "Hyperion-firmware-ac": "http://localhost:8000/packages/Hyperion-firmware-ac.pkg",
+        "Hyperion-firmware-ccpc": "http://localhost:8000/packages/Hyperion-firmware-ccpc.pkg",
+        "Hyperion-firmware-cct": "http://localhost:8000/packages/Hyperion-firmware-cct.pkg",
+        "Hyperion-firmware-oc": "http://localhost:8000/packages/Hyperion-firmware-oc.pkg",
+        "Hyperion-kernel": "http://localhost:8000/packages/Hyperion-kernel.pkg",
+        "bit32": "http://localhost:8000/packages/bit32.pkg",
+        "blake2s": "http://localhost:8000/packages/blake2s.pkg",
+        "coreutils": "http://localhost:8000/packages/coreutils.pkg",
+        "deflate": "http://localhost:8000/packages/deflate.pkg",
+        "gfxterm": "http://localhost:8000/packages/gfxterm.pkg",
+        "hysh": "http://localhost:8000/packages/hysh.pkg",
+        "iniparse": "http://localhost:8000/packages/iniparse.pkg",
+        "installer": "http://localhost:8000/packages/installer.pkg",
+        "json": "http://localhost:8000/packages/json.pkg",
+        "lua": "http://localhost:8000/packages/lua.pkg",
+        "micro": "http://localhost:8000/packages/micro.pkg",
+        "minify": "http://localhost:8000/packages/minify.pkg",
+        "pid": "http://localhost:8000/packages/pid.pkg",
+        "spm": "http://localhost:8000/packages/spm.pkg",
+        "sysinit": "http://localhost:8000/packages/sysinit.pkg",
+        "xz": "http://localhost:8000/packages/xz.pkg"
     },
-    "refs":[
+    "refs": [
         "https://git.astronand.dev/Astronand/HyperionOS-packages/raw/branch/main/spm.json"
     ],
-    "maintainers":[
-        "Astronand"
+    "maintainers": [
+        "Hyperion"
     ]
 }

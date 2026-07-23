@@ -1,0 +1,12 @@
+{
+    "id": "bit32",
+    "description": "Bit32 package for Hyperion",
+    "authors": [
+        "Hyperion",
+        "Lua"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "9bc32da8ab97f899e85faeb47064433ef4a167e45924c0e583d30f901551bdf5",
+    "tarball": "http://localhost:8000/packages/raw/bit32.tar.xz"
+}

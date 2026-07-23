@@ -74,11 +74,16 @@ kernel.processes.cctdeamon = function()
                     kernel.cct.fifo.push("[nT")
                 end
             elseif eventType == "http_success" then
-                kernel.cct.httpqueue[event[2]]=nil
-                kernel.cct.httpresponse[event[2]]=event[3]
+                if kernel.cct.httpqueue[event[2]] then
+                    kernel.cct.httpqueue[event[2]]=nil
+                    kernel.cct.httpresponse[event[2]]=event[3]
+                end
             elseif eventType == "http_failure" then
-                kernel.cct.httpqueue[event[2]]=nil
-                kernel.cct.httperror[event[2]]=event[3]
+                if kernel.cct.httpqueue[event[2]] then
+                    kernel.cct.httpqueue[event[2]]=nil
+                    kernel.cct.httperror[event[2]]=event[3]
+                    kernel.cct.httpresponse[event[2]]=event[4]
+                end
             end
 
             timeout = false

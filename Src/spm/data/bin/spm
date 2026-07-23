@@ -1,6 +1,68 @@
 local args={...}
 
-local json=require("json")
-local http=require("http")
-local rootRepo="https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm/spm.src"
+-- local test repo
+local rootRepo="http://localhost:8000/spm.json"
+--local rootRepo="https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm.json"
 
+local json = require("json")
+local http = require("http")
+local deflate = require("deflate")
+
+local function checkRepo(repo)
+    local resp = http.get(repo)
+    if resp.code ~= 200 then
+        return false
+    end
+    local repojson = json.decode(resp.body)
+    if not repojson then
+        return false
+    end
+    return true, repojson
+end
+
+local function getRepos(root)
+    local repos = {}
+    local visited = {}
+
+    local queue = {root}
+    local head = 1
+
+    while head <= #queue do
+        local url = queue[head]
+        head = head + 1
+
+        if not visited[url] then
+            visited[url] = true
+
+            local ok, repo = checkRepo(url)
+            if ok then
+                table.insert(repos, {
+                    url = url,
+                    data = repo
+                })
+
+                if repo.refs then
+                    for _, ref in ipairs(repo.refs) do
+                        if not visited[ref] then
+                            queue[#queue + 1] = ref
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return repos
+end
+
+local function getPkg(name)
+    
+end
+
+if args[1] == "install" then
+    local pkg=getPkg(args[2])
+elseif args[1] == "sync" then
+    error("not implemented")
+elseif args[1] == "remove" then
+    error("not implemented")
+end

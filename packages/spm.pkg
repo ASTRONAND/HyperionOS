@@ -1,14 +1,12 @@
 {
-    "authors":[
+    "id": "spm",
+    "description": "Simple Package Manager",
+    "authors": [
+        "Hyperion",
         "Astronand"
     ],
-    "versions":{
-        "1.0.0":{
-            "dependencies":[
-                "json",
-                "xz"
-            ],
-            "package":"https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/spm.sp"
-        }
-    }
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "55f9a95f5fd032f6a9ad27c9528987f9051554d506f1dddb4494daf822db5e1b",
+    "tarball": "http://localhost:8000/packages/raw/spm.tar.xz"
 }

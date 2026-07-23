@@ -1,0 +1,15 @@
+{
+    "id": "xz",
+    "description": "XZ compression library",
+    "authors": [
+        "Hyperion",
+        "Astronand",
+        "pts@fazekas.hu",
+        "JackMacWindows",
+        "hanzhao"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "1b5d564b4fea1af5a5e3fde1790298b9f9e7182ad2697b936bc551acffa2beef",
+    "tarball": "http://localhost:8000/packages/raw/xz.tar.xz"
+}

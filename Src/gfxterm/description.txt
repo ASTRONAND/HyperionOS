@@ -1,0 +1,1 @@
+package providing kernel support for framebuffers and graphics

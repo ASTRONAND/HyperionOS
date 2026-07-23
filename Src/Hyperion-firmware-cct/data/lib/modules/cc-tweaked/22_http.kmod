@@ -9,25 +9,15 @@ kernel.cct.httpqueue = kernel.cct.httpqueue or {}
 kernel.cct.httpresponse = kernel.cct.httpresponse or {}
 kernel.cct.httperror = kernel.cct.httperror or {}
 
-local function parseRawRequest(raw)
-    local sepLen = 4
-
-    local headerEnd =
-        raw:find("\r\n\r\n", 1, true)
-
-    if not headerEnd then
-        headerEnd =
-            raw:find("\n\n", 1, true)
-
-        sepLen = 2
-    end
+local function parseRawRequest(raw, address)
+    local headerEnd = raw:find("\r\n\r\n", 1, true)
 
     local headerPart
     local body = ""
 
     if headerEnd then
         headerPart = raw:sub(1, headerEnd - 1)
-        body = raw:sub(headerEnd + sepLen)
+        body = raw:sub(headerEnd + 4)
     else
         headerPart = raw
     end
@@ -42,37 +32,25 @@ local function parseRawRequest(raw)
         return nil, "EINVAL"
     end
 
-    local method, path =
-        lines[1]:match("^(%S+)%s+(%S+)")
-
-    if not method or not path then
-        return nil, "EBADMSG"
+    local split=string.split(lines[1], " ")
+    if #split~=3 then
+        return nil, "EINVAL"
     end
+    local method, path, ver = table.unpack(split)
 
     local headers = {}
 
     for i = 2, #lines do
-        local k, v =
-            lines[i]:match("^([^:]+):%s*(.*)$")
-
+        local k, v = lines[i]:match("^([^:]+):%s*(.*)$")
         if k then
             headers[k] = v
         end
     end
 
-    local host = headers.Host or headers.host
-
-    if not host and not path:match("^https?://") then
-        return nil, "EHOSTUNREACH"
+    if path:sub(1,1)~="/" then
+        return nil, "EINVAL"
     end
-
-    local url
-
-    if path:match("^https?://") then
-        url = path
-    else
-        url = "http://" .. host .. path
-    end
+    local url = address..path
 
     local req = {
         url = url,
@@ -84,7 +62,7 @@ local function parseRawRequest(raw)
         req.body = body
     end
 
-    return req
+    return req, url
 end
 
 local function buildResponse(resp)
@@ -93,37 +71,19 @@ local function buildResponse(resp)
     end
 
     local code, msg = resp.getResponseCode()
-
-    local headers =
-        resp:getResponseHeaders()
-
-    local body =
-        resp:readAll() or ""
+    local headers = resp.getResponseHeaders()
+    local body = resp.readAll() or ""
+    resp.close()
 
     local out = {
         "HTTP/1.1 " ..
         tostring(code) ..
         " " ..
-        tostring(msg)
+        tostring(msg or "")
     }
 
-    local hasLength = false
-
-    for k, v in pairs(headers or {}) do
-        if k:lower() == "content-length" then
-            hasLength = true
-        end
-
-        out[#out + 1] =
-            tostring(k) ..
-            ": " ..
-            tostring(v)
-    end
-
-    if not hasLength then
-        out[#out + 1] =
-            "Content-Length: " ..
-            tostring(#body)
+    for i,v in pairs(headers) do
+        out[#out+1] = i..": "..v
     end
 
     out[#out + 1] = ""
@@ -139,155 +99,91 @@ function handler.connect(fd, address)
         return nil, "EBADF"
     end
 
-    fdo.socket.rbuf = ""
-    fdo.socket.closed = false
-    fdo.socket.httpid = nil
-
     fdo.handle.write = function(raw)
-        local req, err =
-            parseRawRequest(raw)
+        local req, url = parseRawRequest(raw, address)
 
         if not req then
-            return nil, err
+            return nil, url
         end
 
-        local id =
-            tostring(kernel.uuid())
-
-        fdo.socket.httpid = id
-
-        kernel.cct.httpqueue[id] = true
-
-        local ok, err =
-            http.request(req, id)
+        kernel.cct.httpqueue[url] = true
+        local ok, err = http.request(req)
 
         if not ok then
-            kernel.cct.httpqueue[id] = nil
+            kernel.cct.httpqueue[url] = nil
             return nil, err
         end
+        if fdo.socket.active then
+            fdo.socket.content=nil
+            fdo.socket.file.close()
+            fdo.socket.file=nil
+        end
+        fdo.socket.active=true
+        fdo.socket.url=url
 
         return true
     end
 
     fdo.handle.read = function(count)
-        count = count or 4096
-
-        local sock = fdo.socket
-
-        if #sock.rbuf > 0 then
-            local out =
-                sock.rbuf:sub(1, count)
-
-            sock.rbuf =
-                sock.rbuf:sub(count + 1)
-
-            return out
+        if not fdo.socket.active then
+            return
         end
 
-        local id = sock.httpid
-
-        if not id then
-            return ""
+        if not kernel.cct.httpqueue[fdo.socket.url] then
+            fdo.socket.file=kernel.sfile(buildResponse(kernel.cct.httpresponse[fdo.socket.url]))
+            kernel.cct.httpqueue[fdo.socket.url]=nil
+            kernel.cct.httpresponse[fdo.socket.url]=nil
         end
 
-        local function finish(resp)
-            sock.rbuf =
-                buildResponse(resp) or ""
-
-            local out =
-                sock.rbuf:sub(1, count)
-
-            sock.rbuf =
-                sock.rbuf:sub(count + 1)
-
-            return out
-        end
-
-        if kernel.cct.httpresponse[id] then
-            local resp =
-                kernel.cct.httpresponse[id]
-
-            kernel.cct.httpresponse[id] = nil
-            kernel.cct.httpqueue[id] = nil
-
-            return finish(resp)
-        end
-
-        if kernel.cct.httperror[id] then
-            local err =
-                kernel.cct.httperror[id]
-
-            kernel.cct.httperror[id] = nil
-            kernel.cct.httpqueue[id] = nil
-
-            return nil, err
-        end
-
-        kernel.currentTask.status = "D"
-
-        local coro
-
-        coro = function()
-            if kernel.cct.httpresponse[id] then
-                local resp =
-                    kernel.cct.httpresponse[id]
-
-                kernel.cct.httpresponse[id] = nil
-                kernel.cct.httpqueue[id] = nil
-
-                kernel.asyncReturn(
-                    finish(resp)
-                )
-
-                return
-            end
-
-            if kernel.cct.httperror[id] then
-                local err =
-                    kernel.cct.httperror[id]
-
-                kernel.cct.httperror[id] = nil
-                kernel.cct.httpqueue[id] = nil
-
-                kernel.asyncReturn(
-                    nil,
-                    err
-                )
-
-                return
-            end
-
-            coroutine.yield()
-        end
-
-        kernel.currentTask.ksh =
-            coroutine.create(function()
-                local ok, err =
-                    xpcall(
-                        coro,
-                        debug.traceback
-                    )
-
-                if not ok then
-                    kernel.asyncReturn(
-                        nil,
-                        err
-                    )
+        if not fdo.socket.file then
+            kernel.currentTask.io=function()
+                if not kernel.cct.httpqueue[fdo.socket.url] then
+                    fdo.socket.file=kernel.sfile(buildResponse(kernel.cct.httpresponse[fdo.socket.url]))
+                    kernel.cct.httpqueue[fdo.socket.url]=nil
+                    kernel.cct.httpresponse[fdo.socket.url]=nil
+                    return fdo.socket.file.read(count)
                 end
-            end)
+            end
+            kernel.currentTask.status="D"
+            return
+        else
+            return fdo.socket.file.read(count)
+        end
+    end
+
+    fdo.handle.seek = function(whence, offset)
+        if not fdo.socket.active then
+            return
+        end
+
+        if not kernel.cct.httpqueue[fdo.socket.url] then
+            fdo.socket.file=kernel.sfile(buildResponse(kernel.cct.httpresponse[fdo.socket.url]))
+            kernel.cct.httpqueue[fdo.socket.url]=nil
+            kernel.cct.httpresponse[fdo.socket.url]=nil
+        end
+
+        if not fdo.socket.file then
+            kernel.currentTask.io=function()
+                if not kernel.cct.httpqueue[fdo.socket.url] then
+                    fdo.socket.file=kernel.sfile(buildResponse(kernel.cct.httpresponse[fdo.socket.url]))
+                    kernel.cct.httpqueue[fdo.socket.url]=nil
+                    kernel.cct.httpresponse[fdo.socket.url]=nil
+                    return fdo.socket.file.seek(whence, offset)
+                end
+            end
+            kernel.currentTask.status="D"
+            return
+        else
+            return fdo.socket.file.seek(whence, offset)
+        end
     end
 
     fdo.handle.close = function()
-        fdo.socket.closed = true
-
-        local id =
-            fdo.socket.httpid
-
-        if id then
-            kernel.cct.httpqueue[id] = nil
-            kernel.cct.httpresponse[id] = nil
-            kernel.cct.httperror[id] = nil
-        end
+        fdo.socket.file.close()
+        fdo.socket.active=false
+        kernel.cct.httpqueue[fdo.socket.url] = nil
+        kernel.cct.httpresponse[fdo.socket.url] = nil
+        kernel.cct.httperror[fdo.socket.url] = nil
 
         return true
     end

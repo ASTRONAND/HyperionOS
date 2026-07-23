@@ -1,0 +1,12 @@
+{
+    "id": "blake2s",
+    "description": "blake2s package for Hyperion",
+    "authors": [
+        "Hyperion",
+        "Astronand"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "c32e2bbeba5d8609f720bce59fad0505d490ee22a6e54b4d830a524e609ac415",
+    "tarball": "http://localhost:8000/packages/raw/blake2s.tar.xz"
+}

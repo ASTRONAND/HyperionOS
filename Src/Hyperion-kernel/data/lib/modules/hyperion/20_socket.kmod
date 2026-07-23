@@ -22,7 +22,7 @@ local function getHandler(address)
     end
 end
 
-function socket.socket(domain, socktype)
+function socket.socket()
     local fd = kernel.vfs.newfd({
         handle = {},
 
@@ -54,7 +54,7 @@ function socket.socket(domain, socktype)
     local fdo = kernel.currentTask.fd[fd]
 
     fdo.handle.read = function()
-        return ""
+        return nil, "ENOTCONN"
     end
 
     fdo.handle.write = function()

@@ -25,6 +25,7 @@ kernel.tasks["1"] = {
         else
             kernel.panic("Init system exited: " .. tostring(err))
         end
+        kernel.saveLog()
     end),
 
     name   = "sysinit",

@@ -1,0 +1,12 @@
+{
+    "id": "hysh",
+    "description": "Official Hyperion shell package",
+    "authors": [
+        "Hyperion",
+        "Spsf"
+    ],
+    "dependencies": [],
+    "version": "1.3.0",
+    "hash": "d0baaeb889eeaa38a9f100c4954b8f30c36c220ba73d8b8fa878e0fcaeaadb15",
+    "tarball": "http://localhost:8000/packages/raw/hysh.tar.xz"
+}

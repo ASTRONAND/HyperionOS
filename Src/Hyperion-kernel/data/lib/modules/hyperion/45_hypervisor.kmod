@@ -396,22 +396,16 @@ function kernel.main()
             end
 
             if task.status == "D" then
-                if task.ksh then
-                    coroutine.resume(task.ksh)
-                    if coroutine.status(task.ksh) == "dead" then
-                        task.ksh = nil
-                        if task.status == "D" then
-                            task.status = "R"
-                        end
-
-                        if kernel.config.debugSyscalls then
-                            kernel.log("Task " .. task.pid .. " IO wait completed", "DBUG", 0x00FFFF)
-                            local sysret = task.syscallReturn
-                            for i = 2, #sysret do
-                                local v = type(sysret[i]) == "table" and table.serialize(sysret[i]) or tostring(sysret[i])
-                                kernel.log("  retval[" .. (i-1) .. "] = " .. v, "DBUG", 0x00FFFF)
-                            end
-                        end
+                if task.io then
+                    local ret = {xpcall(task.io, debug.traceback)}
+                    if not ret[1] then
+                        task.syscallReturn = {false, table.unpack(ret, 2)}
+                        task.status = "R"
+                        task.io=nil
+                    elseif #ret>1 then
+                        task.syscallReturn = {true, table.unpack(ret, 2)}
+                        task.status = "R"
+                        task.io=nil
                     end
                 end
             end

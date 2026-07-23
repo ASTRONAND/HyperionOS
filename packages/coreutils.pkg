@@ -1,0 +1,13 @@
+{
+    "id": "coreutils",
+    "description": "core utilities for user management",
+    "authors": [
+        "Hyperion",
+        "Astronand",
+        "Spsf"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "c52244c7fd2ca96780ed684327ebb55872757a4f6c8d90e18367ec4e0d8f10ad",
+    "tarball": "http://localhost:8000/packages/raw/coreutils.tar.xz"
+}

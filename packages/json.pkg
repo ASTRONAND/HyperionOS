@@ -1,0 +1,12 @@
+{
+    "id": "json",
+    "description": "JSON library for Hyperion",
+    "authors": [
+        "Hyperion",
+        "rxi"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "8344035d687f5cafb8c918d6bddd2ba5a7d6c2025aa43def84b942a614583282",
+    "tarball": "http://localhost:8000/packages/raw/json.tar.xz"
+}

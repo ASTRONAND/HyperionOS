@@ -193,6 +193,100 @@ function kernel.newUUID()
     return uuid
 end
 
+function kernel.sfile(str, writeable)
+    local buf = {str or ""}
+    local pos = 1
+    local closed = false
+
+    local function content()
+        return table.concat(buf)
+    end
+
+    local function set_content(s)
+        buf = {s}
+    end
+
+    local function flush()
+        str=content()
+    end
+
+    local file = {}
+
+    function file.read(n)
+        assert(not closed, "file is closed")
+
+        local s = content()
+        local len = #s
+
+        if not n then
+            local out = s:sub(pos)
+            pos = len + 1
+            return out
+        end
+
+        local out = s:sub(pos, pos + n - 1)
+        pos = pos + #out
+        return out
+    end
+
+    if writeable then
+        function file.write(data)
+            assert(not closed, "file is closed")
+
+            local s = content()
+            local before = s:sub(1, pos - 1)
+            local after = s:sub(pos + #data)
+
+            set_content(before .. data .. after)
+            pos = pos + #data
+
+            return true
+        end
+    end
+
+    function file.seek(whence, offset)
+        assert(not closed, "file is closed")
+
+        local s = content()
+        local len = #s
+
+        whence = whence or "cur"
+        offset = offset or 0
+
+        if whence == "set" then
+            pos = offset + 1
+        elseif whence == "cur" then
+            pos = pos + offset
+        elseif whence == "end" then
+            pos = len + offset + 1
+        else
+            error("invalid whence")
+        end
+
+        if pos < 1 then pos = 1 end
+        if pos > len + 1 then pos = len + 1 end
+
+        return pos - 1
+    end
+
+    function file.close()
+        assert(not closed, "file is closed")
+        flush()
+        closed = true
+    end
+
+    function file.flush()
+        assert(not closed, "file is closed")
+        flush()
+    end
+
+    function file.content()
+        return str
+    end
+
+    return file
+end
+
 kernel.syscalls={}
 local modules={[0]={}}
 for i=0, 100 do
@@ -297,6 +391,7 @@ kernel.syscalls["halt"]=function()
     end
 end
 
+kernel.saveLog()
 kernel.log("Running modules")
 for _,p in ipairs(modules) do
     for _,v in ipairs(p) do
@@ -310,6 +405,7 @@ for _,p in ipairs(modules) do
         local status, err = xpcall(func,debug.traceback, kernel)
         if not status then kernel.panic("ModuRunErr: "..tostring(err)) end
         if kernel.config.showModLoad then kernel.log("Loaded module "..v, "DBUG", 0x00FFFF) end
+        if kernel.config.moreLogsaves then kernel.saveLog() end
     end
 end
 

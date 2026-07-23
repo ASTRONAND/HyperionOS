@@ -1,0 +1,12 @@
+{
+    "id": "installer",
+    "description": "Hyperion os live installer",
+    "authors": [
+        "Hyperion",
+        "Astronand"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "8623a44260062d0066aecc683b45c2ea9e6f438fd74cef050e7bcac7daa33a4f",
+    "tarball": "http://localhost:8000/packages/raw/installer.tar.xz"
+}

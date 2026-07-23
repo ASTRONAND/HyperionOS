@@ -1,0 +1,12 @@
+{
+    "id": "Hyperion-core",
+    "description": "Core library for Hyperion",
+    "authors": [
+        "Hyperion",
+        "Astronand"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "e83a8dc42a871c1e16cd56c214cf0ca4bb0079432dc8bd198abbe11d6cf31d4e",
+    "tarball": "http://localhost:8000/packages/raw/Hyperion-core.tar.xz"
+}

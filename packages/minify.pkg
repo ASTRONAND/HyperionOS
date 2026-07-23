@@ -1,0 +1,13 @@
+{
+    "id": "minify",
+    "description": "lua minifier",
+    "authors": [
+        "Hyperion",
+        "Mark Langen",
+        "Astronand (added goto support)"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "bbbc1c2137b76aec328bf8cc0d246f852af35943175fbcd8e1bf55fc9348e4ba",
+    "tarball": "http://localhost:8000/packages/raw/minify.tar.xz"
+}

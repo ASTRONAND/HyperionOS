@@ -1,0 +1,7 @@
+local http=require("http")
+local ok,err = xpcall(http.get, debug.traceback, "http://localhost:8000/spm.json")
+if not ok then
+    print(err)
+else
+    print(err.body)
+end
