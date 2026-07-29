@@ -463,7 +463,12 @@ local ok, err = xpcall(function()
             getTextColor = function()
                 return fg
             end,
-            enable=function() end,
+            enable=function()
+                for i=1, #allscreens do
+                    allscreens[i].clear()
+                    allscreens[i].setCursorPos(1, 1)
+                end
+            end,
             disable=function() end
         },
         architecture="cct",

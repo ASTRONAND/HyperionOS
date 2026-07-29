@@ -1,0 +1,201 @@
+local LibDeflate = require("LibDeflate")
+local tar = {}
+
+local function pad512(n)
+    return math.ceil(n / 512) * 512
+end
+
+local function octal(n, size)
+    local s = string.format("%0" .. (size - 1) .. "o", n)
+    return s .. "\0"
+end
+
+local function header(name, size, typeflag, link)
+    local h = string.rep("\0", 512)
+
+    local function put(pos, len, value)
+        h = h:sub(1, pos - 1) ..
+            value ..
+            h:sub(pos + len)
+    end
+
+    put(1, 100, name)
+    put(101, 8, octal(0, 8))
+    put(109, 8, octal(0, 8))
+    put(117, 8, octal(0, 8))
+    put(125, 12, octal(size, 12))
+    put(137, 12, octal(os.time(), 12))
+    put(149, 8, "        ")
+    put(157, 1, typeflag)
+
+    if link then
+        put(158, 100, link)
+    end
+
+    put(257, 6, "ustar\0")
+    put(263, 2, "00")
+
+    local sum = 0
+    for i = 1, 512 do
+        sum = sum + h:byte(i)
+    end
+
+    put(149, 8, string.format("%06o\0 ", sum))
+
+    return h
+end
+
+local function add(out, node, prefix)
+    local path = prefix and (prefix .. "/" .. node.name)
+        or node.name
+
+    if node.type == "dir" then
+        table.insert(out, header(path .. "/", 0, "5"))
+
+        for _, child in ipairs(node.content) do
+            add(out, child, path)
+        end
+
+    elseif node.type == "file" then
+        local data = node.content or ""
+
+        table.insert(out, header(path, #data, "0"))
+        table.insert(out, data)
+
+        local padding = pad512(#data) - #data
+        if padding > 0 then
+            table.insert(out, string.rep("\0", padding))
+        end
+
+    elseif node.type == "symlink" then
+        table.insert(out,
+            header(path, 0, "2", node.content)
+        )
+    end
+end
+
+function tar.pack(tree, gzip)
+    local out = {}
+
+    add(out, tree)
+
+    table.insert(out, string.rep("\0", 1024))
+
+    local data = table.concat(out)
+
+    if gzip then
+        return LibDeflate:CompressGzip(data)
+    end
+
+    return data
+end
+
+local function read_octal(s)
+    s = s:gsub("\0.*", "")
+    return tonumber(s, 8) or 0
+end
+
+function tar.unpack(data)
+    if data:sub(1,2) == "\31\139" then
+        data = assert(LibDeflate:DecompressGzip(data))
+    end
+
+    local root = {
+        type = "dir",
+        name = "",
+        content = {}
+    }
+
+    local function add_path(parts, node)
+        local current = root
+
+        for i = 1, #parts - 1 do
+            local name = parts[i]
+            local found
+
+            for _, child in ipairs(current.content) do
+                if child.name == name and child.type == "dir" then
+                    found = child
+                    break
+                end
+            end
+
+            if not found then
+                found = {
+                    type = "dir",
+                    name = name,
+                    content = {}
+                }
+                table.insert(current.content, found)
+            end
+
+            current = found
+        end
+
+        table.insert(current.content, node)
+    end
+
+    local pos = 1
+
+    while pos + 511 <= #data do
+        local h = data:sub(pos, pos + 511)
+
+        if h == string.rep("\0", 512) then
+            break
+        end
+
+        local name = h:sub(1,100):gsub("\0.*", "")
+        local size = read_octal(h:sub(125,136))
+        local kind = h:sub(157,157)
+
+        local skip = false
+
+        -- Ignore PAX headers and GNU long filename records
+        if kind == "x" or kind == "g" or kind == "L" then
+            skip = true
+        end
+
+        if not skip then
+            local node
+
+            if kind == "5" then
+                node = {
+                    type = "dir",
+                    name = name:gsub("/$", ""),
+                    content = {}
+                }
+
+            elseif kind == "2" then
+                node = {
+                    type = "symlink",
+                    name = name,
+                    content =
+                        h:sub(158,257):gsub("\0.*", "")
+                }
+
+            else
+                node = {
+                    type = "file",
+                    name = name,
+                    content =
+                        data:sub(pos + 512,
+                            pos + 511 + size)
+                }
+            end
+
+            local parts = {}
+
+            for part in node.name:gmatch("[^/]+") do
+                table.insert(parts, part)
+            end
+
+            add_path(parts, node)
+        end
+
+        pos = pos + 512 + pad512(size)
+    end
+
+    return root
+end
+
+return tar

@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0-release",
-    "hash": "43a3df0e6da39aa97c0ee0ce4217e9acffadba4178d03dae5c66bf4627147644",
+    "hash": "e35f29c486d4a002e46b5c4e85676c480310829b606fc72d093ed86e7daab91d",
     "tarball": "http://localhost:8000/packages/raw/deflate.tar.xz"
 }

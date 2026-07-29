@@ -1211,9 +1211,9 @@ local function runCommand(command)
 
     local proc = syscall.spawn(function()
         -- Open standard fds so programs that don't do it themselves work correctly.
-        syscall.open("/dev/input/keyboard1", "r")  -- fd 0 stdin
-        syscall.open("/dev/tty/1", "w")  -- fd 1 stdout
-        syscall.open("/dev/null", "w")  -- fd 2 stderr
+        syscall.open("/proc/self/parent/fd/0", "r")  -- fd 0 stdin
+        syscall.open("/proc/self/parent/fd/1", "w")  -- fd 1 stdout
+        syscall.open("/proc/self/parent/fd/2", "w")  -- fd 2 stderr
         -- exec replaces this coroutine's code with a fresh isolated environment
         -- compiled from disk by the kernel (via loadExecutable -> freshUserEnv),
         -- so the child cannot share any upvalue or syscall table state with hysh.

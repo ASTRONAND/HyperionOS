@@ -7,10 +7,10 @@ local disks=EFI.disks
 local arch=EFI.architecture
 local kernel = {}
 kernel.LOG_Text=""
-kernel.version="HyperionOS V1.2.4-dev_5"
-kernel.tag="1.2.4-dev_5"
+kernel.version="HyperionOS V1.2.4"
+kernel.tag="1.2.4"
 kernel.process = "Kernel"
-kernel.users={[0]="root",[1]="User"}
+kernel.users={[0]="root",[1000]="User"}
 kernel.hostname = "hyperion"
 kernel.groups = {}
 kernel.uid = 0

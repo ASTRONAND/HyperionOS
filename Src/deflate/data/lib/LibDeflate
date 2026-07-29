@@ -315,7 +315,9 @@ end
 
 -- CRC-16/CRC-32 computation
 local band, bnot, xor, lshift, rshift
-
+local bit32
+local ok, temp = pcall(require, "bit32")
+if ok then bit32=temp end
 if bit ~= nil then
     band = bit.band
     bnot = bit.bnot

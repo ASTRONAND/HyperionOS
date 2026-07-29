@@ -1,11 +1,6 @@
 --:Minify:--
 local fs={}
 
--- "open" : open
--- "read" : read
--- "write" : write
--- "close" : close
-
 function fs.open(path, mode)
     local fd=syscall.open(path,mode)
     local ret={
@@ -138,6 +133,14 @@ end
 
 function fs.isDir(path)
     return syscall.type(path) == "directory"
+end
+
+function fs.symlink(target, path)
+    return syscall.syslink(target, path)
+end
+
+function fs.readlink(path)
+    return syscall.readlink(path)
 end
 
 return fs

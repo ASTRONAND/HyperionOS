@@ -6,6 +6,7 @@
         "printf",
         "printInline",
         "toHex",
-        "loadcstr"
+        "loadcstr",
+        "userinput"
     ]
 }

@@ -1,0 +1,12 @@
+{
+    "id": "tar",
+    "description": "",
+    "authors": [
+        "Hyperion",
+        "Astronand"
+    ],
+    "dependencies": [],
+    "version": "",
+    "hash": "2549429f0686c88354b091cbbd0cd7f80148115178cb3e5198924de28c7da6f4",
+    "tarball": "http://localhost:8000/packages/raw/tar.tar.xz"
+}

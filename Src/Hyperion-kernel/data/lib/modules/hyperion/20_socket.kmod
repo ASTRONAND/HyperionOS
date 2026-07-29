@@ -184,11 +184,16 @@ function socket.sockshutdown(fd)
     return true
 end
 
+function socket.socketendpoints()
+    return table.keys(socket.handlers)
+end
+
 sys.socket = socket.socket
 sys.connect = socket.connect
 sys.listen = socket.listen
 sys.send = socket.send
 sys.recv = socket.recv
 sys.sockshutdown = socket.sockshutdown
+sys.socketendpoints = socket.socketendpoints
 
 kernel.log("Loaded socket module")

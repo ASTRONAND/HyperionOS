@@ -220,9 +220,6 @@ local function newtty(obj, id, ev)
                 gbgc=function()
                     return bg
                 end,
-                gctrl=function()
-                    return serializeBool(kernel.cct.ctrl)..";"..serializeBool(kernel.cct.alt)
-                end,
                 isvirt=function()
                     return false
                 end,
@@ -269,6 +266,9 @@ kernel.devfs.data["input"]["keyboard1"] = function(op, mode)
                 return rv
             end,
             write=function(content)
+            end,
+            gctrl=function()
+                return serializeBool(kernel.cct.ctrl)..";"..serializeBool(kernel.cct.alt)
             end
         }
         if mode=="rw" then

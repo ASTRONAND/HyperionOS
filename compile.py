@@ -122,7 +122,7 @@ def create_package(folder):
             DEFAULT_VERSION,
         ),
         "hash": package_hash,
-        "tarball": f"{API_ROOT}/packages/raw/{name}.tar.xz",
+        "tarball": f"{API_ROOT}/packages/raw/{name}.tar.gz",
     }
 
     with open(pkg_file, "w", encoding="utf-8") as file:
@@ -166,6 +166,7 @@ def update_spm():
         packages[metadata["id"]] = f"{API_ROOT}/packages/{pkg.name}"
 
     spm["packages"] = packages
+    spm["self"] = f"{API_ROOT}/spm.json"
 
     with open(ROOT / "spm.json", "w", encoding="utf-8") as file:
         json.dump(spm, file, indent=4)

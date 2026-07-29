@@ -1,68 +1,330 @@
-local args={...}
+--:Minify:--
+local spm = function(...)
+    if syscall.geteuid()~=0 then print("Permission denied") return end
+    local inpArgs = { ... }
+    local args    = {}
+    local cloptions = {
+        S = false,
+        y = false,
+        u = false,
+        R = false,
+        h = false,
+        r = false,
+        Q = false,
+        l = false,
+        o = false,
+        i = false,
+        e = false,
+        t = false,
+        sysroot = "",
+        init = false,
+        help = false,
+        source = false
+    }
 
--- local test repo
-local rootRepo="http://localhost:8000/spm.json"
---local rootRepo="https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm.json"
+    local i = 1
+    local fs = require("fs")
+    local http = require("http")
+    local json = require("json")
+    local tar = require("tar")
+    local deflate = require("deflate")
+    local httpcache = {}
 
-local json = require("json")
-local http = require("http")
-local deflate = require("deflate")
-
-local function checkRepo(repo)
-    local resp = http.get(repo)
-    if resp.code ~= 200 then
-        return false
+    local function get(url)
+        if httpcache[url] then return httpcache[url] end
+        local ret = http.get(url)
+        httpcache[url] = ret
+        return ret
     end
-    local repojson = json.decode(resp.body)
-    if not repojson then
-        return false
+
+    while i <= #inpArgs do
+        local v = inpArgs[i]
+
+        if v:sub(1, 2) == "--" then
+            local opt, value = v:match("^%-%-(.-)=(.*)$")
+
+            if not opt then
+                opt = v:sub(3)
+            end
+
+            if cloptions[opt] == nil then
+                print("spm: unrecognized option '" .. v .. "'.")
+                print("try 'spm --help' for more information.")
+                return
+            end
+
+            if type(cloptions[opt]) == "boolean" then
+                cloptions[opt] = true
+            else
+                if value == nil then
+                    i = i + 1
+                    value = inpArgs[i]
+                end
+
+                if value == nil then
+                    print("spm: option '--" .. opt .. "' requires an argument.")
+                    return
+                end
+
+                cloptions[opt] = value
+            end
+
+        elseif v:sub(1, 1) == "-" then
+            for j = 2, #v do
+                local opt = v:sub(j, j)
+
+                if cloptions[opt] == nil then
+                    print("spm: invalid option '-" .. opt .. "'.")
+                    print("try 'spm --help' for more information.")
+                    return
+                end
+
+                if type(cloptions[opt]) ~= "boolean" then
+                    print("spm: option '-" .. opt .. "' requires the long form '--" .. opt .. "=value'.")
+                    return
+                end
+
+                cloptions[opt] = true
+            end
+
+        else
+            table.insert(args, v)
+        end
+
+        i = i + 1
     end
-    return true, repojson
-end
 
-local function getRepos(root)
-    local repos = {}
-    local visited = {}
+    if cloptions.sysroot=="" then
+        syscall.chdir("/")
+    else
+        syscall.chdir(cloptions.sysroot)
+    end
 
-    local queue = {root}
-    local head = 1
+    if cloptions.init then
+        fs.mkdir("var/spm/cache/")
+        fs.mkdir("var/spm/db/")
+        fs.writeAllText("var/spm/db/repos.list","")
+        fs.mkdir("var/spm/db/installed/")
+        fs.mkdir("etc/spm/")
+        fs.writeAllText("etc/spm/sources.list","https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm.json\nhttp://localhost:8000/spm.json")
+    end
 
-    while head <= #queue do
-        local url = queue[head]
-        head = head + 1
+    if not fs.exists("var/spm/") or not fs.exists("etc/spm/") then
+        print("spm not initialized run \"spm --init\"")
+        return
+    end
 
-        if not visited[url] then
-            visited[url] = true
+    local repodb = string.split(fs.readAllText("var/spm/db/repos.list"), "\n")
+    local sourcelist = string.split(fs.readAllText("etc/spm/sources.list"), "\n")
+    local pkgdblist = fs.list("var/spm/db/installed/")
+    local pkgdb = {}
 
-            local ok, repo = checkRepo(url)
-            if ok then
-                table.insert(repos, {
-                    url = url,
-                    data = repo
-                })
+    for _,v in ipairs(pkgdblist) do
+        local file = fs.readAllText("var/spm/db/installed/"..v)
+        pkgdb[v] = json.decode(file)
+    end
 
-                if repo.refs then
-                    for _, ref in ipairs(repo.refs) do
-                        if not visited[ref] then
-                            queue[#queue + 1] = ref
+    local function printpkgs(list)
+        local colWidth=0
+        local tmp = syscall.devctl(1, "size")
+        local sizeX, sizeY = tonumber(tmp:sub(1, tmp:find(";")-1)), tonumber(tmp:sub(tmp:find(";")+1))
+        for _, v in ipairs(list) do
+            if #v + 2 > colWidth then colWidth = #v + 2 end
+        end
+        local numCols = math.max(1, math.floor(sizeX / colWidth))
+
+        for i, v in ipairs(list) do
+            printInline(v.id)
+            printInline((" "):rep(colWidth - #v))
+            if i % numCols == 0 then print("") end
+        end
+        if #list % numCols ~= 0 then print("") end
+    end
+
+    local function checkRepo(repo)
+        local resp = get(repo)
+        if not resp then return false end
+        if resp.code ~= 200 then
+            return false
+        end
+        local repojson = json.decode(resp.body)
+        if not repojson then
+            return false
+        end
+        return true, repojson
+    end
+
+    local function getRepos(root)
+        local repos = {}
+        local visited = {}
+
+        local queue = table.values(root)
+        local head = 1
+
+        while head <= #queue do
+            local url = queue[head]
+            head = head + 1
+
+            if not visited[url] then
+                visited[url] = true
+
+                print("GET:"..tostring(head-1).." "..url)
+
+                local ok, repo = checkRepo(url)
+                if ok then
+                    table.insert(repos, url)
+
+                    if repo.refs then
+                        for _, ref in ipairs(repo.refs) do
+                            if not visited[ref] then
+                                queue[#queue + 1] = ref
+                            end
                         end
                     end
                 end
             end
         end
+
+        return repos
     end
 
-    return repos
-end
+    local function getPkg(name)
+        for _, url in ipairs(repodb) do
+            local ok, repo = checkRepo(url)
+            if not ok then
+                print("Failed to contact repository:")
+                print(url)
+                print("Consider running 'spm -Sy' to remove broken repositories.")
+            else
+                if repo.packages then
+                    if repo.packages[name] then
+                        local pkgurl = repo.packages[name]
+                        local resp = get(pkgurl)
+                        if not resp then
+                            print("Repository: "..url)
+                            print("Has broken package: "..name)
+                            print("Ignoring")
+                        else
+                            if resp.code ~= 200 then
+                                print("Repository: "..url)
+                                print("Has broken package: "..name)
+                                print("Ignoring")
+                            else
+                                local pkgjson = json.decode(resp.body)
+                                if not pkgjson then
+                                    print("Repository: "..url)
+                                    print("Has broken package: "..name)
+                                    print("Ignoring")
+                                else
+                                    return {
+                                        url=pkgurl,
+                                        tar=pkgjson.tarball,
+                                        hash=pkgjson.hash,
+                                        id=pkgjson.id,
+                                        deps=pkgjson.dependencies,
+                                        desc=pkgjson.description,
+                                        auth=pkgjson.authors,
+                                        ver=pkgjson.version
+                                    }
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        return false, "target not found: "..name
+    end
 
-local function getPkg(name)
-    
-end
+    if cloptions.S then
+        if cloptions.y then
+            print("Updating repositories...")
+            repodb={}
+            for _,v in ipairs(getRepos(sourcelist)) do
+                repodb[#repodb+1]=v
+            end
+            print("Writing new data...")
+            local str = ""
+            for _,v in ipairs(repodb) do
+                str=str..v.."\n"
+            end
+            fs.writeAllText("var/spm/db/repos.list", str)
+        end
+        if cloptions.i then
+            -- info remote
+        end
+        local needed = {}
+        local found = {}
+        for i,v in ipairs(args) do
+            local pkg, err = getPkg(v)
+            if not pkg then print(err) syscall.exit(1) end
+            needed[#needed+1] = pkg
+            found[v]=true
+        end
+        if cloptions.u then
+            for i,v in ipairs(table.keys(pkgdb)) do
+                local pkg, err = getPkg(v)
+                if pkg then
+                    needed[#needed+1] = pkg
+                    found[v]=true
+                end
+            end
+        end
+        local head = 0
+        while head<#needed do
+            head=head+1
+            for i,v in ipairs(needed[head].deps) do
+                if not found[v] and not pkgdb[v] then
+                    local pkg, err = getPkg(v)
+                    if pkg then
+                        needed[#needed+1] = pkg
+                        found[v]=true
+                    end
+                end
+            end
+        end
+        if #needed==0 then
+            syscall.exit()
+        end
+        print("")
+        print("Packages("..tostring(#needed).."):")
+        printpkgs(needed)
+        print("")
+        while true do
+            local text = userinput(0, "Proceed with download [Y/n]", nil, 1)
+            if text=="" then
+                break
+            elseif text:lower()=="y" then
+                break
+            elseif text:lower()=="n" then
+                syscall.exit()
+            end
+        end
 
-if args[1] == "install" then
-    local pkg=getPkg(args[2])
-elseif args[1] == "sync" then
-    error("not implemented")
-elseif args[1] == "remove" then
-    error("not implemented")
+        local files = {}
+        for _,v in ipairs(needed) do
+            local file = http.get(v.tar)
+            
+        end
+        
+    elseif cloptions.R then
+        -- remove tree
+    elseif cloptions.Q then
+        if cloptions.l then
+            -- list installed files
+        elseif cloptions.o then
+            -- get package file arg[1] is from
+        elseif cloptions.e then
+            -- list installed manually
+        elseif cloptions.i then
+            -- list installed info
+        elseif cloptions.t then
+            -- list orphans
+        end
+    end
+end
+local ok,err = xpcall(spm, debug.traceback, ...)
+if not ok then
+    print("Fatal error in spm:")
+    print(err)
 end

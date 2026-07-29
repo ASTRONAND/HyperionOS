@@ -20,3 +20,24 @@ function printInline(...)
     output = output:sub(1, -2)
     syscall.write(1, output)
 end
+
+function userinput(fd, helpstr, replacestr, fdo)
+    local str = ""
+    if helpstr then print(helpstr) end
+    while true do
+        local inp = syscall.read(fd)
+        if inp~="" and inp~=nil then
+            if inp~="\n" then
+                if replacestr then
+                    syscall.write(fdo, replacestr)
+                else
+                    syscall.write(fdo, inp)
+                end
+                str = inp
+            else
+                break
+            end
+        end
+    end
+    return str
+end

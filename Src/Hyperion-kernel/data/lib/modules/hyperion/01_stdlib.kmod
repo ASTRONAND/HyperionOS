@@ -23,6 +23,7 @@ function string.split(str, delim, maxResultCountOrNil)
     assert(#delim == 1, "only delim len 1 supported for now")
     if not str then return false end
     maxResultCountOrNil = (maxResultCountOrNil or 0) - 1
+    if str == "" then return {} end
     local rv = {}
     local buf = ""
     for i = 1, #str do

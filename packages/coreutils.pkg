@@ -8,6 +8,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "c52244c7fd2ca96780ed684327ebb55872757a4f6c8d90e18367ec4e0d8f10ad",
+    "hash": "dc2b541f3b9eaf8f0fd41afdaef95d2a2c37a05c01e1e6143dd0d17380f75340",
     "tarball": "http://localhost:8000/packages/raw/coreutils.tar.xz"
 }

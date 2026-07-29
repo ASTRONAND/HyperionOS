@@ -21,12 +21,15 @@
         "pid": "http://localhost:8000/packages/pid.pkg",
         "spm": "http://localhost:8000/packages/spm.pkg",
         "sysinit": "http://localhost:8000/packages/sysinit.pkg",
+        "tar": "http://localhost:8000/packages/tar.pkg",
         "xz": "http://localhost:8000/packages/xz.pkg"
     },
     "refs": [
-        "https://git.astronand.dev/Astronand/HyperionOS-packages/raw/branch/main/spm.json"
+        "https://git.astronand.dev/Astronand/HyperionOS-packages/raw/branch/main/spm.json",
+        "http://localhost:8001/spm.json"
     ],
     "maintainers": [
         "Hyperion"
-    ]
+    ],
+    "self": "http://localhost:8000/spm.json"
 }

@@ -15,8 +15,10 @@ See `building.md`.
 
 - Functionality is split into kernel modules (`.kmod`)
 - Task-based lightweight thread/task preemptive scheduler with process isolation and IPC support
-- Virtual filesystem unified interface for disk, RAM, and virtual filesystems
+- Virtual filesystem
 - TTY & Shell
+- Sockets
+- 
 
 ---
 
@@ -45,6 +47,12 @@ Contributions are welcome, though please follow these guidelines:
 4. Test, ensure your changes don’t break existing functionality.
 
 Add your name to `contributors.md` when your PR is merged.
+
+---
+
+## Information
+
+Trello: https://trello.com/b/8dryrlMi
 
 ---
 
