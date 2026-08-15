@@ -8,6 +8,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "d728bd2e85437a8a96d668cd731c5a22",
-    "tarball": "http://localhost:8000/packages/raw/minify.tar.gz"
+    "hash": "87cb37074598899bf446d76bee0945a4",
+    "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/minify.tar.gz"
 }

@@ -12,10 +12,10 @@ PACKAGE_ROOT = ROOT / "packages"
 PACKAGE_DIR = PACKAGE_ROOT / "raw"
 
 # main repo
-#API_ROOT = "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main"
+API_ROOT = "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main"
 
 # local repo
-API_ROOT = "http://localhost:8000"
+#API_ROOT = "http://localhost:8000"
 
 DEFAULT_VERSION = "0.0.0"
 DEFAULT_DESCRIPTION = "No description provided"

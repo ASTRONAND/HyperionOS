@@ -8,6 +8,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "79e9de8d0e639f1f7183d380f93082c3",
-    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-ac.tar.gz"
+    "hash": "a44f05701db0feef517f196047a198d7",
+    "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/Hyperion-firmware-ac.tar.gz"
 }

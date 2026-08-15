@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "0ced136c9ac9324fe869515283839a23",
-    "tarball": "http://localhost:8000/packages/raw/json.tar.gz"
+    "hash": "6602fa70ec8e1288015168eddf817664",
+    "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/json.tar.gz"
 }

@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0-release",
-    "hash": "2c6544d7c8e72522f84b5d88ba30e7e7",
-    "tarball": "http://localhost:8000/packages/raw/deflate.tar.gz"
+    "hash": "23ef21eef7e266d416bddee1eb673e30",
+    "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/deflate.tar.gz"
 }

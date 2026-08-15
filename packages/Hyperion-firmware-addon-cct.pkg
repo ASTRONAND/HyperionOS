@@ -4,6 +4,6 @@
     "authors": [],
     "dependencies": [],
     "version": "0.0.0",
-    "hash": "5ee70c898fb350c5b0a40a0b8cfc4a97",
-    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-addon-cct.tar.gz"
+    "hash": "cba0823f33d942e92ddad54c2d4a7004",
+    "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/Hyperion-firmware-addon-cct.tar.gz"
 }

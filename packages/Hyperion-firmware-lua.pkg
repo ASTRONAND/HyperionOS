@@ -4,6 +4,6 @@
     "authors": [],
     "dependencies": [],
     "version": "0.0.0",
-    "hash": "122ff4566fe42c48335b198567938c17",
-    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-lua.tar.gz"
+    "hash": "f9fcd282170185f174fd5c1e7b9cb93e",
+    "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/Hyperion-firmware-lua.tar.gz"
 }
