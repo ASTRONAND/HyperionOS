@@ -10,6 +10,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "38422b0eb99cef1122d4aeb3472e705ba304f58713280449bd3a6a492bacd521",
-    "tarball": "http://localhost:8000/packages/raw/xz.tar.xz"
+    "hash": "32b0bcfa6c57158a00e2cb75b9f2f023",
+    "tarball": "http://localhost:8000/packages/raw/xz.tar.gz"
 }

@@ -8,6 +8,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "771fd62d79ff857a1ea1cf3caae340a40b08bc2330fcc6b012b9e07d001ddb45",
-    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-ac.tar.xz"
+    "hash": "79e9de8d0e639f1f7183d380f93082c3",
+    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-ac.tar.gz"
 }

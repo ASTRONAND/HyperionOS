@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "a92fbf2d886c1ee965b1d34aed8bcf5294d97fd0f55a981e82ba5d17171e99e9",
-    "tarball": "http://localhost:8000/packages/raw/bit32.tar.xz"
+    "hash": "e142c639ebae6ce8b346ff241cbce0b9",
+    "tarball": "http://localhost:8000/packages/raw/bit32.tar.gz"
 }

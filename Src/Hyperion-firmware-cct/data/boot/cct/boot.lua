@@ -55,11 +55,12 @@ local function displaySuperBadError(err)
     lterm.write("A critical error occurred while loading the system:")
     lterm.setCursorPos(1, 3)
     write(err, lterm)
-    while true do end
+    coroutine.yield("key")
 end
 
 term.setCursorBlink(false)
 local ok, err = xpcall(function()
+    --p
     local apis = {BOOT_DRIVE_PATH = BOOT_DRIVE_PATH}
 
     local lua = {
@@ -100,6 +101,7 @@ local ok, err = xpcall(function()
             _G[i] = nil
         end
     end
+    --p
 
     local acekeys={
         [apis.keys.enter]="\n",
@@ -248,11 +250,12 @@ local ok, err = xpcall(function()
         return value
     end
 
-    local peripheral={}
+    --p
+    local p={}
     local native = apis.peripheral
     local sides = {"top", "bottom", "left", "right", "front", "back"}
 
-    function peripheral.getNames()
+    function p.getNames()
         local results = {}
         for n = 1, #sides do
             local side = sides[n]
@@ -269,7 +272,7 @@ local ok, err = xpcall(function()
         return results
     end
 
-    function peripheral.isPresent(name)
+    function p.isPresent(name)
         if native.isPresent(name) then
             return true
         end
@@ -283,7 +286,7 @@ local ok, err = xpcall(function()
         return false
     end
 
-    function peripheral.getType(peripheral)
+    function p.getType(peripheral)
         if type(peripheral) == "string" then
             if native.isPresent(peripheral) then
                 return native.getType(peripheral)
@@ -304,7 +307,7 @@ local ok, err = xpcall(function()
         end
     end
 
-    function peripheral.hasType(peripheral, peripheral_type)
+    function p.hasType(peripheral, peripheral_type)
         if type(peripheral) == "string" then
             if native.isPresent(peripheral) then
                 return native.hasType(peripheral, peripheral_type)
@@ -325,7 +328,7 @@ local ok, err = xpcall(function()
         end
     end
 
-    function peripheral.getMethods(name)
+    function p.getMethods(name)
         if native.isPresent(name) then
             return native.getMethods(name)
         end
@@ -338,7 +341,7 @@ local ok, err = xpcall(function()
         return nil
     end
 
-    function peripheral.getName(peripheral)
+    function p.getName(peripheral)
         local mt = getmetatable(peripheral)
         if not mt or mt.__name ~= "peripheral" or type(mt.name) ~= "string" then
             error("bad argument #1 (table is not a peripheral)", 2)
@@ -346,7 +349,7 @@ local ok, err = xpcall(function()
         return mt.name
     end
 
-    function peripheral.call(name, method, ...)
+    function p.call(name, method, ...)
         if native.isPresent(name) then
             return native.call(name, method, ...)
         end
@@ -360,13 +363,13 @@ local ok, err = xpcall(function()
         return nil
     end
 
-    function peripheral.wrap(name)
-        local methods = peripheral.getMethods(name)
+    function p.wrap(name)
+        local methods = p.getMethods(name)
         if not methods then
             return nil
         end
 
-        local types = { peripheral.getType(name) }
+        local types = { p.getType(name) }
         for i = 1, #types do types[types[i]] = true end
         local result = setmetatable({}, {
             __name = "peripheral",
@@ -376,17 +379,17 @@ local ok, err = xpcall(function()
         })
         for _, method in ipairs(methods) do
             result[method] = function(...)
-                return peripheral.call(name, method, ...)
+                return p.call(name, method, ...)
             end
         end
         return result
     end
 
-    function peripheral.find(ty, filter)
+    function p.find(ty, filter)
         local results = {}
-        for _, name in ipairs(peripheral.getNames()) do
-            if peripheral.hasType(name, ty) then
-                local wrapped = peripheral.wrap(name)
+        for _, name in ipairs(p.getNames()) do
+            if p.hasType(name, ty) then
+                local wrapped = p.wrap(name)
                 if filter == nil or filter(name, wrapped) then
                     table.insert(results, wrapped)
                 end
@@ -394,8 +397,8 @@ local ok, err = xpcall(function()
         end
         return table.unpack(results)
     end
-
-    local allscreens = {peripheral.find("monitor")}
+    --p
+    local allscreens = {p.find("monitor")}
     for i=1, #allscreens do
         allscreens[i].setTextScale(.5)
         allscreens[i].clear()
@@ -403,6 +406,17 @@ local ok, err = xpcall(function()
     end
 
     allscreens[#allscreens+1] = apis.term
+
+    local callAsyncQueue = {}
+    local callAsyncReturn = {}
+    apis.callAsyncReturn = callAsyncReturn
+    local callidx=0
+
+    function apis.callAsync(func, ...)
+        callidx=callidx+1
+        callAsyncQueue[#callAsyncQueue+1] = {callidx, func, ...}
+        return callidx
+    end
 
     local EFI = {
         getEpochMs = function() return apis.os.epoch("utc") end,
@@ -489,7 +503,8 @@ local ok, err = xpcall(function()
     apis.term.setCursorPos(1, 1)
 
     local kernelCoro = coroutine.create(function()
-        ---@diagnostic disable-next-line: param-type-mismatch
+        --pf
+        ---@diagnostic disable-next-line: param-type-mismatch-
         local ok, err = xpcall(Kernel, debug.traceback, EFI)
         if not ok and not EFI.reboot then displaySuperBadError(err) end
         if err then
@@ -518,6 +533,7 @@ local ok, err = xpcall(function()
     end
 
     EFI.screenCtl:print("Loaded in " .. tostring(apis.os.clock()) .. " seconds.\n")
+    --p
 
     while true do
         local status, err = coroutine.resumeWithTimeout(kernelCoro, 50)
@@ -526,28 +542,30 @@ local ok, err = xpcall(function()
         while not exit do
             local event = {coroutine.yield()}
             if event[1] == "key" then
+                queueEvent(table.unpack(event))
                 queueEvent("keyPressed", 1, event[2])
                 if acekeys[event[2]] then
                     queueEvent("keyTyped", 1, acekeys[event[2]])
                 end
             elseif event[1] == "char" then
+                queueEvent(table.unpack(event))
                 queueEvent("keyTyped", 1, event[2])
             elseif event[1] == "key_up" then
+                queueEvent(table.unpack(event))
                 queueEvent("keyReleased", 1, event[2])
-            elseif event[1] == "disk" then
-                queueEvent("componentAdded", "disk")
-            elseif event[1] == "disk_eject" then
-                queueEvent("componentRemoved", "disk")
-            elseif event[1] == "modem_message" then
-                queueEvent("modem_message", table.unpack(event, 2))
-            elseif event[1] == "rednet_message" then
-                queueEvent("rednet_message", table.unpack(event, 2))
-            elseif event[1] == "http_success" then
-                queueEvent("http_success", table.unpack(event, 2))
-            elseif event[1] == "http_failure" then
-                queueEvent("http_failure", table.unpack(event, 2))
             elseif event[1] == "NoSleep" then
                 exit = true
+            else
+                queueEvent(table.unpack(event))
+            end
+        end
+        while #callAsyncQueue>0 do
+            local bundle = table.remove(callAsyncQueue, 1)
+            local ret = {xpcall(bundle[2], debug.traceback, table.unpack(bundle, 3))}
+            if not ret[1] then
+                callAsyncReturn[bundle[1]]={false, ret[2]}
+            else
+                callAsyncReturn[bundle[1]]={true, table.unpack(ret,2)}
             end
         end
         if status == "error" or coroutine.status(kernelCoro) == "dead" then
@@ -555,6 +573,12 @@ local ok, err = xpcall(function()
                 apis.os.reboot()
             end
             displaySuperBadError("Kernel error: " .. tostring(err))
+            coroutine.yield("key")
+        elseif status == "success" then
+            if EFI.reboot then
+                apis.os.reboot()
+            end
+            displaySuperBadError("Kernel error: Attempted to yield main thread\n"..debug.traceback(kernelCoro, "Attempted to yield main thread"))
             coroutine.yield("key")
         end
         initFs:refresh()

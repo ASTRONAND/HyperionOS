@@ -144,7 +144,6 @@ local function write(text, term)
     term.setCursorPos(x, y)
 end
 
-kernel.devfs.data.tty={}
 kernel.cct.ctrl,kernel.cct.alt = false, false
 
 local function serializeBool(bool)

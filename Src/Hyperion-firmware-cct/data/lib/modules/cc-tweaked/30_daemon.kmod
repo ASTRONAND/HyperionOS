@@ -1,10 +1,11 @@
 --:Minify:--
 local kernel=...
 local keys=kernel.apis.keys
+kernel.cct.eventhooks={}
 
-kernel.processes.cctdeamon = function()
+kernel.processes.cctdaemon = function()
     local timeout = false
-    kernel.log("CCT deamon started")
+    kernel.log("CCT daemon started")
     while true do
         local event = {kernel.EFI:getMachineEvent()}
 
@@ -84,6 +85,13 @@ kernel.processes.cctdeamon = function()
                     kernel.cct.httperror[event[2]]=event[3]
                     kernel.cct.httpresponse[event[2]]=event[4]
                 end
+            else
+                if kernel.cct.eventhooks[eventType] then
+                    local ok,err = xpcall(kernel.cct.eventhooks[eventType], debug.traceback, table.unpack(event))
+                    if not ok then
+                        kernel.log("Error on eventhook "..eventType.."\n"..err)
+                    end
+                end
             end
 
             timeout = false
@@ -97,4 +105,4 @@ kernel.processes.cctdeamon = function()
     end
 end
 
-kernel.log("CCT deamon queued for execution")
+kernel.log("CCT daemon queued for execution")

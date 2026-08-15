@@ -8,6 +8,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "47f8e1658373657131d514af623e7cf74fdc3165e8d4c05634fd064eb1217ef8",
-    "tarball": "http://localhost:8000/packages/raw/minify.tar.xz"
+    "hash": "d728bd2e85437a8a96d668cd731c5a22",
+    "tarball": "http://localhost:8000/packages/raw/minify.tar.gz"
 }

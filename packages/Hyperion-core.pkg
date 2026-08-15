@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "e70a3cff68a821b6d1641553c2b1495e07930bcd5808db63e8768608a928339e",
-    "tarball": "http://localhost:8000/packages/raw/Hyperion-core.tar.xz"
+    "hash": "e4de9d3d66a1a13e65b502ebd1404739",
+    "tarball": "http://localhost:8000/packages/raw/Hyperion-core.tar.gz"
 }

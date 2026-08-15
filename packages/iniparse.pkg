@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "6a883872f8f1db19617b99aae58358dc603f54801b7cde035b603773f03c7ca1",
-    "tarball": "http://localhost:8000/packages/raw/iniparse.tar.xz"
+    "hash": "386a212dee133206759c17809dced5d9",
+    "tarball": "http://localhost:8000/packages/raw/iniparse.tar.gz"
 }

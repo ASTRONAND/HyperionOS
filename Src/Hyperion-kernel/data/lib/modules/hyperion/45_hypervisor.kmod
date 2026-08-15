@@ -150,7 +150,6 @@ function sys.exec(path, args, envars)
         tasks[tostring(task.pid)].status = "Z"
     end)
     task.syscallReturn = {}
-    coroutine.yield()
 end
 
 function sys.sleep(s)

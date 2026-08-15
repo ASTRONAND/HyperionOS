@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "f27f343ab85bb4dc8bd0ee6882a01aaaceeb38c791f672b54c2f1d6e80d4287e",
-    "tarball": "http://localhost:8000/packages/raw/json.tar.xz"
+    "hash": "0ced136c9ac9324fe869515283839a23",
+    "tarball": "http://localhost:8000/packages/raw/json.tar.gz"
 }

@@ -120,6 +120,7 @@ function handler.connect(fd, address)
         end
         fdo.socket.active=true
         fdo.socket.url=url
+        fdo.socket.loaded=false
 
         return true
     end
@@ -129,10 +130,11 @@ function handler.connect(fd, address)
             return
         end
 
-        if not kernel.cct.httpqueue[fdo.socket.url] then
+        if not kernel.cct.httpqueue[fdo.socket.url] and not fdo.socket.loaded then
             fdo.socket.file=kernel.sfile(buildResponse(kernel.cct.httpresponse[fdo.socket.url]))
             kernel.cct.httpqueue[fdo.socket.url]=nil
             kernel.cct.httpresponse[fdo.socket.url]=nil
+            fdo.socket.loaded=true
         end
 
         if not fdo.socket.file then
@@ -141,6 +143,7 @@ function handler.connect(fd, address)
                     fdo.socket.file=kernel.sfile(buildResponse(kernel.cct.httpresponse[fdo.socket.url]))
                     kernel.cct.httpqueue[fdo.socket.url]=nil
                     kernel.cct.httpresponse[fdo.socket.url]=nil
+                    fdo.socket.loaded=true
                     return fdo.socket.file.read(count)
                 end
             end
@@ -156,10 +159,11 @@ function handler.connect(fd, address)
             return
         end
 
-        if not kernel.cct.httpqueue[fdo.socket.url] then
+        if not kernel.cct.httpqueue[fdo.socket.url] and not fdo.socket.loaded then
             fdo.socket.file=kernel.sfile(buildResponse(kernel.cct.httpresponse[fdo.socket.url]))
             kernel.cct.httpqueue[fdo.socket.url]=nil
             kernel.cct.httpresponse[fdo.socket.url]=nil
+            fdo.socket.loaded=true
         end
 
         if not fdo.socket.file then
@@ -168,6 +172,7 @@ function handler.connect(fd, address)
                     fdo.socket.file=kernel.sfile(buildResponse(kernel.cct.httpresponse[fdo.socket.url]))
                     kernel.cct.httpqueue[fdo.socket.url]=nil
                     kernel.cct.httpresponse[fdo.socket.url]=nil
+                    fdo.socket.loaded=true
                     return fdo.socket.file.seek(whence, offset)
                 end
             end

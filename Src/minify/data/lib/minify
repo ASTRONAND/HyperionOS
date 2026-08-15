@@ -1,3 +1,4 @@
+--:Minify:--
 --[[
 MIT License
 
@@ -89,7 +90,11 @@ local WhiteChars = lookupify { ' ', '\n', '\t', '\r' }
 
 local EscapeForCharacter = { ['\r'] = '\\r', ['\n'] = '\\n', ['\t'] = '\\t', ['"'] = '\\"', ["'"] = "\\'", ['\\'] = '\\' }
 
-local CharacterForEscape = { ['r'] = '\r', ['n'] = '\n', ['t'] = '\t', ['"'] = '"', ["'"] = "'", ['\\'] = '\\' }
+local CharacterForEscape = { ['r'] = '\r', ['n'] = '\n', ['t'] = '\t', ['"'] = '"', ["'"] = "'", ['\\'] = '\\', ['b'] = '\b', ['f'] = '\f' }
+
+for i=0,255 do
+	CharacterForEscape[tostring(i)]=string.char(i)
+end
 
 local AllIdentStartChars = lookupify { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i',
 	'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r',
@@ -201,9 +206,9 @@ local function CreateLuaTokenStream(text)
 			end
 			q = q + 1
 		end
-		for _, token in pairs(tokenBuffer) do
-			print(token.Type .. "<" .. token.Source .. ">")
-		end
+		--for _, token in pairs(tokenBuffer) do
+		--	print(token.Type .. "<" .. token.Source .. ">")
+		--end
 		olderr("file<" .. line .. ":" .. char .. ">: " .. str)
 	end
 
@@ -485,9 +490,9 @@ local function CreateLuaParser(text)
 		if tk.Type == type and (source == nil or tk.Source == source) then
 			return get()
 		else
-			for i = -3, 3 do
-				print("Tokens[" .. i .. "] = `" .. peek(i).Source .. "`")
-			end
+			--for i = -3, 3 do
+			--	print("Tokens[" .. i .. "] = `" .. peek(i).Source .. "`")
+			--end
 			if source then
 				error(getTokenStartPosition(tk) .. ": `" .. source .. "` expected.")
 			else
@@ -666,7 +671,7 @@ local function CreateLuaParser(text)
 			get()
 			return body, after
 		else
-			print(after.Type, after.Source)
+			--print(after.Type, after.Source)
 			error(getTokenStartPosition(after) .. ": " .. terminator .. " expected.")
 		end
 	end
@@ -2802,6 +2807,7 @@ local function StripAst(ast)
 					stript(sep)
 				end
 			end
+			
 			stript(stat.Token_OpenParen)
 			for index, arg in pairs(stat.ArgList) do
 				stript(arg)
@@ -3074,7 +3080,7 @@ end
 
 local function validateCode(code, validate)
 	if validate then
-		local func,err = load(code, "@minifyvalidation", "t", {})
+		local func,err = load(code, "@minifyvalidation", "t", _G)
 		if not func then
 			error(err)
 		end

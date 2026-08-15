@@ -1,0 +1,9 @@
+{
+    "id": "Hyperion-firmware-vm",
+    "description": "No description provided",
+    "authors": [],
+    "dependencies": [],
+    "version": "0.0.0",
+    "hash": "cd6e3d268d9f7789e766bf8311bd755f",
+    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-vm.tar.gz"
+}

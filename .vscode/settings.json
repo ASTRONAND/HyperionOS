@@ -8,5 +8,8 @@
         "toHex",
         "loadcstr",
         "userinput"
+    ],
+    "Lua.diagnostics.disable": [
+        "need-check-nil"
     ]
 }

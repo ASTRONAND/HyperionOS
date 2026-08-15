@@ -8,9 +8,12 @@
     "dependencies": [
         "tar",
         "deflate",
-        "json"
+        "json",
+        "minify",
+        "bit32",
+        "Hyperion-core"
     ],
     "version": "1.0.0",
-    "hash": "26d7cf304ad0bc36fbfa80af1b7af957de29a6c233e6d8a302b2b562f78326db",
-    "tarball": "http://localhost:8000/packages/raw/spm.tar.xz"
+    "hash": "c2df5d0028987d76b9321ed403bcb370",
+    "tarball": "http://localhost:8000/packages/raw/spm.tar.gz"
 }

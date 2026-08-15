@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.3.0",
-    "hash": "f01bd72d19c57a3a12c940fb2fd8d09b53a47eb857e09ecbca6464199dba35ae",
-    "tarball": "http://localhost:8000/packages/raw/hysh.tar.xz"
+    "hash": "80514eb2984bb8fa249b49bd0aae7847",
+    "tarball": "http://localhost:8000/packages/raw/hysh.tar.gz"
 }

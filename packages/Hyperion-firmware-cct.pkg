@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.3.0",
-    "hash": "c2b234005baa8bee1b753b96808f0b326a7f035d65e52295cb93320d5a397886",
-    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-cct.tar.xz"
+    "hash": "4139f847ee8c2095dc2d561c794e5a3f",
+    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-cct.tar.gz"
 }

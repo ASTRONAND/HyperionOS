@@ -1,5 +1,6 @@
 --:Minify:--
 local EFI=...
+--pf
 EFI.beep(440, 500)
 local screen=EFI.screenCtl
 local ifs=EFI.initfs
@@ -302,20 +303,24 @@ for _, i in ipairs(ifs.list("/lib/modules")) do
         for _,v in ipairs(modlist) do
             local prior=tonumber(v:sub(1,2))
             if prior then
-                modules[prior+1][#modules[prior+1]+1]="/lib/modules/"..i.."/"..v
+                modules[prior+1][#modules[prior+1]+1]=i.."/"..v
             end
         end
     end
 end
 
 kernel.ifs=ifs
+--pf
 kernel.apis=EFI.firmware
+--pf
 kernel.EFI=EFI
 kernel.arch=arch
 kernel.initdisks=disks
 kernel.screen=screen
 kernel.processes={}
 kernel.fstab=fstab
+kernel.denied={}
+kernel.loadingModule="kernel"
 
 kernel.kernelTask = {
     name="kernel",
@@ -357,6 +362,11 @@ function kernel.asyncReturn(...)
     kernel.currentTask.syscallReturn = {...}
 end
 
+function kernel.deny(moduleid)
+    kernel.denied[moduleid]=true
+    if kernel.config.showModLoad then kernel.log("Module "..kernel.loadingModule.." denied "..moduleid, "DBUG", 0xFF0000) end
+end
+
 kernel.syscalls["time"]=function() return kernel.EFI:getEpochMs() end
 kernel.syscalls["date"]=function() return kernel.EFI:date() end
 kernel.syscalls["log"]=kernel.log
@@ -390,28 +400,39 @@ kernel.syscalls["halt"]=function()
         kernel.halt()
     end
 end
+kernel.syscalls["saveLog"]=function()
+    if kernel.uid==0 or kernel.groups.wheel then
+        kernel.saveLog()
+    end
+end
 
 kernel.saveLog()
 kernel.log("Running modules")
 for _,p in ipairs(modules) do
     for _,v in ipairs(p) do
-        if kernel.config.showModLoad then kernel.log("Loading module "..v, "DBUG", 0x00FFFF) end
-        local code=ifs.readAllText(v)
-        if not code then
-            kernel.panic("Failed to read module "..v)
+        kernel.loadingModule=v
+        if not kernel.denied[v] then
+            if kernel.config.showModLoad then kernel.log("Loading module "..v, "DBUG", 0x00FFFF) end
+            local code=ifs.readAllText("/lib/modules/"..v)
+            if not code then
+                kernel.panic("Failed to read module "..v)
+            end
+            local func,err=load(code,"@"..v)
+            if not func then kernel.panic("ModuLoadErr: "..tostring(err)) end
+            local status, err = xpcall(func,debug.traceback, kernel)
+            if not status then kernel.panic("ModuRunErr: "..tostring(err)) end
+            if kernel.config.showModLoad then kernel.log("Loaded module "..v, "DBUG", 0x00FFFF) end
+            if kernel.config.moreLogsaves then kernel.saveLog() end
+        else
+            if kernel.config.showModLoad then kernel.log("Denied module "..v, "DBUG", 0xFF0000) end
         end
-        local func,err=load(code,"@"..v)
-        if not func then kernel.panic("ModuLoadErr: "..tostring(err)) end
-        local status, err = xpcall(func,debug.traceback, kernel)
-        if not status then kernel.panic("ModuRunErr: "..tostring(err)) end
-        if kernel.config.showModLoad then kernel.log("Loaded module "..v, "DBUG", 0x00FFFF) end
-        if kernel.config.moreLogsaves then kernel.saveLog() end
     end
 end
 
 kernel.log("Kernel initialized successfully.")
 kernel.saveLog()
 kernel.status="running"
+kernel.loadingModule=nil
 screen:disable()
 local ok,err = xpcall(kernel.main, debug.traceback)
 if not ok then

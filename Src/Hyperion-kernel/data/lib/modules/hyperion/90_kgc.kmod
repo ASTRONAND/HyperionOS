@@ -1,3 +1,4 @@
+--:Minify:--
 local kernel = ...
 kernel.processes.kgc = function()
     while true do
@@ -6,6 +7,6 @@ kernel.processes.kgc = function()
                 kernel.reqcache[i] = nil
             end
         end
-        kernel.sleep(5000)
+        sleep(5)
     end
 end

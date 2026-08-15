@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.2.0",
-    "hash": "0ce3793bcef753f01ced1d5db88f39840ffbbd15eb485e32ebfc9191f0f67360",
-    "tarball": "http://localhost:8000/packages/raw/lua.tar.xz"
+    "hash": "8523c88be2eeaf3a437fe455581df80c",
+    "tarball": "http://localhost:8000/packages/raw/lua.tar.gz"
 }

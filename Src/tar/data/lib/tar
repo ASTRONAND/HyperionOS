@@ -1,3 +1,4 @@
+--:Minify:--
 local LibDeflate = require("LibDeflate")
 local tar = {}
 

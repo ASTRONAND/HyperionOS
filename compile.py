@@ -28,7 +28,7 @@ def debug(message):
 
 
 def sha256(path):
-    hasher = hashlib.sha256()
+    hasher = hashlib.md5()
 
     with open(path, "rb") as file:
         while chunk := file.read(1024 * 1024):

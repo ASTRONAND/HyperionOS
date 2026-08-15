@@ -690,7 +690,9 @@ function vfs.open(path, mode)
     local handle
     if disk:type(diskPath) ~= "directory" then
         handle = disk:open(diskPath, mode)
-        if type(handle) ~= "table" then error("ENFILE") end
+        if type(handle, true) ~= "table" then
+            error("ENFILE")
+        end
     end
 
     if isNew then
@@ -761,7 +763,7 @@ function vfs.close(fd)
     local task = kernel.currentTask
     local file = task.fd[fd]
     if not file then error("EBADF") end
-    if not task.fd[fd].isvirt then 
+    if not task.fd[fd].isvirt then
         total = total - 1
     end
     task.fd[fd] = nil
@@ -1147,6 +1149,12 @@ function vfs.devctl(fd, method, ...)
     return kernel.currentTask.fd[fd].handle[method](...)
 end
 
+function vfs.devlst(fd)
+    if not kernel.currentTask.fd[fd] then error("EBADF") end
+    if not kernel.currentTask.fd[fd] then error("EINVAL") end
+    return table.keys(kernel.currentTask.fd[fd].handle)
+end
+
 vfs.resolveMount = resolveMount
 
 local sys = kernel.syscalls
@@ -1179,6 +1187,7 @@ sys["chroot"]    = vfs.chroot
 sys["dup"]       = vfs.dup
 sys["dup2"]      = vfs.dup2
 sys["devctl"]    = vfs.devctl
+sys["devlst"]    = vfs.devlst
 sys["symlink"]   = vfs.symlink
 sys["readlink"]  = vfs.readlink
 sys["access"]    = vfs.access

@@ -833,12 +833,16 @@ builtinCmds.ops = function()
     end
 end
 
-builtinCmds.reboot = function ()
+builtinCmds.reboot = function()
     syscall.reboot()
 end
 
-builtinCmds.shutdown = function ()
+builtinCmds.shutdown = function()
     syscall.shutdown()
+end
+
+builtinCmds.kill = function(id)
+    syscall.kill(tonumber(id))
 end
 
 local function listDir(dir, prefix)

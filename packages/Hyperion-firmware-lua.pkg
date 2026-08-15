@@ -1,0 +1,9 @@
+{
+    "id": "Hyperion-firmware-lua",
+    "description": "No description provided",
+    "authors": [],
+    "dependencies": [],
+    "version": "0.0.0",
+    "hash": "122ff4566fe42c48335b198567938c17",
+    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-lua.tar.gz"
+}

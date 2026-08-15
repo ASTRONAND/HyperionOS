@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "2ee62a46d32e3d302453d4cb04ac8af72771645b8120e1d827eeb47b599eb192",
-    "tarball": "http://localhost:8000/packages/raw/blake2s.tar.xz"
+    "hash": "0cd816ee2dbc61f93aa129a32407e962",
+    "tarball": "http://localhost:8000/packages/raw/blake2s.tar.gz"
 }

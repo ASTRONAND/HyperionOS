@@ -3,6 +3,7 @@
 local kernel=...
 kernel.cct={}
 kernel.cct.peripheral={}
+kernel.cct.callAsync=kernel.apis.callAsync
 local peripheral=kernel.cct.peripheral
 local apis = kernel.apis
 local native = apis.peripheral
@@ -104,6 +105,40 @@ end
 
 function peripheral.call(name, method, ...)
     if native.isPresent(name) then
+        local id = kernel.cct.callAsync(native.call, name, method, ...)
+        kernel.currentTask.io=function()
+            if kernel.apis.callAsyncReturn[id] then
+                local r=kernel.apis.callAsyncReturn[id]
+                if not r[1] then error(r[2]) end
+                kernel.apis.callAsyncReturn[id]=nil
+                return table.unpack(r,2)
+            end
+        end
+        kernel.currentTask.status="D"
+        return
+    end
+
+    for n = 1, #sides do
+        local side = sides[n]
+        if native.hasType(side, "peripheral_hub") and native.call(side, "isPresentRemote", name) then
+            local id = kernel.cct.callAsync(native.call, side, "callRemote", name, method, ...)
+            kernel.currentTask.io=function()
+                if kernel.apis.callAsyncReturn[id] then
+                    local r=kernel.apis.callAsyncReturn[id]
+                    if not r[1] then error(r[2]) end
+                    kernel.apis.callAsyncReturn[id]=nil
+                    return table.unpack(r,2)
+                end
+            end
+            kernel.currentTask.status="D"
+            return
+        end
+    end
+    return nil
+end
+
+function peripheral.callnative(name, method, ...)
+    if native.isPresent(name) then
         return native.call(name, method, ...)
     end
 
@@ -116,7 +151,7 @@ function peripheral.call(name, method, ...)
     return nil
 end
 
-function peripheral.wrap(name)
+function peripheral.wrap(name, wrap)
     local methods = peripheral.getMethods(name)
     if not methods then
         return nil
@@ -130,9 +165,17 @@ function peripheral.wrap(name)
         type = types[1],
         types = types,
     })
-    for _, method in ipairs(methods) do
-        result[method] = function(...)
-            return peripheral.call(name, method, ...)
+    if wrap then
+        for _, method in ipairs(methods) do
+            result[method] = function(...)
+                return peripheral.call(name, method, ...)
+            end
+        end
+    else
+        for _, method in ipairs(methods) do
+            result[method] = function(...)
+                return peripheral.callnative(name, method, ...)
+            end
         end
     end
     return result

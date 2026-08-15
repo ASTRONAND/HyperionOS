@@ -2,3 +2,5 @@ tar
 deflate
 json
 minify
+bit32
+Hyperion-core

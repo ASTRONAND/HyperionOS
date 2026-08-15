@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.1.0",
-    "hash": "379cae7a2c42b5b0c30476c7660148c60ac426664627c649060c8feca01aa33f",
-    "tarball": "http://localhost:8000/packages/raw/sysinit.tar.xz"
+    "hash": "69efe854e597e8f53caaa2d0c03d0d6f",
+    "tarball": "http://localhost:8000/packages/raw/sysinit.tar.gz"
 }

@@ -1,0 +1,84 @@
+--:Minify:--
+local lib = {}
+
+--[[
+Example framebuffer object
+
+fb = {
+    r={
+        "","" -- repeat for # of rows length of string is the # of collums
+    },
+    g = {
+        "",""
+    },
+    b = {
+        "",""
+    }
+}
+
+Example font object
+
+font = {
+    width=int,
+    hight=int,
+    data={
+        A={
+            "Ga","gs","Gk" -- length of string is byte alligned with the string being a binary bitmap
+        }
+    }
+}
+]]
+
+function lib.newFbObj(fb)
+    local handle = {}
+
+    function handle.setPixel(x,y,color24)
+        
+    end
+
+    function handle.line(x1,y1,x2,y2,color24)
+
+    end
+
+    function handle.box(x1,y1,x2,y2,color24)
+
+    end
+
+    function handle.filledBox(x1,y1,x2,y2,color24)
+
+    end
+
+    function handle.tri(x1,y1,x2,y2,x3,y3,color24)
+
+    end
+
+    function handle.filledTri(x1,y1,x2,y2,x3,y3,color24)
+
+    end
+
+    function handle.window(id,x,y,w,h,writeonly)
+        
+    end
+
+    function handle.editWindow(id,x,y,w,h)
+        
+    end
+
+    function handle.text(x,y,font,color24)
+        
+    end
+
+    function handle.draw()
+        
+    end
+
+    function handle.getPixel(x,y)
+        
+    end
+
+    function handle.getPixels(x1y1,x2,y2)
+        
+    end
+
+    return handle
+end

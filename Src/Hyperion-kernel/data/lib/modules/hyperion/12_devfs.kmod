@@ -214,6 +214,8 @@ end
 data[".meta"]=strFile(buildMeta({
     stdin="/proc/self/fd/0",
     stdout="/proc/self/fd/1",
+    stderr="/proc/self/2",
+    fd="/proc/self/fd",
     log="/var/log/syslog.log"
 }))
 
@@ -222,6 +224,7 @@ if kernel.EFI.getEEPROM then
         if op=="type" then
             return "character device"
         elseif op=="open" then
+            if kernel.uid~=0 then error("EACCES") end
             if mode=="r" then
                 local ptr,eeprom=1,kernel.EFI:getEEPROM()
                 return {
@@ -231,7 +234,6 @@ if kernel.EFI.getEEPROM then
                     end
                 }
             elseif mode=="w" then
-                if kernel.uid~=0 then error("EACCES") end
                 local firstwrite=true
                 return {
                     write=function(data)
@@ -243,7 +245,6 @@ if kernel.EFI.getEEPROM then
                     end
                 }
             elseif mode=="a" then
-                if kernel.uid~=0 then error("EACCES") end
                 return {
                     write=function(data)
                         kernel.EFI:setEEPROM(kernel.EFI:getEEPROM()..data)
@@ -260,6 +261,7 @@ if kernel.EFI.getNvram then
         if op=="type" then
             return "character device"
         elseif op=="open" then
+            if kernel.uid~=0 then error("EACCES") end
             if mode=="r" then
                 local ptr,nvram=1,kernel.EFI:getNvram()
                 return {
@@ -269,7 +271,6 @@ if kernel.EFI.getNvram then
                     end
                 }
             elseif mode=="w" then
-                if kernel.uid~=0 then error("EACCES") end
                 local firstwrite=true
                 return {
                     write=function(data)
@@ -281,7 +282,6 @@ if kernel.EFI.getNvram then
                     end
                 }
             elseif mode=="a" then
-                if kernel.uid~=0 then error("EACCES") end
                 return {
                     write=function(data)
                         kernel.EFI:setNvram(kernel.EFI:getNvram()..data)
@@ -294,7 +294,15 @@ if kernel.EFI.getNvram then
 end
 
 data["disk"]={["by-id"]={}, ["by-path"]={}, ["by-label"]={}}
+-- disks
+for i,v in pairs(kernel.vfs.mounts) do
+    
+end
+
+data["raw"]={["by-type"]={}}
+data["gfx"]={}
 data["input"]={}
+data["tty"]={}
 kernel.devfs={}
 kernel.devfs.data=data
 kernel.devfs.proxy=proxy

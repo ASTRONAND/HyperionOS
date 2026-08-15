@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "73515e60e945b7dc9e5adb34db499e52cec9a44ff688d30ce7600025572a3e4c",
-    "tarball": "http://localhost:8000/packages/raw/gfxterm.tar.xz"
+    "hash": "63a3b040d50c915bb60db7948109953d",
+    "tarball": "http://localhost:8000/packages/raw/gfxterm.tar.gz"
 }

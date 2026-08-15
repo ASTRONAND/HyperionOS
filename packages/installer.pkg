@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "3d57052898dfbfcb645cc407523702d4df91675a17bd04754b6494c3e9d2a53b",
-    "tarball": "http://localhost:8000/packages/raw/installer.tar.xz"
+    "hash": "11d7d6211673eb000c2fa59cc62e1e88",
+    "tarball": "http://localhost:8000/packages/raw/installer.tar.gz"
 }
