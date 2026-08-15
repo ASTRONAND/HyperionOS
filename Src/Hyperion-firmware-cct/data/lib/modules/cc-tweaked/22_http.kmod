@@ -1,0 +1,207 @@
+--:Minify:--
+local kernel = ...
+
+local handler = {}
+
+local http = kernel.apis.http
+
+kernel.cct.httpqueue = kernel.cct.httpqueue or {}
+kernel.cct.httpresponse = kernel.cct.httpresponse or {}
+kernel.cct.httperror = kernel.cct.httperror or {}
+
+local function parseRawRequest(raw, address)
+    local headerEnd = raw:find("\r\n\r\n", 1, true)
+
+    local headerPart
+    local body = ""
+
+    if headerEnd then
+        headerPart = raw:sub(1, headerEnd - 1)
+        body = raw:sub(headerEnd + 4)
+    else
+        headerPart = raw
+    end
+
+    local lines = {}
+
+    for line in headerPart:gmatch("[^\r\n]+") do
+        lines[#lines + 1] = line
+    end
+
+    if #lines == 0 then
+        return nil, "EINVAL"
+    end
+
+    local split=string.split(lines[1], " ")
+    if #split~=3 then
+        return nil, "EINVAL"
+    end
+    local method, path, ver = table.unpack(split)
+
+    local headers = {}
+
+    for i = 2, #lines do
+        local k, v = lines[i]:match("^([^:]+):%s*(.*)$")
+        if k then
+            headers[k] = v
+        end
+    end
+
+    if path:sub(1,1)~="/" then
+        return nil, "EINVAL"
+    end
+    local url = address..path
+
+    local req = {
+        url = url,
+        method = method,
+        headers = headers
+    }
+
+    if body ~= "" then
+        req.body = body
+    end
+
+    return req, url
+end
+
+local function buildResponse(resp)
+    if not resp then
+        return nil, "EINVAL"
+    end
+
+    local code, msg = resp.getResponseCode()
+    local headers = resp.getResponseHeaders()
+    local body = resp.readAll() or ""
+    resp.close()
+
+    local out = {
+        "HTTP/1.1 " ..
+        tostring(code) ..
+        " " ..
+        tostring(msg or "")
+    }
+
+    for i,v in pairs(headers) do
+        out[#out+1] = i..": "..v
+    end
+
+    out[#out + 1] = ""
+    out[#out + 1] = body
+
+    return table.concat(out, "\r\n")
+end
+
+function handler.connect(fd, address)
+    local fdo = kernel.currentTask.fd[fd]
+
+    if not fdo then
+        return nil, "EBADF"
+    end
+
+    fdo.handle.write = function(raw)
+        local req, url = parseRawRequest(raw, address)
+
+        if not req then
+            return nil, url
+        end
+
+        kernel.cct.httpqueue[url] = true
+        local ok, err = http.request(req)
+
+        if not ok then
+            kernel.cct.httpqueue[url] = nil
+            return nil, err
+        end
+        if fdo.socket.active then
+            fdo.socket.content=nil
+            fdo.socket.file.close()
+            fdo.socket.file=nil
+        end
+        fdo.socket.active=true
+        fdo.socket.url=url
+        fdo.socket.loaded=false
+
+        return true
+    end
+
+    fdo.handle.read = function(count)
+        if not fdo.socket.active then
+            return
+        end
+
+        if not kernel.cct.httpqueue[fdo.socket.url] and not fdo.socket.loaded then
+            fdo.socket.file=kernel.sfile(buildResponse(kernel.cct.httpresponse[fdo.socket.url]))
+            kernel.cct.httpqueue[fdo.socket.url]=nil
+            kernel.cct.httpresponse[fdo.socket.url]=nil
+            fdo.socket.loaded=true
+        end
+
+        if not fdo.socket.file then
+            kernel.currentTask.io=function()
+                if not kernel.cct.httpqueue[fdo.socket.url] then
+                    fdo.socket.file=kernel.sfile(buildResponse(kernel.cct.httpresponse[fdo.socket.url]))
+                    kernel.cct.httpqueue[fdo.socket.url]=nil
+                    kernel.cct.httpresponse[fdo.socket.url]=nil
+                    fdo.socket.loaded=true
+                    return fdo.socket.file.read(count)
+                end
+            end
+            kernel.currentTask.status="D"
+            return
+        else
+            return fdo.socket.file.read(count)
+        end
+    end
+
+    fdo.handle.seek = function(whence, offset)
+        if not fdo.socket.active then
+            return
+        end
+
+        if not kernel.cct.httpqueue[fdo.socket.url] and not fdo.socket.loaded then
+            fdo.socket.file=kernel.sfile(buildResponse(kernel.cct.httpresponse[fdo.socket.url]))
+            kernel.cct.httpqueue[fdo.socket.url]=nil
+            kernel.cct.httpresponse[fdo.socket.url]=nil
+            fdo.socket.loaded=true
+        end
+
+        if not fdo.socket.file then
+            kernel.currentTask.io=function()
+                if not kernel.cct.httpqueue[fdo.socket.url] then
+                    fdo.socket.file=kernel.sfile(buildResponse(kernel.cct.httpresponse[fdo.socket.url]))
+                    kernel.cct.httpqueue[fdo.socket.url]=nil
+                    kernel.cct.httpresponse[fdo.socket.url]=nil
+                    fdo.socket.loaded=true
+                    return fdo.socket.file.seek(whence, offset)
+                end
+            end
+            kernel.currentTask.status="D"
+            return
+        else
+            return fdo.socket.file.seek(whence, offset)
+        end
+    end
+
+    fdo.handle.close = function()
+        fdo.socket.file.close()
+        fdo.socket.active=false
+        kernel.cct.httpqueue[fdo.socket.url] = nil
+        kernel.cct.httpresponse[fdo.socket.url] = nil
+        kernel.cct.httperror[fdo.socket.url] = nil
+
+        return true
+    end
+
+    return true
+end
+
+kernel.socket.registerProtocal(
+    "http://",
+    handler
+)
+
+kernel.socket.registerProtocal(
+    "https://",
+    handler
+)

@@ -1,0 +1,12 @@
+{
+    "id": "lua",
+    "description": "Interactive lua shell",
+    "authors": [
+        "Hyperion",
+        "Spsf"
+    ],
+    "dependencies": [],
+    "version": "1.2.0",
+    "hash": "8523c88be2eeaf3a437fe455581df80c",
+    "tarball": "http://localhost:8000/packages/raw/lua.tar.gz"
+}

@@ -1,0 +1,38 @@
+{
+    "packages": {
+        "Hyperion-core": "http://localhost:8000/packages/Hyperion-core.pkg",
+        "Hyperion-firmware-ac": "http://localhost:8000/packages/Hyperion-firmware-ac.pkg",
+        "Hyperion-firmware-addon-cct": "http://localhost:8000/packages/Hyperion-firmware-addon-cct.pkg",
+        "Hyperion-firmware-ccpc": "http://localhost:8000/packages/Hyperion-firmware-ccpc.pkg",
+        "Hyperion-firmware-cct": "http://localhost:8000/packages/Hyperion-firmware-cct.pkg",
+        "Hyperion-firmware-lua": "http://localhost:8000/packages/Hyperion-firmware-lua.pkg",
+        "Hyperion-firmware-oc": "http://localhost:8000/packages/Hyperion-firmware-oc.pkg",
+        "Hyperion-firmware-vm": "http://localhost:8000/packages/Hyperion-firmware-vm.pkg",
+        "Hyperion-kernel": "http://localhost:8000/packages/Hyperion-kernel.pkg",
+        "bit32": "http://localhost:8000/packages/bit32.pkg",
+        "blake2s": "http://localhost:8000/packages/blake2s.pkg",
+        "coreutils": "http://localhost:8000/packages/coreutils.pkg",
+        "deflate": "http://localhost:8000/packages/deflate.pkg",
+        "gfxterm": "http://localhost:8000/packages/gfxterm.pkg",
+        "hysh": "http://localhost:8000/packages/hysh.pkg",
+        "iniparse": "http://localhost:8000/packages/iniparse.pkg",
+        "installer": "http://localhost:8000/packages/installer.pkg",
+        "json": "http://localhost:8000/packages/json.pkg",
+        "lua": "http://localhost:8000/packages/lua.pkg",
+        "micro": "http://localhost:8000/packages/micro.pkg",
+        "minify": "http://localhost:8000/packages/minify.pkg",
+        "pid": "http://localhost:8000/packages/pid.pkg",
+        "spm": "http://localhost:8000/packages/spm.pkg",
+        "sysinit": "http://localhost:8000/packages/sysinit.pkg",
+        "tar": "http://localhost:8000/packages/tar.pkg",
+        "xz": "http://localhost:8000/packages/xz.pkg"
+    },
+    "refs": [
+        "https://git.astronand.dev/Astronand/HyperionOS-packages/raw/branch/main/spm.json",
+        "http://localhost:8001/spm.json"
+    ],
+    "maintainers": [
+        "Hyperion"
+    ],
+    "self": "http://localhost:8000/spm.json"
+}

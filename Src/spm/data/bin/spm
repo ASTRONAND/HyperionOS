@@ -1,0 +1,734 @@
+--:Minify:--
+local spm = function(...)
+    if syscall.geteuid()~=0 then print("Permission denied") return end
+    local inpArgs = { ... }
+    local args    = {}
+    local cloptions = {
+        S = false,
+        y = false,
+        u = false,
+        R = false,
+        h = false,
+        r = false,
+        Q = false,
+        l = false,
+        o = false,
+        i = false,
+        e = false,
+        t = false,
+        s = false,
+        sysroot = "",
+        init = false,
+        help = false,
+        overwrite = false
+    }
+
+    local i = 1
+    local fs = require("fs")
+    local http = require("http")
+    local json = require("json")
+    local tar = require("tar")
+    local minify = require("minify")
+    local deflate = require("deflate")
+    local bit32 = require("bit32")
+    local httpcache = {}
+
+    local function get(url)
+        if httpcache[url] then return httpcache[url] end
+        local ret = http.get(url)
+        httpcache[url] = ret
+        return ret
+    end
+
+    while i <= #inpArgs do
+        local v = inpArgs[i]
+
+        if v:sub(1, 2) == "--" then
+            local opt, value = v:match("^%-%-(.-)=(.*)$")
+
+            if not opt then
+                opt = v:sub(3)
+            end
+
+            if cloptions[opt] == nil then
+                print("spm: unrecognized option '" .. v .. "'.")
+                print("try 'spm --help' for more information.")
+                return
+            end
+
+            if type(cloptions[opt]) == "boolean" then
+                cloptions[opt] = true
+            else
+                if value == nil then
+                    i = i + 1
+                    value = inpArgs[i]
+                end
+
+                if value == nil then
+                    print("spm: option '--" .. opt .. "' requires an argument.")
+                    return
+                end
+
+                cloptions[opt] = value
+            end
+
+        elseif v:sub(1, 1) == "-" then
+            for j = 2, #v do
+                local opt = v:sub(j, j)
+
+                if cloptions[opt] == nil then
+                    print("spm: invalid option '-" .. opt .. "'.")
+                    print("try 'spm --help' for more information.")
+                    return
+                end
+
+                if type(cloptions[opt]) ~= "boolean" then
+                    print("spm: option '-" .. opt .. "' requires the long form '--" .. opt .. "=value'.")
+                    return
+                end
+
+                cloptions[opt] = true
+            end
+
+        else
+            table.insert(args, v)
+        end
+
+        i = i + 1
+    end
+    i=nil
+
+    if cloptions.help or cloptions.h then
+        if cloptions.S then
+            print("spm -S - Synchronize Packages")
+            print("")
+            print("Usage:")
+            print("  spm -S [options] <packages>")
+            print("")
+            print("Options:")
+            print("  -y      Refresh package databases")
+            print("  -u      Upgrade installed packages")
+            print("  -i      Show remote package information")
+            print("  -s      Download source")
+            print("")
+            print("Examples:")
+            print("  spm -Sy")
+            print("  spm -S package")
+            print("  spm -Syu")
+            return
+
+        elseif cloptions.Q then
+            print("spm -Q - Query Package Database")
+            print("")
+            print("Usage:")
+            print("  spm -Q [options] [package]")
+            print("")
+            print("Options:")
+            print("  -i      Show installed package information")
+            print("  -l      List files owned by a package")
+            print("  -o      Find which package owns a file")
+            print("  -e      List explicitly installed packages")
+            print("  -t      List orphan packages")
+            print("")
+            print("Examples:")
+            print("  spm -Q")
+            print("  spm -Qi lua")
+            print("  spm -Ql lua")
+            print("  spm -Qo /bin/lua")
+            return
+
+        elseif cloptions.R then
+            print("spm -R - Remove Packages")
+            print("")
+            print("Usage:")
+            print("  spm -R [options] <packages>")
+            print("")
+            print("Currently no remove-specific options are implemented.")
+            print("")
+            print("Example:")
+            print("  spm -R package")
+            return
+
+        else
+            print("spm - HyperionOS Package Manager")
+            print("")
+            print("Usage:")
+            print("  spm <operation> [options] [targets]")
+            print("")
+            print("Operations:")
+            print("  -S        Synchronize packages")
+            print("  -Q        Query package database")
+            print("  -R        Remove packages")
+            print("")
+            print("General Options:")
+            print("  -h, --help        Show help")
+            print("      --init        Initialize spm")
+            print("      --sysroot DIR Operate on alternate root")
+            print("")
+            print("For operation-specific help:")
+            print("  spm -Sh")
+            print("  spm -Qh")
+            print("  spm -Rh")
+            return
+        end
+    end
+
+    if cloptions.sysroot=="" then
+        syscall.chdir("/")
+    else
+        syscall.chdir(cloptions.sysroot)
+    end
+
+    if cloptions.init then
+        fs.mkdir("var/spm/cache/")
+        fs.mkdir("var/spm/db/")
+        fs.writeAllText("var/spm/db/repos.list","")
+        fs.mkdir("var/spm/db/installed/")
+        fs.mkdir("etc/spm/")
+        fs.writeAllText("etc/spm/sources.list","https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm.json\nhttp://localhost:8000/spm.json")
+    end
+
+    if not fs.exists("var/spm/") or not fs.exists("etc/spm/") then
+        print("spm not initialized run \"spm --init\"")
+        return
+    end
+    local log = fs.open("var/log/spm.log", "w")
+
+    local function w(...)
+        local args = {...}
+        local output = ""
+        for i = 1, #args do output = output .. tostring(args[i]) .. "\t" end
+        output = output:sub(1, -2)
+        syscall.write(1, output.."\n")
+        log.write(output.."\n")
+        log.flush()
+    end
+
+    local repodb = string.split(fs.readAllText("var/spm/db/repos.list"), "\n")
+    local sourcelist = string.split(fs.readAllText("etc/spm/sources.list"), "\n")
+    local pkgdblist = fs.list("var/spm/db/installed/")
+    local pkgdb = {}
+
+    for _,v in ipairs(pkgdblist) do
+        local file = fs.readAllText("var/spm/db/installed/"..v)
+        pkgdb[v] = json.decode(file)
+    end
+
+    local function printpkgs(list)
+        local colWidth=0
+        local tmp = syscall.devctl(1, "size")
+        local sizeX, sizeY = tonumber(tmp:sub(1, tmp:find(";")-1)), tonumber(tmp:sub(tmp:find(";")+1))
+        for _, v in ipairs(list) do
+            if #v + 2 > colWidth then colWidth = #v + 2 end
+        end
+        local numCols = math.max(1, math.floor(sizeX / colWidth))
+
+        for i, v in ipairs(list) do
+            printInline(v.id)
+            printInline((" "):rep(colWidth - #v))
+            if i % numCols == 0 then print("") end
+        end
+        if #list % numCols ~= 0 then print("") end
+    end
+
+    local function checkRepo(repo)
+        local resp = get(repo)
+        if not resp then return false end
+        if resp.code ~= 200 then
+            return false
+        end
+        local repojson = json.decode(resp.body)
+        if not repojson then
+            return false
+        end
+        return true, repojson
+    end
+
+    local function getRepos(root)
+        local repos = {}
+        local visited = {}
+
+        local queue = table.values(root)
+        local head = 1
+
+        while head <= #queue do
+            local url = queue[head]
+            head = head + 1
+
+            if not visited[url] then
+                visited[url] = true
+
+                print("GET:"..tostring(head-1).." "..url)
+
+                local ok, repo = checkRepo(url)
+                if ok then
+                    table.insert(repos, url)
+
+                    if repo.refs then
+                        for _, ref in ipairs(repo.refs) do
+                            if not visited[ref] then
+                                queue[#queue + 1] = ref
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        return repos
+    end
+
+    local function getPkg(name)
+        for _, url in ipairs(repodb) do
+            local ok, repo = checkRepo(url)
+            if not ok then
+                w("Failed to contact repository:")
+                w(url)
+                w("Consider running 'spm -Sy' to remove broken repositories.")
+            else
+                if repo.packages then
+                    if repo.packages[name] then
+                        local pkgurl = repo.packages[name]
+                        local resp = get(pkgurl)
+                        if not resp then
+                            w("Repository: "..url)
+                            w("Has broken package: "..name)
+                            w("Ignoring")
+                        else
+                            if resp.code ~= 200 then
+                                w("Repository: "..url)
+                                w("Has broken package: "..name)
+                                w("Ignoring")
+                            else
+                                local pkgjson = json.decode(resp.body)
+                                if not pkgjson then
+                                    w("Repository: "..url)
+                                    w("Has broken package: "..name)
+                                    w("Ignoring")
+                                else
+                                    return {
+                                        url=pkgurl,
+                                        tar=pkgjson.tarball,
+                                        hash=pkgjson.hash,
+                                        id=pkgjson.id,
+                                        deps=pkgjson.dependencies,
+                                        desc=pkgjson.description,
+                                        auth=pkgjson.authors,
+                                        ver=pkgjson.version
+                                    }
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        return false, "target not found: "..name
+    end
+
+    local function flatten(t)
+        local ret={}
+        for _,v in ipairs(t.content) do
+            if v.type == "dir" then
+                local f=flatten(v)
+                for i,c in pairs(f) do
+                    ret[i]=c
+                end
+            elseif v.type == "file" then
+                ret[v.name]=v.content
+            end
+        end
+        return ret
+    end
+
+    local function ptar(t, pkg)
+        t=t.content[1]
+        if t.name~=pkg.id then w("Tar contains "..t.name.." not "..pkg.id) return false end
+        local ret={}
+        for i=1, #t.content do
+            if t.content[i].name == "data" then
+                local data=flatten(t.content[i])
+                local new={}
+                for p,v in pairs(data) do
+                    new[p:sub(#pkg.id+7)]=v
+                end
+                ret.data=new
+            elseif t.content[i].name == "control" then
+                local data=flatten(t.content[i])
+                local new={}
+                for p,v in pairs(data) do
+                    new[p:sub(#pkg.id+10)]=v
+                end
+                ret.control=new
+            end
+        end
+        return ret
+    end
+
+    local function mini(tabl)
+        local ret={}
+        for i,v in pairs(tabl) do
+            if v:sub(1,12)=="--:Minify:--" then
+                local ok, code = pcall(minify.minify,v)
+                if not ok then w("Failed to minify "..i..":\n"..code) ret[i]=v
+                else ret[i]=code end
+            else
+                ret[i]=v
+            end
+        end
+        return ret
+    end
+
+    local function md5(msg)
+        local bit = bit32
+
+        local function rol(x, n)
+            return bit.lrotate(x, n)
+        end
+
+        local function F(x, y, z)
+            return bit.bor(bit.band(x, y), bit.band(bit.bnot(x), z))
+        end
+
+        local function G(x, y, z)
+            return bit.bor(bit.band(x, z), bit.band(y, bit.bnot(z)))
+        end
+
+        local function H(x, y, z)
+            return bit.bxor(x, y, z)
+        end
+
+        local function I(x, y, z)
+            return bit.bxor(y, bit.bor(x, bit.bnot(z)))
+        end
+
+        local function u32le(s, i)
+            return s:byte(i)
+                + s:byte(i + 1) * 0x100
+                + s:byte(i + 2) * 0x10000
+                + s:byte(i + 3) * 0x1000000
+        end
+
+        local function le32(x)
+            return string.char(
+                bit.band(x, 0xff),
+                bit.band(bit.rshift(x, 8), 0xff),
+                bit.band(bit.rshift(x, 16), 0xff),
+                bit.band(bit.rshift(x, 24), 0xff)
+            )
+        end
+
+        -- MD5 padding
+        local bitlen = #msg * 8
+
+        msg = msg .. "\128"
+
+        while #msg % 64 ~= 56 do
+            msg = msg .. "\0"
+        end
+
+        -- Append 64-bit little-endian length
+        local lo = bitlen % 0x100000000
+        local hi = math.floor(bitlen / 0x100000000)
+
+        msg = msg .. le32(lo) .. le32(hi)
+
+        local a0 = 0x67452301
+        local b0 = 0xefcdab89
+        local c0 = 0x98badcfe
+        local d0 = 0x10325476
+
+        local S = {
+            7,12,17,22, 7,12,17,22, 7,12,17,22, 7,12,17,22,
+            5, 9,14,20, 5, 9,14,20, 5, 9,14,20, 5, 9,14,20,
+            4,11,16,23, 4,11,16,23, 4,11,16,23, 4,11,16,23,
+            6,10,15,21, 6,10,15,21, 6,10,15,21, 6,10,15,21
+        }
+
+        local K = {
+            0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee,
+            0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
+            0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be,
+            0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821,
+            0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa,
+            0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8,
+            0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed,
+            0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a,
+            0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c,
+            0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
+            0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05,
+            0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665,
+            0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039,
+            0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
+            0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
+            0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391
+        }
+
+        for chunk = 1, #msg, 64 do
+            local M = {}
+
+            for i = 0, 15 do
+                M[i] = u32le(msg, chunk + i * 4)
+            end
+
+            local A = a0
+            local B = b0
+            local C = c0
+            local D = d0
+
+            for i = 0, 63 do
+                local f
+                local g
+
+                if i < 16 then
+                    f = F(B, C, D)
+                    g = i
+                elseif i < 32 then
+                    f = G(B, C, D)
+                    g = (5 * i + 1) % 16
+                elseif i < 48 then
+                    f = H(B, C, D)
+                    g = (3 * i + 5) % 16
+                else
+                    f = I(B, C, D)
+                    g = (7 * i) % 16
+                end
+
+                local tmp = D
+                D = C
+                C = B
+
+                local x = A + f + K[i + 1] + M[g]
+                x = x % 0x100000000
+
+                B = (B + rol(x, S[i + 1])) % 0x100000000
+
+                A = tmp
+            end
+
+            a0 = (a0 + A) % 0x100000000
+            b0 = (b0 + B) % 0x100000000
+            c0 = (c0 + C) % 0x100000000
+            d0 = (d0 + D) % 0x100000000
+        end
+
+        local digest = le32(a0) .. le32(b0) .. le32(c0) .. le32(d0)
+
+        return (digest:gsub(".", function(c)
+            return string.format("%02x", c:byte())
+        end))
+    end
+
+    if cloptions.S then
+        if cloptions.y then
+            w("Updating repositories...")
+            repodb={}
+            for _,v in ipairs(getRepos(sourcelist)) do
+                repodb[#repodb+1]=v
+            end
+            w("Writing new data...")
+            local str = ""
+            for _,v in ipairs(repodb) do
+                str=str..v.."\n"
+            end
+            fs.writeAllText("var/spm/db/repos.list", str)
+        end
+        if cloptions.i then
+            -- info remote
+        end
+        local needed = {}
+        local found = {}
+        for i,v in ipairs(args) do
+            local pkg, err = getPkg(v)
+            if not pkg then w(err) syscall.exit(1) end
+            needed[#needed+1] = pkg
+            found[v]=true
+        end
+        if cloptions.u then
+            for i,v in ipairs(table.keys(pkgdb)) do
+                local pkg, err = getPkg(v)
+                if pkg then
+                    needed[#needed+1] = pkg
+                    found[v]=true
+                end
+            end
+        end
+        local head = 0
+        while head<#needed do
+            head=head+1
+            for i,v in ipairs(needed[head].deps) do
+                if not found[v] and not pkgdb[v] then
+                    local pkg, err = getPkg(v)
+                    if pkg then
+                        needed[#needed+1] = pkg
+                        found[v]=true
+                    end
+                end
+            end
+        end
+        if #needed==0 then
+            syscall.exit()
+        end
+        w("")
+        w("Packages("..tostring(#needed).."):")
+        printpkgs(needed)
+        w("")
+        while true do
+            local text = userinput(0, "Proceed with download [Y/n]", nil, 1)
+            if text=="" then
+                break
+            elseif text:lower()=="y" then
+                break
+            elseif text:lower()=="n" then
+                syscall.exit()
+            end
+        end
+
+        local files = {}
+        for _,v in ipairs(needed) do
+            if not pkgdb[v.id] or not pkgdb[v.id].hash==v.hash then
+                w("Downloading "..v.id)
+                local resp = get(v.tar)
+                if not resp then
+                    w("Package "..v.id.." failed GET")
+                    syscall.exit()
+                end
+                if resp.code ~= 200 then
+                    w("Package "..v.id.." returned code "..tostring(resp.code))
+                    syscall.exit()
+                end
+                local ok, repotar = pcall(tar.unpack, resp.body)
+                if not ok or not repotar then
+                    w("Package "..v.id.." failed tar parsing")
+                    syscall.exit()
+                end
+                local f=ptar(repotar, v)
+                if not f or not f.data then syscall.exit() end
+                if not cloptions.s then
+                    f.data=mini(f.data)
+                end
+                f.hash=v.hash
+                files[v.id]=f
+            else
+                w("Package "..v.id.." hash already installed")
+            end
+        end
+        w("Checking for conflicts...")
+        local seen={}
+        for i,v in pairs(files) do
+            for f,c in pairs(v.data) do
+                if seen[f] then
+                    w(i.." and "..seen[f].." have conflicting file "..f)
+                    v.data[f]=nil
+                else
+                    seen[f]=i
+                end
+            end
+        end
+        seen=nil
+        w("Checking for modified files...")
+        local block={}
+        for i, v in pairs(files) do
+            if pkgdb[i] then
+                if not cloptions.overwrite then
+                    for f,h in pairs(v.data) do
+                        if pkgdb[i].files[f]~=md5(fs.readAllText(f)) then
+                            w(f.." was modified on disk, specify --overwrite to overwrite")
+                            block[f]=true
+                        end
+                    end
+                end
+            else
+                if not cloptions.overwrite then
+                    for f,h in pairs(v.data) do
+                        if fs.exists(f) then
+                            w(f.." already exists, specify --overwrite to overwrite or remove the file")
+                            syscall.exit()
+                        end
+                    end
+                end
+            end
+        end
+        w("Adding delete calls...")
+        local delete={}
+        for i,v in pairs(files) do
+            if pkgdb[i] then
+                for f,c in pairs(pkgdb[i].files) do
+                    if not v.data[f] then
+                        if c~=md5(fs.readAllText(f)) then
+                            w(f.." was modified on disk, specify --overwrite to overwrite")
+                        else
+                            delete[f]=true
+                        end
+                    end
+                end
+            end
+        end
+        w("Calculating useage...")
+        local net=0
+        for i,v in pairs(files) do
+            for f,c in pairs(v.data) do
+                if not block[f] then
+                    net=net+#c
+                end
+            end
+            for f,c in pairs(delete) do
+                net=net-#fs.readAllText(f)
+            end
+        end
+        w("")
+        w("Net Upgrade Size: "..tostring(net))
+        w("")
+        while true do
+            local text = userinput(0, "Proceed with Installation [Y/n]", nil, 1)
+            if text=="" then
+                break
+            elseif text:lower()=="y" then
+                break
+            elseif text:lower()=="n" then
+                syscall.exit()
+            end
+        end
+        w("Updatating db...")
+        for i,v in pairs(files) do
+            local content={}
+            content.files={}
+            for f,c in pairs(v.data) do
+                content.files[f]=md5(c)
+            end
+            content.hash=v.hash
+            fs.writeAllText("var/spm/db/installed/"..i, json.encode(content))
+        end
+        w("Writing changes...")
+        for i,v in pairs(files) do
+            w("Writing "..i)
+            for f,c in pairs(v.data) do
+                if not block[f] then
+                    fs.writeAllText(f,c)
+                end
+            end
+        end
+        w("Install complete")
+        log.close()
+
+    elseif cloptions.R then
+        -- remove tree
+    elseif cloptions.Q then
+        if cloptions.l then
+            -- list installed files
+        elseif cloptions.o then
+            -- get package file arg[1] is from
+        elseif cloptions.e then
+            -- list installed manually
+        elseif cloptions.i then
+            -- list installed info
+        elseif cloptions.t then
+            -- list orphans
+        end
+    end
+end
+local ok,err = xpcall(spm, debug.traceback, ...)
+if not ok then
+    print("Fatal error in spm:")
+    print(err)
+end

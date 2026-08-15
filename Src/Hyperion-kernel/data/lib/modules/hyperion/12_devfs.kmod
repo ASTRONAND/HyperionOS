@@ -1,0 +1,309 @@
+--:Minify:--
+local kernel = ...
+
+local proxy = {}
+local data = {}
+
+proxy.address = "devfs0000"
+proxy.isvirt = true
+proxy.isReadOnly = function() return false end
+proxy.spaceUsed = function() return 0 end
+proxy.spaceTotal = function() return 0 end
+proxy.makeDirectory = function() error("EACCES") end
+proxy.remove = function() error("EACCES") end
+proxy.setLabel = function() error("EACCES") end
+proxy.getLabel = function() return "devfs" end
+proxy.attributes = function(path) return {
+    size = 0,
+    modified = 0,
+    created = 0
+} end
+
+function proxy:open(path, mode)
+    local steps = kernel.vfs.splitPath(path)
+    local step = data
+    for i=1, #steps-1 do
+        local dat = step[steps[i]]
+        if type(dat) ~= "table" then error("ENFILE") end
+        step=dat
+    end
+    if type(step[steps[#steps]]) == "function" then
+        return step[steps[#steps]]("open", mode)
+    end
+    error("ENFILE")
+end
+
+function proxy:type(path, mode)
+    local steps = kernel.vfs.splitPath(path)
+    local step = data
+    if #steps == 0 then
+        return "directory"
+    end
+    for i=1, #steps-1 do
+        local dat = step[steps[i]]
+        if type(dat) ~= "table" then error("ENFILE") end
+        step=dat
+    end
+    if type(step[steps[#steps]]) == "function" then
+        return step[steps[#steps]]("type", mode)
+    end
+    if type(step[steps[#steps]]) == "table" then
+        return "directory"
+    end
+    error("ENOENT")
+end
+
+function proxy:list(path)
+    local steps = kernel.vfs.splitPath(path)
+    local step = data
+    if #steps == 0 then
+        return table.keys(data)
+    end
+    for i=1, #steps-1 do
+        local dat = step[steps[i]]
+        if type(dat) ~= "table" then error("ENOENT") end
+        step=dat
+    end
+    if type(step[steps[#steps]]) == "table" then
+        return table.keys(step[steps[#steps]])
+    end
+    error("ENOENT")
+end
+
+function proxy:fileExists(path)
+    local ok = pcall(function()
+        return self:type(path)
+    end)
+    return ok
+end
+
+function data.random(op, mode)
+    if op=="type" then
+        return "character device"
+    elseif op=="open" then
+        if mode=="r" then
+            return {
+                read=function(amount)
+                    local str = ""
+                    for i=1, amount or 1 do
+                        str=str..string.char(math.random(0, 255))
+                    end
+                    return str
+                end
+            }
+        elseif mode=="w" or mode=="a" then
+            return {
+                write=function() end
+            }
+        else error("EACCES")
+        end
+    end
+end
+
+function data.null(op, mode)
+    if op=="type" then
+        return "character device"
+    elseif op=="open" then
+        if mode=="r" then
+            return {
+                read=function(amount) end
+            }
+        elseif mode=="w" or mode=="a" then
+            return {
+                write=function() end
+            }
+        else error("EACCES")
+        end
+    end
+end
+
+function data.zero(op, mode)
+    if op=="type" then
+        return "character device"
+    elseif op=="open" then
+        if mode=="r" then
+            return {
+                read=function(amount)
+                    local str = ""
+                    for i=1, amount or 1 do
+                        str=str..string.char(0)
+                    end
+                    return str
+                end
+            }
+        elseif mode=="w" or mode=="a" then
+            return {
+                write=function() end
+            }
+        else error("EACCES")
+        end
+    end
+end
+
+local function buildMeta(entries, opts)
+    opts = opts or {}
+    local uid = opts.uid or 0
+    local gid = opts.gid or 0
+    local perms = opts.perms or 0x3F  -- default read/write for owner/group/world
+
+    local chunks = {}
+    table.insert(chunks, string.char(0x02))  -- version header
+
+    for path, target in pairs(entries) do
+        local name = path
+        local nameLen = #name
+        if nameLen > 255 then
+            error("Filename too long (>255 bytes): "..name)
+        end
+
+        -- Determine entry type: 0x01 = symlink if target ~= nil and target ~= ""
+        local entryType = 0x00
+        local cmeta = ""
+        if target and target ~= "" then
+            entryType = 0x01
+            cmeta = target
+        end
+        local cmetaLen = #cmeta
+        if cmetaLen > 255 then
+            error("cmeta too long (>255 bytes) for "..name)
+        end
+
+        -- Build entry as bytes
+        table.insert(chunks, string.char(nameLen))    -- name length
+        table.insert(chunks, name)                    -- name
+        table.insert(chunks, string.char(entryType))  -- entry type
+        table.insert(chunks, string.char(uid % 256, math.floor(uid/256) % 256))  -- uid
+        table.insert(chunks, string.char(gid % 256, math.floor(gid/256) % 256))  -- gid
+        table.insert(chunks, string.char(perms % 256, math.floor(perms/256) % 256)) -- perms
+        table.insert(chunks, string.char(cmetaLen))   -- cmeta length
+        if cmetaLen > 0 then
+            table.insert(chunks, cmeta)
+        end
+    end
+
+    return table.concat(chunks)
+end
+
+local function simpleFile(r,w)
+    return function(op, mode)
+        if op=="type" then
+            return "file"
+        elseif op=="open" then
+            if mode=="r" then
+                return {
+                    read=r
+                }
+            elseif mode=="w" then
+                return {
+                    write=w
+                }
+            end
+        end
+    end
+end
+
+local function strFile(str)
+    local dat=tostring(str)
+    local pos=1
+    return simpleFile(function(amount)
+        pos=pos+amount
+        return dat:sub(pos-amount, pos)
+    end,function() error("EACCES") end)
+end
+
+data[".meta"]=strFile(buildMeta({
+    stdin="/proc/self/fd/0",
+    stdout="/proc/self/fd/1",
+    stderr="/proc/self/2",
+    fd="/proc/self/fd",
+    log="/var/log/syslog.log"
+}))
+
+if kernel.EFI.getEEPROM then
+    function data.eeprom(op, mode)
+        if op=="type" then
+            return "character device"
+        elseif op=="open" then
+            if kernel.uid~=0 then error("EACCES") end
+            if mode=="r" then
+                local ptr,eeprom=1,kernel.EFI:getEEPROM()
+                return {
+                    read=function(amount)
+                        ptr=ptr+amount
+                        return eeprom:sub(ptr-amount, ptr)
+                    end
+                }
+            elseif mode=="w" then
+                local firstwrite=true
+                return {
+                    write=function(data)
+                        if firstwrite then
+                            kernel.EFI:setEEPROM(data)
+                        else
+                            kernel.EFI:setEEPROM(kernel.EFI:getEEPROM()..data)
+                        end
+                    end
+                }
+            elseif mode=="a" then
+                return {
+                    write=function(data)
+                        kernel.EFI:setEEPROM(kernel.EFI:getEEPROM()..data)
+                    end
+                }
+            else error("EACCES")
+            end
+        end
+    end
+end
+
+if kernel.EFI.getNvram then
+    function data.nvram(op, mode)
+        if op=="type" then
+            return "character device"
+        elseif op=="open" then
+            if kernel.uid~=0 then error("EACCES") end
+            if mode=="r" then
+                local ptr,nvram=1,kernel.EFI:getNvram()
+                return {
+                    read=function(amount)
+                        ptr=ptr+amount
+                        return nvram:sub(ptr-amount, ptr)
+                    end
+                }
+            elseif mode=="w" then
+                local firstwrite=true
+                return {
+                    write=function(data)
+                        if firstwrite then
+                            kernel.EFI:setNvram(data)
+                        else
+                            kernel.EFI:setNvram(kernel.EFI:getNvram()..data)
+                        end
+                    end
+                }
+            elseif mode=="a" then
+                return {
+                    write=function(data)
+                        kernel.EFI:setNvram(kernel.EFI:getNvram()..data)
+                    end
+                }
+            else error("EACCES")
+            end
+        end
+    end
+end
+
+data["disk"]={["by-id"]={}, ["by-path"]={}, ["by-label"]={}}
+-- disks
+for i,v in pairs(kernel.vfs.mounts) do
+    
+end
+
+data["raw"]={["by-type"]={}}
+data["gfx"]={}
+data["input"]={}
+data["tty"]={}
+kernel.devfs={}
+kernel.devfs.data=data
+kernel.devfs.proxy=proxy
+kernel.disks["devfs0000"]=proxy

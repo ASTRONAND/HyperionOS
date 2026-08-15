@@ -1,3 +1,0 @@
-local args={...}
-table.insert(args, "-lah")
-syscall.exec("/bin/ls", args)

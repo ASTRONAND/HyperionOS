@@ -1,0 +1,53 @@
+--:Minify:--
+local kernel=...
+kernel.log("Sysinit started...")
+kernel.saveLog()
+local fs=require("fs")
+kernel.log("Loaded fs")
+
+for i,v in pairs(kernel.processes) do
+    kernel.log("Spawning kernel task "..i)
+    syscall.spawn(function()
+        local status, err = pcall(v)
+        if not status then
+            kernel.log("Error executing kernel task '" .. i .. "': " .. err, "ERROR", 0xFF0000)
+        else
+            kernel.log("Successfully executed kernel task: " .. i)
+        end
+    end, i)
+end
+
+-- config file path setup
+if not fs.exists("/etc/sysinit/") then
+    kernel.log("Creating conf path")
+    fs.mkdir("/etc/sysinit/")
+    fs.mkdir("/etc/sysinit/autorun/")
+    fs.mkdir("/etc/sysinit/system/")
+    fs.mkdir("/etc/sysinit/user/")
+end
+
+local files = fs.list("/etc/sysinit/autorun/")
+if not files then error("Failed to list autorun") end
+for i,v in ipairs(files) do
+    local filepath = "/etc/sysinit/autorun/" .. v
+    kernel.log("Executing startup script: " .. filepath)
+    local startupFunc, err = load(fs.readAllText(filepath), "@" .. filepath)
+    if not startupFunc then
+        kernel.log("Error loading startup script '" .. filepath .. "': " .. err, "ERROR", 0xFF0000)
+    else
+        syscall.spawn(function()
+            local status, err = pcall(startupFunc)
+            if not status then
+                kernel.log("Error executing startup script '" .. filepath .. "': " .. err, "ERROR", 0xFF0000)
+            else
+                kernel.log("Successfully executed startup script: " .. filepath)
+            end
+        end, "startup:" .. v)
+    end
+end
+kernel.saveLog()
+
+while true do
+    sleep(5)
+    kernel.saveLog()
+end

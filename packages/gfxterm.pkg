@@ -1,0 +1,12 @@
+{
+    "id": "gfxterm",
+    "description": "package providing kernel support for framebuffers and graphics",
+    "authors": [
+        "Hyperion",
+        "Astronand"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "63a3b040d50c915bb60db7948109953d",
+    "tarball": "http://localhost:8000/packages/raw/gfxterm.tar.gz"
+}

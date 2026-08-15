@@ -1,0 +1,12 @@
+{
+    "id": "deflate",
+    "description": "Libdeflate for Hyperion",
+    "authors": [
+        "Hyperion",
+        "Haoqian He"
+    ],
+    "dependencies": [],
+    "version": "1.0.0-release",
+    "hash": "2c6544d7c8e72522f84b5d88ba30e7e7",
+    "tarball": "http://localhost:8000/packages/raw/deflate.tar.gz"
+}

@@ -1,0 +1,12 @@
+{
+    "id": "Hyperion-firmware-ccpc",
+    "description": "firmware for CraftOS PC",
+    "authors": [
+        "Hyperion",
+        "Astronand"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "282807ec0aefa87c7077b0b848a491b0",
+    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-ccpc.tar.gz"
+}

@@ -1,0 +1,276 @@
+--:Minify:--
+--- @diagnostic disable: duplicate-set-field
+local kernel = ...
+kernel.allowGlobalOverwrites = true
+
+function string.hasSuffix(str, suffix)
+    return string.sub(str, #suffix + 1) == suffix
+end
+
+function string.hasPrefix(str, prefix)
+    return string.sub(str, 1, #prefix) == prefix
+end
+
+function string.getSuffix(str, prefix) return string.sub(str, #prefix + 1) end
+
+function string.getPrefix(str, suffix) return string.sub(str, 1, #suffix) end
+
+function string.join(str, ...) return table.concat(table.pack(str, ...)) end
+
+function string.delim(str, ...) return table.concat(table.pack(...), str) end
+
+function string.split(str, delim, maxResultCountOrNil)
+    assert(#delim == 1, "only delim len 1 supported for now")
+    if not str then return false end
+    maxResultCountOrNil = (maxResultCountOrNil or 0) - 1
+    if str == "" then return {} end
+    local rv = {}
+    local buf = ""
+    for i = 1, #str do
+        local c = string.sub(str, i, i)
+        if #rv ~= maxResultCountOrNil and c == delim then
+            table.insert(rv, buf)
+            buf = ""
+        else
+            buf = buf .. c
+        end
+    end
+    table.insert(rv, buf)
+    return rv
+end
+
+function table.deepcopy(orig, copies)
+    copies = copies or {}
+
+    if type(orig) ~= 'table' then
+        return orig
+    elseif copies[orig] then
+        return copies[orig]
+    end
+
+    local copy = {}
+    copies[orig] = copy
+
+    for k, v in next, orig, nil do
+        local copied_key = table.deepcopy(k, copies)
+        local copied_val = table.deepcopy(v, copies)
+        copy[copied_key] = copied_val
+    end
+
+    return copy
+end
+
+function table.hasKey(tabl, query)
+    for i, v in pairs(tabl) do if i == query then return v end end
+    return false
+end
+
+function table.hasVal(tabl, query)
+    for i, v in pairs(tabl) do if v == query then return i end end
+    return false
+end
+
+local function serialize(tbl, seen)
+    seen = seen or {}
+
+    if seen[tbl] then return '"[Circular Reference]"' end
+
+    seen[tbl] = true
+
+    local output = "{"
+    local first = true
+
+    for i, v in pairs(tbl) do
+        if not first then output = output .. "," end
+        first = false
+
+        if type(i) == "string" then
+            output = output .. "[\"" .. i .. "\"]="
+        elseif type(i) == "number" then
+            output = output .. "[" .. tostring(i) .. "]="
+        end
+
+        if type(v) == "table" then
+            output = output .. serialize(v, seen)
+        elseif type(v) == "string" then
+            output = output .. "[=[" .. v .. "]=]"
+        elseif type(v) == "number" or type(v) == "boolean" then
+            output = output .. tostring(v)
+        elseif type(v) == "function" then
+            output = output .. "\"" .. tostring(v) .. "\""
+        elseif type(v) == "thread" then
+            output = output .. "\"" .. tostring(v) .. "\""
+        else
+            error("serialization of type \"" .. type(v) .. "\" is not supported")
+        end
+    end
+
+    seen[tbl] = nil
+
+    output = output .. "}"
+    return output
+end
+
+local oldtype = type
+local oldgetmetatable = getmetatable
+function type(object, trueType)
+    if trueType then return oldtype(object) end
+    if oldtype(object) ~= "table" then
+        return oldtype(object)
+    else
+        if oldtype(oldgetmetatable(object)) == "table" then
+            local metatable = oldgetmetatable(object)
+            ---@diagnostic disable-next-line: need-check-nil
+            if metatable.__type then return metatable.__type end
+        else
+            return "table"
+        end
+    end
+end
+
+function getmetatable(object)
+    if oldtype(object) ~= "table" then return end
+    if oldtype(oldgetmetatable(object)) == "table" then
+        if oldgetmetatable(object).__isuserdata then
+            if oldtype(oldgetmetatable(object).__usermeta) == "function" then
+                return oldgetmetatable(object).__usermeta()
+            else
+                return oldgetmetatable(object).__usermeta
+            end
+        else
+            return oldgetmetatable(object)
+        end
+    else
+        return oldgetmetatable(object)
+    end
+end
+
+function isEqualToAny(a, ...)
+    local args = {...}
+    for i = 0, #args do if a == args[i] then return true end end
+    return false
+end
+
+function isEqualToAll(a, ...)
+    local args = {...}
+    for i = 0, #args do if a ~= args[i] then return false end end
+    return true
+end
+
+function table.keys(t)
+    local a = {}
+    for n in pairs(t) do table.insert(a, n) end
+    return a
+end
+
+function table.values(t)
+    local a = {}
+    for _, n in pairs(t) do table.insert(a, n) end
+    return a
+end
+
+function table.indexOf(t, value)
+    for i, v in ipairs(t) do if v == value then return i end end
+    return -1
+end
+
+function table.merge(...)
+    local args={...}
+    local out = {}
+    local outi = {}
+
+    for _,t in ipairs(args) do
+        for i,v in pairs(t) do
+            out[i]=v
+        end
+        for i,v in ipairs(t) do
+            outi[#outi+1]=v
+        end
+    end
+
+    for i,v in ipairs(outi) do
+        out[i]=v
+    end
+
+    return out
+end
+
+function string.replace(s, target, repl)
+    local result = {}
+    local i = 1
+    local n = #s
+    local t_len = #target
+
+    while i <= n do
+        local match = true
+        if i + t_len - 1 <= n then
+            for j = 1, t_len do
+                if s:sub(i + j - 1, i + j - 1) ~= target:sub(j, j) then
+                    match = false
+                    break
+                end
+            end
+        else
+            match = false
+        end
+
+        if match then
+            table.insert(result, repl)
+            i = i + t_len
+        else
+            table.insert(result, s:sub(i, i))
+            i = i + 1
+        end
+    end
+
+    return table.concat(result)
+end
+
+function toHex(num)
+    return string.format("%X", num)
+end
+
+local st={
+    push=function(self,...) table.insert(self.contents,{...}) end,
+    pop=function(self) return table.unpack(table.remove(self.contents)) end,
+}
+local q={
+    push=function(self,...) table.insert(self.contents,{...}) end,
+    pop=function(self) return table.unpack(table.remove(self.contents,1)) end,
+}
+
+function stack()
+    return setmetatable({contents={}}, {__index=st})
+end
+
+function queue()
+    return setmetatable({contents={}}, {__index=q})
+end
+
+local function makeSyscallProxy()
+    local backing = {}
+    return setmetatable(backing, {
+        __index = function(self, name)
+            local raw = rawget(self, name)
+            if raw ~= nil then return raw end
+            return function(...)
+                local res = table.pack(coroutine.yield("syscall", name, ...))
+                if res[1] then
+                    return table.unpack(res, 2, res.n)
+                else
+                    error(res[2], 2)
+                end
+            end
+        end,
+        __newindex = function(self, k, v)
+            rawset(self, k, v)
+        end,
+        __metatable=false
+    })
+end
+
+syscall = makeSyscallProxy()
+
+_makeSyscallProxy = makeSyscallProxy
+
+table.serialize = serialize

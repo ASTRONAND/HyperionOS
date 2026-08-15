@@ -1,0 +1,26 @@
+--:Minify:--
+local kernel=...
+local peripheral=kernel.cct.peripheral
+
+local function wrap(p)
+    return function(op, mode)
+        if op=="type" then
+            return "device"
+        elseif op=="open" then
+            if kernel.uid~=0 then error("EACCES") end
+            return peripheral.wrap(p, true)
+        end
+    end
+end
+
+local peripherals=peripheral.getNames()
+for i=1, #peripherals do
+    local p=peripherals[i]
+    local typ=peripheral.getType(p)
+    local file=wrap(p)
+    kernel.devfs.data["raw"][p]=file
+    local typefolder=kernel.devfs.data["raw"]["by-type"][typ]
+    if not typefolder then typefolder={} end
+    typefolder[tostring(#table.keys(typefolder)+1)] = file
+    kernel.devfs.data["raw"]["by-type"][typ]=typefolder
+end

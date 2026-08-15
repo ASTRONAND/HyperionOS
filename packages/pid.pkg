@@ -1,0 +1,12 @@
+{
+    "id": "pid",
+    "description": "Proportional Integral Derivative library",
+    "authors": [
+        "Hyperion",
+        "Astronand"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "a0f49db23415afc4d75f87aab12ece00",
+    "tarball": "http://localhost:8000/packages/raw/pid.tar.gz"
+}

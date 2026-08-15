@@ -1,0 +1,14 @@
+--:Minify:--
+local args = {...}
+local list = syscall.listdir("/proc/self/fd")
+for i=1, #list do
+    syscall.close(tonumber(list[i]))
+end
+
+if #args>=2 then
+    for i=2, #args do
+        syscall.open(args[i], "rw")
+    end
+end
+
+syscall.exec(args[1])

@@ -1,0 +1,108 @@
+--:Minify:--
+local kernel=...
+local keys=kernel.apis.keys
+kernel.cct.eventhooks={}
+
+kernel.processes.cctdaemon = function()
+    local timeout = false
+    kernel.log("CCT daemon started")
+    while true do
+        local event = {kernel.EFI:getMachineEvent()}
+
+        if event[1] then
+            local eventType = event[1]
+            local charOrKey = event[3]
+
+            local ctrlKeyMap = {
+                [keys.a]=1,  [keys.b]=2,  [keys.c]=3,
+                [keys.d]=4,  [keys.e]=5,  [keys.f]=6,
+                [keys.g]=7,  [keys.h]=8,  [keys.i]=9,
+                [keys.j]=10, [keys.k]=11, [keys.l]=12,
+                [keys.m]=13, [keys.n]=14, [keys.o]=15,
+                [keys.p]=16, [keys.q]=17, [keys.r]=18,
+                [keys.s]=19, [keys.t]=20, [keys.u]=21,
+                [keys.v]=22, [keys.w]=23, [keys.x]=24,
+                [keys.y]=25, [keys.z]=26,
+            }
+
+            if eventType == "keyPressed" then
+                if charOrKey == keys.leftCtrl or charOrKey == keys.rightCtrl then
+                    kernel.cct.ctrl = true
+                elseif charOrKey == keys.leftAlt or charOrKey == keys.rightAlt then
+                    kernel.cct.alt = true
+                end
+
+                if kernel.cct.ctrl then
+                    local ctrlByte = ctrlKeyMap[charOrKey]
+                    if ctrlByte then
+                        if ctrlByte == 3 then
+                            for _, task in ipairs(syscall.getTasks()) do
+                                syscall.sigsend(task, 1)
+                            end
+                        else
+                            kernel.cct.fifo.push(string.char(ctrlByte))
+                        end
+                    end
+                else
+                    local specialKeyMap = {
+                        [keys.up]        = "[A",
+                        [keys.down]      = "[B",
+                        [keys.right]     = "[C",
+                        [keys.left]      = "[D",
+                        [keys.home]      = "[H",
+                        [keys["end"]]    = "[F",
+                        [keys.pageUp]    = "[5~",
+                        [keys.pageDown]  = "[6~",
+                        [keys.delete]    = "[3~",
+                    }
+                    local special = specialKeyMap[charOrKey]
+                    if special then kernel.cct.fifo.push(special) end
+                end
+
+            elseif eventType == "keyReleased" then
+                if charOrKey == keys.leftCtrl or charOrKey == keys.rightCtrl then
+                    kernel.cct.ctrl = false
+                elseif charOrKey == keys.leftAlt or charOrKey == keys.rightAlt then
+                    kernel.cct.alt = false
+                end
+
+            elseif eventType == "keyTyped" then
+                if charOrKey then kernel.cct.fifo.push(charOrKey) end
+            elseif eventType == "mouse_scroll" then
+                if event[2] == 1 then
+                    kernel.cct.fifo.push("[nS")
+                else
+                    kernel.cct.fifo.push("[nT")
+                end
+            elseif eventType == "http_success" then
+                if kernel.cct.httpqueue[event[2]] then
+                    kernel.cct.httpqueue[event[2]]=nil
+                    kernel.cct.httpresponse[event[2]]=event[3]
+                end
+            elseif eventType == "http_failure" then
+                if kernel.cct.httpqueue[event[2]] then
+                    kernel.cct.httpqueue[event[2]]=nil
+                    kernel.cct.httperror[event[2]]=event[3]
+                    kernel.cct.httpresponse[event[2]]=event[4]
+                end
+            else
+                if kernel.cct.eventhooks[eventType] then
+                    local ok,err = xpcall(kernel.cct.eventhooks[eventType], debug.traceback, table.unpack(event))
+                    if not ok then
+                        kernel.log("Error on eventhook "..eventType.."\n"..err)
+                    end
+                end
+            end
+
+            timeout = false
+        else
+            timeout = true
+        end
+
+        if timeout then
+            sleep(0.05)
+        end
+    end
+end
+
+kernel.log("CCT daemon queued for execution")

@@ -1,0 +1,19 @@
+{
+    "id": "spm",
+    "description": "Simple Package Manager",
+    "authors": [
+        "Hyperion",
+        "Astronand"
+    ],
+    "dependencies": [
+        "tar",
+        "deflate",
+        "json",
+        "minify",
+        "bit32",
+        "Hyperion-core"
+    ],
+    "version": "1.0.0",
+    "hash": "c2df5d0028987d76b9321ed403bcb370",
+    "tarball": "http://localhost:8000/packages/raw/spm.tar.gz"
+}

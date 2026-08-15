@@ -671,3 +671,10 @@ printInline=function(...) end
 --- @param fmt string
 --- @param ... any
 printf=function(fmt, ...) end
+
+--- Gets input from fd
+--- @param fd integer
+--- @param helpstr string
+--- @param replacechar string
+--- @param fdo integer
+userinput=function(fd, helpstr, replacechar, fdo) end

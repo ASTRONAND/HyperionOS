@@ -1,0 +1,9 @@
+--:Minify:--
+local kernel=...
+
+local kbs = {kernel.cct.peripheral.find("tm_keyboard")}
+
+
+kernel.cct.eventhooks["tm_keyboard_char"]=function(...)
+    
+end

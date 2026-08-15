@@ -1,0 +1,199 @@
+--:Minify:--
+local kernel = ...
+
+local socket = {}
+
+socket.handlers = {}
+
+kernel.socket = socket
+
+local P = kernel.vfs.P
+local sys = kernel.syscalls
+
+function socket.registerProtocal(proto, handler)
+    socket.handlers[proto] = handler
+end
+
+local function getHandler(address)
+    for proto, handler in pairs(socket.handlers) do
+        if string.hasPrefix(address, proto) then
+            return handler
+        end
+    end
+end
+
+function socket.socket()
+    local fd = kernel.vfs.newfd({
+        handle = {},
+
+        type = "socket",
+
+        refcount = 1,
+
+        socket = {
+            connected = false,
+            protocol = nil,
+            address = nil
+        },
+
+        meta = {
+            owner = kernel.currentTask.uid,
+            group = kernel.currentTask.uid,
+            etype = 2,
+
+            perms =
+                P.OWNER_R +
+                P.OWNER_W +
+                P.GROUP_R +
+                P.GROUP_W
+        },
+
+        isvirt = true
+    })
+
+    local fdo = kernel.currentTask.fd[fd]
+
+    fdo.handle.read = function()
+        return nil, "ENOTCONN"
+    end
+
+    fdo.handle.write = function()
+        return nil, "ENOTCONN"
+    end
+
+    fdo.handle.close = function()
+        fdo.socket.connected = false
+        return true
+    end
+
+    return fd
+end
+
+function socket.connect(fd, address)
+    local fdo = kernel.currentTask.fd[fd]
+
+    if not fdo then
+        return nil, "EBADF"
+    end
+
+    if fdo.type ~= "socket" then
+        return nil, "ENOTSOCK"
+    end
+
+    local handler =
+        getHandler(address)
+
+    if not handler then
+        return nil, "EPROTONOSUPPORT"
+    end
+
+    fdo.socket.protocol = handler
+    fdo.socket.address = address
+
+    local ok, err =
+        handler.connect(fd, address)
+
+    if not ok then
+        return nil, err
+    end
+
+    fdo.socket.connected = true
+
+    return true
+end
+
+function socket.listen(fd, backlog)
+    local fdo =
+        kernel.currentTask.fd[fd]
+
+    if not fdo then
+        return nil, "EBADF"
+    end
+
+    if not fdo.handle.listen then
+        return nil, "EOPNOTSUPP"
+    end
+
+    return fdo.handle.listen(backlog)
+end
+
+function socket.send(fd, data)
+    local fdo =
+        kernel.currentTask.fd[fd]
+
+    if not fdo then
+        return nil, "EBADF"
+    end
+
+    if fdo.type ~= "socket" then
+        return nil, "ENOTSOCK"
+    end
+
+    if not fdo.socket.connected then
+        return nil, "ENOTCONN"
+    end
+
+    if not fdo.handle.write then
+        return nil, "EOPNOTSUPP"
+    end
+
+    return fdo.handle.write(data)
+end
+
+function socket.recv(fd, amount)
+    local fdo =
+        kernel.currentTask.fd[fd]
+
+    if not fdo then
+        return nil, "EBADF"
+    end
+
+    if fdo.type ~= "socket" then
+        return nil, "ENOTSOCK"
+    end
+
+    if not fdo.socket.connected then
+        return nil, "ENOTCONN"
+    end
+
+    if not fdo.handle.read then
+        return nil, "EOPNOTSUPP"
+    end
+
+    return fdo.handle.read(amount)
+end
+
+function socket.sockshutdown(fd)
+    local fdo =
+        kernel.currentTask.fd[fd]
+
+    if not fdo then
+        return nil, "EBADF"
+    end
+
+    if fdo.type ~= "socket" then
+        return nil, "ENOTSOCK"
+    end
+
+    if fdo.handle.close then
+        return fdo.handle.close()
+    end
+
+    fdo.socket.connected = false
+
+    return true
+end
+
+function socket.socketendpoints()
+    return table.keys(socket.handlers)
+end
+
+sys.socket = socket.socket
+sys.connect = socket.connect
+sys.listen = socket.listen
+sys.send = socket.send
+sys.recv = socket.recv
+sys.sockshutdown = socket.sockshutdown
+sys.socketendpoints = socket.socketendpoints
+
+kernel.log("Loaded socket module")

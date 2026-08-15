@@ -1,6 +1,0 @@
-local args={...}
-
-local json=require("json")
-local http=require("http")
-local rootRepo="https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/spm/spm.src"
-

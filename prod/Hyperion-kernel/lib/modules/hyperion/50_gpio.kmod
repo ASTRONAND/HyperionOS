@@ -1,1 +1,0 @@
-local a=...local b=a.syscalls;a.gpio={}b["gpio_write"]=function(c,d)if a.gpio[c]then return a.gpio[c]("w",d)end end;b["gpio_writeAnalog"]=function(c,d)if a.gpio[c]then return a.gpio[c]("wa",d)end end;b["gpio_read"]=function(c)if a.gpio[c]then return a.gpio[c]("r")end end;b["gpio_readAnalog"]=function(c)if a.gpio[c]then return a.gpio[c]("ra")end end

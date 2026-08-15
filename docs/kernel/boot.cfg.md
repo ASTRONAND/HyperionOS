@@ -29,4 +29,7 @@ logTaskExit<bool>
 
 showModLoad<bool>
     log module loads
+
+tmpToDisk<bool>
+    writes tmp to disk instead of ram
 ```

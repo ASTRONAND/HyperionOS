@@ -6,6 +6,10 @@
         "printf",
         "printInline",
         "toHex",
-        "loadcstr"
+        "loadcstr",
+        "userinput"
+    ],
+    "Lua.diagnostics.disable": [
+        "need-check-nil"
     ]
 }

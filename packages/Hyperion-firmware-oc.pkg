@@ -1,0 +1,11 @@
+{
+    "id": "Hyperion-firmware-oc",
+    "description": "firmware for Opencomputers",
+    "authors": [
+        "Hyperion"
+    ],
+    "dependencies": [],
+    "version": "0.1.0",
+    "hash": "4a3445e77b744698734dde9a03e0f5b7",
+    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-oc.tar.gz"
+}

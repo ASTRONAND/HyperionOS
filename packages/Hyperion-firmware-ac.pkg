@@ -1,0 +1,13 @@
+{
+    "id": "Hyperion-firmware-ac",
+    "description": "firmware for Advanced Computers",
+    "authors": [
+        "Hyperion",
+        "Astronand",
+        "GHXX (Advanced Computers)"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "79e9de8d0e639f1f7183d380f93082c3",
+    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-ac.tar.gz"
+}

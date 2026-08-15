@@ -1,0 +1,12 @@
+{
+    "id": "micro",
+    "description": "micro text editor",
+    "authors": [
+        "Hyperion",
+        "Spsf"
+    ],
+    "dependencies": [],
+    "version": "1.0.0",
+    "hash": "d2ddcba471746b54e55ce44eec8fcff6",
+    "tarball": "http://localhost:8000/packages/raw/micro.tar.gz"
+}

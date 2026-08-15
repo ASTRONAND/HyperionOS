@@ -27,6 +27,8 @@ import sys
 import shutil
 import argparse
 import subprocess
+import json
+import os
 from pathlib import Path
 from typing import Union
 
@@ -70,7 +72,7 @@ def has_minify_header(path: Path) -> bool:
 
 def minify_file(src: Path) -> str:
     result = subprocess.run(
-        ["luamin.cmd", "-f", str(src)],
+        ["npm", "exec", "luamin", "--", "-f", str(src)],
         capture_output=True,
         text=True
     )
@@ -92,22 +94,24 @@ def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool, arch
     for pkg_dir in sorted(src_root.iterdir()):
         if not pkg_dir.is_dir():
             continue
-        
+
         if pkg_dir.name[:18] == "Hyperion-firmware-":
             if pkg_dir.name != f"Hyperion-firmware-{arch}":
                 if prod != True:
                     continue
 
+        data_dir=pkg_dir / "data"
+
+        if not data_dir.is_dir():
+            continue
+
         print(f"== Package: {pkg_dir.name} ==")
 
-        for src in sorted(pkg_dir.rglob("*")):
+        for src in sorted(data_dir.rglob("*")):
             if not src.is_file():
                 continue
 
-            rel = src.relative_to(pkg_dir)
-            
-            if rel.name=="$PKGCONFIG.ini":
-                continue
+            rel = src.relative_to(data_dir)       
             
             dst = out_root / rel
             if prod:
