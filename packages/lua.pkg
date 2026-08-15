@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.2.0",
-    "hash": "8523c88be2eeaf3a437fe455581df80c",
-    "tarball": "http://localhost:8000/packages/raw/lua.tar.gz"
+    "hash": "31e0103563ca3443e5c3ab8257325138",
+    "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/lua.tar.gz"
 }

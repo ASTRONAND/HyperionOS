@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "a0f49db23415afc4d75f87aab12ece00",
-    "tarball": "http://localhost:8000/packages/raw/pid.tar.gz"
+    "hash": "c48c7078c5b5c9309ed3d6ee4fb38c2c",
+    "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/pid.tar.gz"
 }

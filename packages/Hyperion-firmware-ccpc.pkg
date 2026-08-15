@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "282807ec0aefa87c7077b0b848a491b0",
-    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-ccpc.tar.gz"
+    "hash": "4021ef17d9a26200b255e5fdad3766cc",
+    "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/Hyperion-firmware-ccpc.tar.gz"
 }

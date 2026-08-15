@@ -6,6 +6,6 @@
     ],
     "dependencies": [],
     "version": "0.1.0",
-    "hash": "4a3445e77b744698734dde9a03e0f5b7",
-    "tarball": "http://localhost:8000/packages/raw/Hyperion-firmware-oc.tar.gz"
+    "hash": "3090e7b03b8212052fb697987b1f5024",
+    "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/Hyperion-firmware-oc.tar.gz"
 }
