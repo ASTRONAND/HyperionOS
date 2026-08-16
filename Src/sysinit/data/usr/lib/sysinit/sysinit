@@ -14,7 +14,7 @@ for i,v in pairs(kernel.processes) do
         else
             kernel.log("Successfully executed kernel task: " .. i)
         end
-    end, i)
+    end, i, nil,nil,nil,true)
 end
 
 -- config file path setup
@@ -42,7 +42,7 @@ for i,v in ipairs(files) do
             else
                 kernel.log("Successfully executed startup script: " .. filepath)
             end
-        end, "startup:" .. v)
+        end, "startup:" .. v, nil,nil,nil,true)
     end
 end
 kernel.saveLog()

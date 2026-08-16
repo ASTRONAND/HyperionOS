@@ -31,9 +31,17 @@ local function loadExecutable(path)
     return func, euid, suid_set
 end
 
-local function createTask(func, name, envars, args, tgid, real_uid, eff_uid)
+local function createTask(func, name, envars, args, tgid, real_uid, eff_uid, clearFds)
     local id = nextpid
     nextpid  = nextpid + 1
+
+    local fds={}
+    if not clearFds then
+        for id, file in pairs(kernel.currentTask.fd) do
+            file.refcount=file.refcount+1
+            fds[id]=file
+        end
+    end
 
     tasks[tostring(id)] = {
         coro = coroutine.create(function()
@@ -71,7 +79,7 @@ local function createTask(func, name, envars, args, tgid, real_uid, eff_uid)
         euid     = eff_uid,
         gid      = (kernel.currentTask and kernel.currentTask.gid) or 0,
         groups   = (kernel.currentTask and kernel.currentTask.groups) or {},
-        fd       = {},
+        fd       = fds,
         sleep    = 0,
         ivs      = 0,
         vs       = 0,
@@ -93,14 +101,14 @@ local function createTask(func, name, envars, args, tgid, real_uid, eff_uid)
     return id
 end
 
-function sys.spawn(func, name, envars, args, tgid)
+function sys.spawn(func, name, envars, args, tgid, clearFds)
     local caller   = kernel.currentTask
     local real_uid = caller and caller.uid  or kernel.uid
     local eff_uid  = caller and caller.euid or real_uid
-    return createTask(func, name, envars, args, tgid, real_uid, eff_uid)
+    return createTask(func, name, envars, args, tgid, real_uid, eff_uid, clearFds)
 end
 
-function sys.execspawn(path, name, envars, args, tgid)
+function sys.execspawn(path, name, envars, args, tgid, keepFds)
     local func, euid, suid_active = loadExecutable(path, kernel._U)
 
     local caller   = kernel.currentTask
@@ -114,7 +122,7 @@ function sys.execspawn(path, name, envars, args, tgid)
         )
     end
 
-    return createTask(func, name or path, envars, args, tgid, real_uid, euid)
+    return createTask(func, name or path, envars, args, tgid, real_uid, euid, not keepFds)
 end
 
 function sys.exec(path, args, envars)

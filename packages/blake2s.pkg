@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "c41dc8025c5bcf657e5b52c40ddfe6be",
+    "hash": "296979e95c6ff4ef89f5ee211d64e69c",
     "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/blake2s.tar.gz"
 }
