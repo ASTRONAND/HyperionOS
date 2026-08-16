@@ -1222,7 +1222,7 @@ local function runCommand(command)
         -- compiled from disk by the kernel (via loadExecutable -> freshUserEnv),
         -- so the child cannot share any upvalue or syscall table state with hysh.
         syscall.exec(cmdPath, {table.unpack(args, 2)})
-    end, progName)
+    end, progName, nil, nil, nil, true)
 
     while true do
         local exited, code = syscall.collect(proc)
@@ -1231,7 +1231,7 @@ local function runCommand(command)
             return
         end
         if terminate then
-            local ok2 = syscall.kill(proc)
+            local ok2 = syscall.kill(proc, true)
             if ok2 then
                 syscall.devctl(1,"sbgc",16); syscall.devctl(1,"sfgc",0xFF0000)
                 print("\nProgram Terminated."); syscall.devctl(1,"sfgc",0xFFFFFF)

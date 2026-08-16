@@ -547,7 +547,7 @@ local spm = function(...)
         if cloptions.u then
             for i,v in ipairs(table.keys(pkgdb)) do
                 local pkg, err = getPkg(v)
-                if pkg then
+                if pkg and not found[v] then
                     needed[#needed+1] = pkg
                     found[v]=true
                 end
@@ -586,7 +586,7 @@ local spm = function(...)
 
         local files = {}
         for _,v in ipairs(needed) do
-            if not pkgdb[v.id] or not pkgdb[v.id].hash==v.hash then
+            if not pkgdb[v.id] or not pkgdb[v.id].hash==v.hash or cloptions.u then
                 w("Downloading "..v.id)
                 local resp = get(v.tar)
                 if not resp then
