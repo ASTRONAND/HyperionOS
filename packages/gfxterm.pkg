@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.0.0",
-    "hash": "af09f814eb4b0ff24085ce9022b5f135",
+    "hash": "ea8adbf3f614647990a628a7f9c67488",
     "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/gfxterm.tar.gz"
 }
