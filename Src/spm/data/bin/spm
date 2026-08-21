@@ -699,12 +699,24 @@ local spm = function(...)
             content.hash=v.hash
             fs.writeAllText("var/spm/db/installed/"..i, json.encode(content))
         end
-        w("Writing changes...")
+        w("Writing files...")
         for i,v in pairs(files) do
-            w("Writing "..i)
+            w("Writing package "..i)
             for f,c in pairs(v.data) do
                 if not block[f] then
                     fs.writeAllText(f,c)
+                end
+            end
+        end
+        w("Proccessing control files...")
+        for i,v in pairs(files) do
+            for f,c in pairs(v.control) do
+                if f=="symlinks.json" then
+                    local symlinks=json.decode(c)
+                    for src,dest in pairs(symlinks) do
+                        w(src.." -> "..dest)
+                        syscall.symlink(dest, src)
+                    end
                 end
             end
         end
