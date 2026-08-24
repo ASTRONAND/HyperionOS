@@ -321,7 +321,7 @@ local ok, err = xpcall(function()
         end
     end)
 
-    function coroutine.resumeWithTimeout(co, timeout, ...)
+    function EFI.resumeWithTimeout(co, timeout, ...)
         local startTime = EFI.getEpochMs()
         debug.sethook(co, function()
             if EFI.getEpochMs() > startTime + timeout then
@@ -342,7 +342,7 @@ local ok, err = xpcall(function()
     write("Loaded in " .. tostring(apis.os.clock()) .. " seconds.\n")
 
     while true do
-        local status, err = coroutine.resumeWithTimeout(kernelCoro, 50)
+        local status, err = EFI.resumeWithTimeout(kernelCoro, 50)
         apis.os.queueEvent("NoSleep")
         local exit = false
         while not exit do

@@ -12,9 +12,7 @@
 local args = { ... }
 
 local function termSize()
-    local s = syscall.devctl(1, "size")
-    return tonumber(s:match("^(%d+)")) or 80,
-           tonumber(s:match(";(%d+)$")) or 24
+    return syscall.devctl(1, "size")
 end
 local function tpos(x,y)  syscall.devctl(1,"spos",x,y) end
 local function tfg(c)     syscall.devctl(1,"sfgc",c)   end

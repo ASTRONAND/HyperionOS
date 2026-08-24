@@ -2,8 +2,8 @@
 
 import hashlib
 import json
-import shutil
-import tarfile
+import shutil, io
+import tarfile, gzip
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -89,6 +89,15 @@ def read_dependencies(folder):
 
     return dependencies if dependencies else DEFAULT_DEPENDENCIES
 
+def reproducible_filter(info):
+    info.mtime = 0
+    info.uid = 0
+    info.gid = 0
+    info.uname = ""
+    info.gname = ""
+
+    return info
+
 
 def create_package(folder):
     name = folder.name
@@ -102,8 +111,25 @@ def create_package(folder):
 
     debug(f"Packing {name}")
 
-    with tarfile.open(tarball, "w:gz") as archive:
-        archive.add(folder, arcname=name, filter=exclude)
+    # Create deterministic TAR
+    tar_data = io.BytesIO()
+
+    with tarfile.open(fileobj=tar_data, mode="w") as archive:
+        archive.add(
+            folder,
+            arcname=name,
+            filter=reproducible_filter,
+        )
+
+    # Create deterministic gzip
+    compressed = gzip.compress(
+        tar_data.getvalue(),
+        compresslevel=9,
+        mtime=0,
+    )
+
+    with open(tarball, "wb") as file:
+        file.write(compressed)
 
     package_hash = sha256(tarball)
 

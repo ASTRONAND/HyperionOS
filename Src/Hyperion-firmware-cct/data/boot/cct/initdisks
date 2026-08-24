@@ -250,6 +250,21 @@ internal["rom"] = createDisk("rom", "/rom", true, {
     end
 })
 
+internal["root"] = createDisk("root", "/root", false, {
+    setLabel = function(label)
+        local h = fs.open("/.rootlabel", "w")
+        h.write(label)
+        h.close()
+    end,
+    getLabel = function()
+        local h = fs.open("/.rootlabel", "r")
+        if not h then return "$" end
+        local label = h.readAll()
+        h.close()
+        return label
+    end
+})
+
 local function refresh()
     disks={}
     for _, disk in ipairs({peripheral.find("drive")}) do

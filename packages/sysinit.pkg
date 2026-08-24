@@ -7,6 +7,6 @@
     ],
     "dependencies": [],
     "version": "1.1.0",
-    "hash": "d46f83d262d515921ba300bfe081922b",
+    "hash": "cab61038368a1d215852edd1ff411988",
     "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/sysinit.tar.gz"
 }

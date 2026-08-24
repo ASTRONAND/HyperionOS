@@ -1,8 +1,6 @@
 --:Minify:--
 local kernel = ...
 
-kernel.vfs.remove("/tmp")
-kernel.vfs.mkdir("/tmp")
 if not kernel.config.tmpToDisk then
     local proxy = {}
     local data = {}
@@ -138,4 +136,8 @@ if not kernel.config.tmpToDisk then
 else
     kernel.log("tmpToDisk enabled, skipping tmpfs module")
     kernel.log("tmpfs0000 will passthrough to /tmp on the disk")
+    kernel.runWhenLoaded(function()
+        kernel.vfs.remove("/tmp")
+        kernel.vfs.mkdir("/tmp")
+    end)
 end

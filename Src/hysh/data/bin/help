@@ -239,9 +239,7 @@ else
     for _, cmd in ipairs(COMMANDS) do addCmd(cmd) end
 end
 
-local sizeStr = syscall.devctl(1, "size")
-local screenW = tonumber(sizeStr:match("^(%d+)")) or 51
-local screenH = tonumber(sizeStr:match(";(%d+)")) or 19
+local screenW, screenH = syscall.devctl(1, "size")
 local pageSize = screenH - 2
 
 local scroll = 0

@@ -47,7 +47,7 @@ local function write(text, term)
     term.setCursorPos(x, y)
 end
 
-local function displaySuperBadError(err)
+local function displaySuperBadError(err, noyield)
     lterm.setBackgroundColor(0x1)
     lterm.setTextColor(0x4)
     lterm.clear()
@@ -145,9 +145,9 @@ local ok, err = xpcall(function()
         return content
     end
 
-    local Kernel = load(getFile(BOOT_DRIVE_PATH .. "/boot/kernel.lua"),"@Kernel")
-    local initFs = load(getFile(BOOT_DRIVE_PATH .. "/boot/cct/initdisks"),"@Init_disks")(apis)
-    local fs = load(getFile(BOOT_DRIVE_PATH .. "/boot/initfs"), "@InitFs")()
+    local Kernel = load(getFile(BOOT_DRIVE_PATH .. "/kernel.lua"),"@Kernel")
+    local initFs = load(getFile(BOOT_DRIVE_PATH .. "/cct/initdisks"),"@Init_disks")(apis)
+    local fs = load(getFile(BOOT_DRIVE_PATH .. "/initfs"), "@InitFs")()
 
     if not Kernel then displaySuperBadError("Could not load kernel.") end
     if not initFs then displaySuperBadError("Could not load initdisks.") end
@@ -419,6 +419,7 @@ local ok, err = xpcall(function()
     end
 
     local EFI = {
+        yield=function() end,
         getEpochMs = function() return apis.os.epoch("utc") end,
         getUptime = function() return apis.os.clock() * 1000 end,
         date = function() return apis.os.date("!%Y-%m-%dT%H:%M:%SZ", apis.os.epoch("utc") / 1000) end,
@@ -506,15 +507,14 @@ local ok, err = xpcall(function()
         --pf
         ---@diagnostic disable-next-line: param-type-mismatch-
         local ok, err = xpcall(Kernel, debug.traceback, EFI)
-        if not ok and not EFI.reboot then displaySuperBadError(err) end
-        if err then
-            apis.os.reboot()
+        if not ok then
+            error(err)
         else
             apis.os.shutdown()
         end
     end)
 
-    function coroutine.resumeWithTimeout(co, timeout, ...)
+    function EFI.resumeWithTimeout(co, timeout, ...)
         local startTime = EFI.getEpochMs()
         debug.sethook(co, function()
             if EFI.getEpochMs() > startTime + timeout then
@@ -536,7 +536,7 @@ local ok, err = xpcall(function()
     --p
 
     while true do
-        local status, err = coroutine.resumeWithTimeout(kernelCoro, 50)
+        local status, err = EFI.resumeWithTimeout(kernelCoro, 50)
         apis.os.queueEvent("NoSleep")
         local exit = false
         while not exit do

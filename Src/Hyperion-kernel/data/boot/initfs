@@ -77,7 +77,7 @@ end
 function fs.load(path) return load(fs.readAllText(path), path) end
 
 function fs.mount(disk, mountPoint)
-    if not disks[disk] then return end
+    if not disks[disk] then error("NODISK : "..disk) end
     mounts[mountPoint] = disk
 end
 

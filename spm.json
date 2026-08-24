@@ -13,7 +13,7 @@
         "blake2s": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/blake2s.pkg",
         "coreutils": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/coreutils.pkg",
         "deflate": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/deflate.pkg",
-        "gfxterm": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/gfxterm.pkg",
+        "gfx": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/gfx.pkg",
         "hysh": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/hysh.pkg",
         "iniparse": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/iniparse.pkg",
         "installer": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/installer.pkg",

@@ -11,7 +11,7 @@ end
 
 for _, line in ipairs(string.split(kernel.fstab, "\n")) do
     line = trim(line)
-    if line ~= "" and line:sub(1,1) == "U" then
+    if line:sub(1,1) == "U" or line:sub(1,1) == "V" or line:sub(1,1) == "F" then
         local semicolon_pos
         for i = 3, #line do
             if line:sub(i,i) == ";" then
@@ -26,9 +26,7 @@ for _, line in ipairs(string.split(kernel.fstab, "\n")) do
             local id = line:sub(3, semicolon_pos - 1)
             local path = trim(line:sub(semicolon_pos + 1))
             kernel.log("Mounting '"..id.."' to '"..path.."'")
-            if id ~= "$" then
-                kernel.vfs.mount(path, id)
-            end
+            kernel.vfs.mount(path, id, nil, line:sub(1,1) == "F")
             kernel.log("Mounted "..id.." to "..path)
         end
     end

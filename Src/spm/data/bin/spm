@@ -20,7 +20,8 @@ local spm = function(...)
         sysroot = "",
         init = false,
         help = false,
-        overwrite = false
+        overwrite = false,
+        clean = false
     }
 
     local i = 1
@@ -216,8 +217,7 @@ local spm = function(...)
 
     local function printpkgs(list)
         local colWidth=0
-        local tmp = syscall.devctl(1, "size")
-        local sizeX, sizeY = tonumber(tmp:sub(1, tmp:find(";")-1)), tonumber(tmp:sub(tmp:find(";")+1))
+        local sizeX, sizeY = syscall.devctl(1, "size")
         for _, v in ipairs(list) do
             if #v + 2 > colWidth then colWidth = #v + 2 end
         end
@@ -586,7 +586,7 @@ local spm = function(...)
 
         local files = {}
         for _,v in ipairs(needed) do
-            if not pkgdb[v.id] or not pkgdb[v.id].hash==v.hash or cloptions.u then
+            if (not pkgdb[v.id]) or pkgdb[v.id].hash~=v.hash or cloptions.clean then
                 w("Downloading "..v.id)
                 local resp = get(v.tar)
                 if not resp then
@@ -689,16 +689,6 @@ local spm = function(...)
                 syscall.exit()
             end
         end
-        w("Updatating db...")
-        for i,v in pairs(files) do
-            local content={}
-            content.files={}
-            for f,c in pairs(v.data) do
-                content.files[f]=md5(c)
-            end
-            content.hash=v.hash
-            fs.writeAllText("var/spm/db/installed/"..i, json.encode(content))
-        end
         w("Writing files...")
         for i,v in pairs(files) do
             w("Writing package "..i)
@@ -710,15 +700,40 @@ local spm = function(...)
         end
         w("Proccessing control files...")
         for i,v in pairs(files) do
-            for f,c in pairs(v.control) do
-                if f=="symlinks.json" then
-                    local symlinks=json.decode(c)
-                    for src,dest in pairs(symlinks) do
-                        w(src.." -> "..dest)
-                        syscall.symlink(dest, src)
+            if v.control then
+                for f,c in pairs(v.control) do
+                    if f=="symlinks.json" then
+                        local symlinks=json.decode(c)
+                        for src,dest in pairs(symlinks) do
+                            if syscall.exists(src) then
+                                if syscall.type(src)~="symlink" then
+                                    if not v.data[src] then
+                                        w("Failed to create symlink "..src)
+                                    end
+                                else
+                                    syscall.remove(src)
+                                end
+                            end
+                            w(src.." -> "..dest)
+                            syscall.symlink(dest, src)
+                        end
                     end
                 end
             end
+        end
+        w("Updatating db...")
+        for i,v in pairs(files) do
+            local content={}
+            content.files={}
+            for f,c in pairs(v.data) do
+                content.files[f]=md5(c)
+            end
+            content.hash=v.hash
+            content.symlinks={}
+            if v.control and v.control["symlinks.json"] then
+                content.symlinks=json.decode(v.control["symlinks.json"])
+            end
+            fs.writeAllText("var/spm/db/installed/"..i, json.encode(content))
         end
         w("Install complete")
         log.close()

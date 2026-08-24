@@ -1,0 +1,136 @@
+local args = {...}
+local apis = args[1]
+local bootdrive = args[2]
+local bootaddr = args[3]
+local disks = {}
+local internal = {}
+
+local function createDisk(id, hw)
+    local disk = {
+        address = id, 
+        isReadOnly = function() return hw.isReadOnly() end
+    }
+    
+    function disk:spaceUsed() return hw.spaceUsed() end
+    function disk:spaceTotal() return hw.spaceTotal() end
+
+    function disk:list(path)
+        if not hw.exists(path) or not hw.isDirectory(path) then
+            return nil, "not directory"
+        end
+        return hw.list(path)
+    end
+
+    function disk:fileExists(path)
+        return hw.exists(path) and not hw.isDirectory(path)
+    end
+
+    function disk:directoryExists(path)
+        return hw.exists(path) and hw.isDirectory(path)
+    end
+
+    function disk:type(path)
+        if not hw.exists(path) then
+            return nil
+        elseif hw.isDirectory(path) then
+            return "directory"
+        else
+            return "file"
+        end
+    end
+
+    function disk:makeDirectory(path)
+        hw.makeDirectory(path)
+    end
+
+    function disk:remove(path)
+        if hw.exists(path) then hw.remove(path) end
+    end
+
+    function disk:setLabel(label) hw.setLabel(label) end
+    function disk:getLabel() return hw.getLabel() end
+
+    function disk:attributes(path)
+        return {
+            size = hw.size(path),
+            isDir = hw.isDirectory(path),
+            isReadOnly = hw.isReadOnly(),
+            modified = hw.lastModified(path),
+            created = hw.lastModified(path)
+        }
+    end
+
+    function disk:open(path, mode)
+        local fd = hw.open(path, mode)
+
+        if not fd then
+            local dir = path:match("^(.*)/[^/]+$")
+
+            if dir and not hw.exists(dir) then
+                local ok, err = hw.makeDirectory(dir)
+                if not ok then
+                    return nil, err or "could not create parent directory"
+                end
+            end
+
+            fd = hw.open(path, mode)
+            if not fd then
+                return nil, "file not found or access denied"
+            end
+        end
+
+        return {
+            read = function(num) return hw.read(fd, num) end,
+
+            readAll = function()
+                local data = {}
+                while true do
+                    local chunk = hw.read(fd, math.huge)
+                    if not chunk then break end
+                    data[#data + 1] = chunk
+                end
+                return table.concat(data)
+            end,
+
+            write = function(data) return hw.write(fd, data) end,
+            seek = function(whence, offset)
+                return hw.seek(fd, whence, offset)
+            end,
+
+            flush = function()
+                hw.close(fd)
+                fd = hw.open(path, mode)
+            end,
+
+            close = function()
+                hw.close(fd)
+                fd = nil
+            end
+        }
+    end
+
+    return disk
+end
+
+internal["$"] = createDisk("$", bootdrive)
+
+local function refresh()
+    disks = {}
+    for addr in apis.component.list("filesystem") do
+        if addr ~= bootaddr then
+            disks[addr] = createDisk(addr, apis.component.proxy(addr))
+        end
+    end
+end
+
+local function iter()
+    refresh()
+    local combined = {}
+
+    for id, obj in pairs(internal) do combined[id] = obj end
+    for id, obj in pairs(disks) do combined[id] = obj end
+
+    return pairs(combined)
+end
+
+return {refresh = refresh, list = iter}
