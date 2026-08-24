@@ -5,7 +5,6 @@ local sys    = {}
 local nextpid = 2
 kernel.exitMain = false
 
-local resumeWithTimeout = coroutine.resumeWithTimeout
 
 local function bit_is_set(num, bit)
     return math.floor(num / (2 ^ bit)) % 2 == 1
@@ -137,7 +136,7 @@ function sys.exec(path, args, envars)
 
     task.euid   = euid
     task.args   = args or {}
-    task.envars = envars or task.envars
+    task.envars = envars or task.envars or {}
     task.name   = path
 
     task.coro = coroutine.create(function()
@@ -309,7 +308,7 @@ end
 
 function sys.getuid() return kernel.currentTask.uid end
 
-local function reapDeadTasks()
+function sys.reapDeadTasks()
     for pid, task in pairs(tasks) do
         if task.status == "Z" and not task.reapTime then
             if task.pid == 1 then kernel.panic("Attempted to gc init!") end
@@ -346,205 +345,41 @@ local function reapDeadTasks()
     end
 end
 
-local alpha         = 0.85
-local C_target      = 0.01
-local Tmin          = 0.0005
-local Tmax          = 0.5
-local lambda_budget = 0.08
-local lambda_clamp  = 0.03
-local lambda_var    = 0.02
-local k_min         = 0.5
-local k_max         = 0.5
-local B             = 0.01
+kernel.execPerTask(function(task)
+    kernel.currentTask = task
+    kernel.uid  = task.euid or task.uid
+    kernel.process = task.name
 
-function kernel.main()
-    kernel.log("Starting main loop...")
-    kernel.saveLog()
-    local stopLog=5
-    local logTasks=100
+    if task.status == "S" and kernel.EFI:getEpochMs() >= task.sleep then
+        task.status = "R"
+        task.sleep  = 0
+    end
 
-    while not kernel.exitMain do
-        if kernel.config.logTasks then
-            if logTasks<0 then
-                kernel.log("Active Tasks:")
-                for i,v in pairs(tasks) do
-                    kernel.log(v.name.." : "..v.status.." : "..tostring(v.pid).." : "..tostring(v.exit))
-                end
-                kernel.log("[END BLOCK]")
-                logTasks=100
-            end
-            logTasks=logTasks-1
-        end
-        local N            = 0
-        local Tmin_hit     = 0
-        local Tmax_hit     = 0
-        local totalTaskTime = 0
-        local taskTimes    = {}
+    if task.status == "ST" and kernel.EFI:getEpochMs() >= task.sleep then
+        task.status = "T"
+        task.sleep  = 0
+    end
 
-        for pid, task in pairs(tasks) do
-            if kernel.exitMain then break end
-            kernel.currentTask = task
-            kernel.uid  = task.euid or task.uid
-            kernel.process = task.name
+    if task.status == "DS" and kernel.EFI:getEpochMs() >= task.sleep then
+        task.status = "D"
+        task.sleep  = 0
+    end
 
-            if task.status == "S" and kernel.EFI:getEpochMs() >= task.sleep then
+    if task.status == "D" then
+        if task.io then
+            local ret = {xpcall(task.io, debug.traceback)}
+            if not ret[1] then
+                task.syscallReturn = {false, table.unpack(ret, 2)}
                 task.status = "R"
-                task.sleep  = 0
+                task.io=nil
+            elseif #ret>1 then
+                task.syscallReturn = {true, table.unpack(ret, 2)}
+                task.status = "R"
+                task.io=nil
             end
-
-            if task.status == "ST" and kernel.EFI:getEpochMs() >= task.sleep then
-                task.status = "T"
-                task.sleep  = 0
-            end
-
-            if task.status == "DS" and kernel.EFI:getEpochMs() >= task.sleep then
-                task.status = "D"
-                task.sleep  = 0
-            end
-
-            if task.status == "D" then
-                if task.io then
-                    local ret = {xpcall(task.io, debug.traceback)}
-                    if not ret[1] then
-                        task.syscallReturn = {false, table.unpack(ret, 2)}
-                        task.status = "R"
-                        task.io=nil
-                    elseif #ret>1 then
-                        task.syscallReturn = {true, table.unpack(ret, 2)}
-                        task.status = "R"
-                        task.io=nil
-                    end
-                end
-            end
-
-            if task.status == "R" then
-                N = N + 1
-
-                task.timeSlice = math.min(Tmax, math.max(Tmin, B / (N ^ alpha)))
-
-                if task.sigq and #task.sigq ~= 0 and task.sigh then
-                    local coro = coroutine.create(task.sigh)
-                    local status,err
-                    if kernel.config.preempt then
-                        status,err=coroutine.resumeWithTimeout(coro, 100, table.remove(task.sigq, 1))
-                    else
-                        status,err=coroutine.resume(coro, table.remove(task.sigq, 1))
-                    end
-                    if status=="error" or status==false then
-                        task.sigd.error=err or "Unknown"
-                        task.sigd.active=false
-                        task.sigh=nil
-                        task.sigq=nil
-                        task.sigd=nil
-                    elseif status=="success" or status==true then
-                        if err=="syscall" then
-                            task.sigd.error="Cannot execute syscalls from signals"
-                            task.sigd.active=false
-                            task.sigh=nil
-                            task.sigq=nil
-                            task.sigd=nil
-                        end
-                    end
-                end
-
-                if task.status == "R" then
-                    local startTime = kernel.EFI:getEpochMs()
-                    local ret
-                    if stopLog > 0 then
-                        kernel.log("Running task " .. tostring(task.pid) .. " (" .. task.name .. ") with time slice " .. string.format("%.3f", task.timeSlice) .. "s", "DBUG", 0x00FFFF)
-                    end
-                    if kernel.config.preempt then
-                        if not task.debugger then
-                            ret = { resumeWithTimeout(task.coro, task.timeSlice, table.unpack(task.syscallReturn)) }
-                        else
-                            ret = { coroutine.resume(task.coro, table.unpack(task.syscallReturn)) }
-                        end
-                    else
-                        ret = { coroutine.resume(task.coro, table.unpack(task.syscallReturn)) }
-                    end
-
-                    local elapsed = kernel.EFI:getEpochMs() - startTime
-                    task.lastTime  = elapsed
-                    task.totalTime = (task.totalTime or 0) + elapsed
-                    task.numRuns   = (task.numRuns  or 0) + 1
-
-                    taskTimes[#taskTimes+1] = elapsed
-                    totalTaskTime = totalTaskTime + elapsed
-
-                    if elapsed <= Tmin then Tmin_hit = Tmin_hit + 1 end
-                    if elapsed >= Tmax then Tmax_hit = Tmax_hit + 1 end
-
-                    if ret[1] == "error" or ret[1] == false then
-                        kernel.log("processHandlerException: " .. tostring(ret[2]), "ERROR", 0xFF0000)
-                        task.status = "Z"
-                        task.exit   = "processHandlerException: " .. tostring(ret[2])
-
-                    elseif ret[1] == "timeout" then
-                        task.ivs = task.ivs + 1
-                        task.syscallReturn = {}
-
-                    elseif ret[1] == "success" or ret[1] == true then
-                        task.vs = task.vs + 1
-
-                        if ret[2] == "syscall" then
-                            local scname = ret[3]
-                            if kernel.syscalls[scname] then
-                                if kernel.config.debugSyscalls then
-                                    kernel.log("Task " .. task.pid .. " syscall: " .. scname, "DBUG", 0x00FFFF)
-                                    for i = 4, #ret do
-                                        kernel.log("  inval[" .. (i-3) .. "] = " .. tostring(ret[i]), "DBUG", 0x00FFFF)
-                                    end
-                                end
-
-                                local sysret = { xpcall(kernel.syscalls[scname], debug.traceback, table.unpack(ret, 4)) }
-
-                                if kernel.config.debugSyscalls then
-                                    if not sysret[1] then
-                                        kernel.log("Task " .. task.pid .. " syscall " .. scname .. " failed: " .. tostring(sysret[2]), "ERROR", 0xFF0000)
-                                    else
-                                        kernel.log("Task " .. task.pid .. " syscall " .. scname .. " ok, " .. (#sysret-1) .. " retvals", "DBUG", 0x00FFFF)
-                                        for i = 2, #sysret do
-                                            local v = type(sysret[i]) == "table" and table.serialize(sysret[i]) or tostring(sysret[i])
-                                            kernel.log("  retval[" .. (i-1) .. "] = " .. v, "DBUG", 0x00FFFF)
-                                        end
-                                    end
-                                end
-
-                                if not sysret[1] then
-                                    task.syscallReturn = { false, sysret[2] }
-                                else
-                                    task.syscallReturn = { true, table.unpack(sysret, 2) }
-                                end
-                            else
-                                task.syscallReturn = { false, "Unknown syscall: " .. tostring(scname) }
-                            end
-                        end
-                    end
-                end
-            end
-        end
-
-        local T_prev_avg = (N > 0) and (totalTaskTime / N) or 0
-        local T_prev_var = 0
-        for _, t in ipairs(taskTimes) do
-            T_prev_var = T_prev_var + (t - T_prev_avg) ^ 2
-        end
-        if N > 0 then T_prev_var = T_prev_var / N end
-
-        if N > 0 then
-            local f_clamp  = k_min * (Tmin_hit / N) - k_max * (Tmax_hit / N)
-            local B_budget = (C_target * (N ^ (alpha - 1))) / math.max(T_prev_avg, 1e-8)
-            B = B + lambda_budget * (B_budget - B) + lambda_clamp * f_clamp - lambda_var * T_prev_var
-        end
-
-        reapDeadTasks()
-        if stopLog > 0 then
-            kernel.log("Executed " .. N .. " tasks, avg time: " .. string.format("%.2f", T_prev_avg) .. "ms, var: " .. string.format("%.2f", T_prev_var) .. ", B: " .. string.format("%.5f", B))
-            stopLog = stopLog - 1
-            kernel.saveLog()
         end
     end
-end
+end,1)
 
 local sysc = kernel.syscalls
 sysc["spawn"]      = sys.spawn

@@ -155,7 +155,21 @@ end
 
 local function hashPassword(password, salt)
     local key = (pepper .. salt)
-    return blake2s(password, key)
+    return blake2s(password..salt, key)
+end
+
+if not kernel.vfs.exists("/etc/passwd") then
+    kernel.log("PASSWD FILE NOT FOUND CREATING...", "WARN", 0xFF8800)
+    local handle = kernel.vfs.open("/etc/passwd", "w")
+    kernel.vfs.write(handle, "0:0:root:/root:/bin/hysh")
+    kernel.vfs.close(handle)
+end
+
+if not kernel.vfs.exists("/etc/shadow") then
+    kernel.log("SHADOW FILE NOT FOUND CREATING...", "WARN", 0xFF8800)
+    local handle = kernel.vfs.open("/etc/shadow", "w")
+    kernel.vfs.write(handle, "")
+    kernel.vfs.close(handle)
 end
 
 local passwdFile = getFile("/etc/passwd")

@@ -32,6 +32,31 @@ function signal.sigignore()
     task.sigd=nil
 end
 
+kernel.execPerTask(function(task)
+    if task.status=="R" then
+        if task.sigq and #task.sigq ~= 0 and task.sigh then
+            local coro = coroutine.create(task.sigh)
+            local status,err=coroutine.resume(coro, table.remove(task.sigq, 1))
+            EFI:yeild()
+            if status=="error" or status==false then
+                task.sigd.error=err or "Unknown"
+                task.sigd.active=false
+                task.sigh=nil
+                task.sigq=nil
+                task.sigd=nil
+            elseif status=="success" or status==true then
+                if err=="syscall" then
+                    task.sigd.error="Cannot execute syscalls from signals"
+                    task.sigd.active=false
+                    task.sigh=nil
+                    task.sigq=nil
+                    task.sigd=nil
+                end
+            end
+        end
+    end
+end,2)
+
 local s=kernel.syscalls
 s["sigsend"] = signal.sigsend
 s["sigcatch"] = signal.sigcatch

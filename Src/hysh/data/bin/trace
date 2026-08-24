@@ -1,0 +1,10 @@
+--:Minify:--
+local args={...}
+if #args<1 then print("trace [filepath] args") syscall.exit() end
+local fs=require("fs")
+local file = fs.readAllText(args[1])
+if not file then print("File not found") end
+local func, err = load(file, args[1], "t", _G)
+if not func then print(err) syscall.exit() end
+local ok,err = xpcall(func, debug.traceback, table.unpack(args, 2))
+if not ok then print(err) end

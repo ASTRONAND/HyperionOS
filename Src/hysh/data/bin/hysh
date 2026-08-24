@@ -1009,9 +1009,7 @@ local function getUserInput()
     syscall.write(1, syscall.getcwd())
     syscall.devctl(1,"sfgc",0xFFFFFF)
     syscall.write(1, "$ ")
-    local curOffsetStr = syscall.devctl(1, "gpos")
-    local curOffsetX = tonumber(curOffsetStr:sub(1, curOffsetStr:find(";")-1))
-    local curOffsetY = tonumber(curOffsetStr:sub(curOffsetStr:find(";")+1))
+    local curOffsetX,curOffsetY = syscall.devctl(1, "gpos")
 
     local input = ""
     local blinkState = false
@@ -1109,14 +1107,10 @@ local function getUserInput()
                 local newInput, newCursor, needsRedraw = doTabComplete(input, cursorPos)
                 if needsRedraw then
                     input = newInput; cursorPos = newCursor
-                    local posStr = syscall.devctl(1, "gpos")
-                    local sep = posStr:find(";")
-                    local px = tonumber(posStr:sub(1, sep-1))
-                    local py = tonumber(posStr:sub(sep+1))
+                    local px,py = syscall.devctl(1, "gpos")
                     if px > 1 then
                         syscall.devctl(1,"spos",1,py)
-                        local tsz = syscall.devctl(1,"size") or "51;19"
-                        local tw = tonumber(tsz:match("^(%d+)")) or 51
+                        local tw = syscall.devctl(1,"size")
                         syscall.write(1, string.rep(" ", tw))
                         syscall.devctl(1,"spos",1,py)
                     end
@@ -1124,10 +1118,7 @@ local function getUserInput()
                     syscall.devctl(1,"sfgc",0xFFFFFF); syscall.write(1, ":")
                     syscall.devctl(1,"sfgc",0x00FFFF); syscall.write(1, syscall.getcwd())
                     syscall.devctl(1,"sfgc",0xFFFFFF); syscall.write(1, "$ ")
-                    posStr = syscall.devctl(1, "gpos")
-                    sep = posStr:find(";")
-                    curOffsetX = tonumber(posStr:sub(1, sep-1))
-                    curOffsetY = tonumber(posStr:sub(sep+1))
+                    curOffsetX,curOffsetY = syscall.devctl(1, "gpos")
                     dirty = true
                 end
             elseif key=="\b" then

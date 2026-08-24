@@ -237,9 +237,7 @@ end
 
 local function getUserInput(prompt, history)
     c(C_PROMPT); w(prompt); c(1)
-    local pos = syscall.devctl(1, "gpos")
-    local ox = tonumber(pos:sub(1, pos:find(";")-1))
-    local oy = tonumber(pos:sub(pos:find(";")+1))
+    local ox, oy = syscall.devctl(1, "gpos")
 
     local input    = ""
     local cursor   = 1

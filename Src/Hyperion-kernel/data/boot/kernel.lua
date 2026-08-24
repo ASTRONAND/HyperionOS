@@ -68,6 +68,7 @@ function kernel.PANIC(msg)
         kernel.exitMain = true
     end
     while true do
+        EFI:yield()
         local event={EFI:getMachineEvent()}
         if event[1]=="keyPressed" then
             break
@@ -98,7 +99,7 @@ kernel.disks={}
 for _,v in disks.list() do
     kernel.disks[v.address] = v
 end
-ifs.mount("$", "/")
+ifs.mount("$", "/boot/")
 
 local fstab=ifs.readAllText("/boot/fstab")
 local split = function(str, delim, maxResultCountOrNil)
@@ -138,8 +139,9 @@ end
 kernel.config = config
 
 local skip=false
+local root=false
 for i,v in ipairs(split(fstab,"\n")) do
-    if v:sub(1,1)=="U" then
+    if v:sub(1,1)=="U" or v:sub(1,1)=="F" then
         local id=""
         for i=3,#v do
             if v:sub(i,i)==";" then
@@ -149,12 +151,14 @@ for i,v in ipairs(split(fstab,"\n")) do
         end
         if not skip then
             local path=v:sub(#id+4)
+            if path=="/" then root=true end
             ifs.mount(id,path)
         else
             skip=false
         end
     end
 end
+if not root then kernel.panic("No disk mounted to /") end
 kernel.log("Disks initialized")
 
 function kernel.saveLog()
@@ -321,6 +325,26 @@ kernel.processes={}
 kernel.fstab=fstab
 kernel.denied={}
 kernel.loadingModule="kernel"
+kernel.perTaskHooks={}
+kernel.mainHooks={}
+kernel.runhooks={}
+
+-- args {taskobj}
+function kernel.execPerTask(func, prior)
+    if not kernel.perTaskHooks[prior] then kernel.perTaskHooks[prior]={} end
+    kernel.perTaskHooks[prior][#kernel.perTaskHooks[prior]+1] = func
+    return #kernel.perTaskHooks[prior]
+end
+
+function kernel.execOnMain(func)
+    kernel.mainHooks[#kernel.mainHooks+1] = func
+    return #kernel.mainHooks
+end
+
+function kernel.runWhenLoaded(func)
+    kernel.runhooks[#kernel.runhooks+1] = func
+    return #kernel.runhooks
+end
 
 kernel.kernelTask = {
     name="kernel",
@@ -429,11 +453,17 @@ for _,p in ipairs(modules) do
     end
 end
 
+for i=1, #kernel.runhooks do
+    local ok,err = xpcall(kernel.runhooks[i], debug.traceback)
+    if not ok then kernel.panic(err) end
+end
+
 kernel.log("Kernel initialized successfully.")
 kernel.saveLog()
 kernel.status="running"
 kernel.loadingModule=nil
 screen:disable()
+if not kernel.main then kernel.panic("No scheduler implemented from firmware") end
 local ok,err = xpcall(kernel.main, debug.traceback)
 if not ok then
     kernel.panic(err)

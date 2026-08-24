@@ -1,11 +1,9 @@
 {
     "id": "Hyperion-firmware-oc",
-    "description": "firmware for Opencomputers",
-    "authors": [
-        "Hyperion"
-    ],
+    "description": "No description provided",
+    "authors": [],
     "dependencies": [],
-    "version": "0.1.0",
-    "hash": "c3f760d7997c6d913f0c2ce8f61627ce",
+    "version": "0.0.0",
+    "hash": "4d47c5c61eecb18b7b7b754747fb1581",
     "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/Hyperion-firmware-oc.tar.gz"
 }

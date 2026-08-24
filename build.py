@@ -142,12 +142,18 @@ def process_root(src_root: Path, out_root: Path, minify: bool, micro: bool, arch
 
 
 def install_bootloader(arch: str, release: bool):
-    boot_dir  = BUILD_ROOT / "$" / ARCH_BOOT_DIR[arch]
+    boot_dir  = BUILD_ROOT / "root" / ARCH_BOOT_DIR[arch]
     eeprom    = boot_dir / "eeprom"
 
     eeprom_dst_name = "startup.lua" if release else "eeprom"
     print(f"  Installing: eeprom -> Build/{eeprom_dst_name}")
     shutil.copy2(eeprom, BUILD_ROOT / eeprom_dst_name)
+
+    if arch=="cct":
+        with open(BUILD_ROOT / "root/boot/fstab", "r") as file:
+            content=file.read()
+        with open(BUILD_ROOT / "root/boot/fstab", "w") as file:
+            file.write("U root;/\n"+content)
 
 
 def run_build(minify: bool, micro: bool, include_test: bool, arch: Union[str, None], release: bool, prod: bool):
@@ -157,7 +163,7 @@ def run_build(minify: bool, micro: bool, include_test: bool, arch: Union[str, No
         cleanprod()
         PROD_ROOT.mkdir()
     
-    out_root = BUILD_ROOT / "$" if arch else BUILD_ROOT
+    out_root = BUILD_ROOT / "root" if arch else BUILD_ROOT
 
     process_root(SRC_ROOT, out_root, minify, micro, arch, False)
     if prod:
@@ -170,6 +176,11 @@ def run_build(minify: bool, micro: bool, include_test: bool, arch: Union[str, No
         print("Installing bootloader files ...")
         install_bootloader(arch, release)
         print()
+        boot_root = out_root / "boot"
+        disk_root = BUILD_ROOT / "$"
+        boot_root.rename(disk_root)
+
+    
 
 
 def _make_firstboot_kmod(users):

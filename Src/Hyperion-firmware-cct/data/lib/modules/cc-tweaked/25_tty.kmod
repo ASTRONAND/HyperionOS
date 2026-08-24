@@ -191,16 +191,14 @@ local function newtty(obj, id, ev)
                     write(content, obj)
                 end,
                 size=function()
-                    local s={obj.getSize()}
-                    return table.concat(s,";")
+                    return obj.getSize()
                 end,
                 clear=function()
                     obj.clear()
                     obj.setCursorPos(1,1)
                 end,
                 gpos=function()
-                    local s={obj.getCursorPos()}
-                    return table.concat(s,";")
+                    return obj.getCursorPos()
                 end,
                 spos=function(x,y)
                     return obj.setCursorPos(x,y)

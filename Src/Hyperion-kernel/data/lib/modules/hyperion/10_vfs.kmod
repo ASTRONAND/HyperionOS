@@ -2,7 +2,7 @@
 local kernel = ...
 local vfs = {}
 kernel.vfs = vfs
-vfs.mounts = {["$"] = "/"}
+vfs.mounts = {}
 vfs.disks = kernel.disks
 
 -- Metafile format (version 2)
@@ -556,17 +556,19 @@ function vfs.newfd(fdobj)
     return fd
 end
 
-function vfs.mount(target, diskOrId, bind)
-    local _euid = (kernel.currentTask and (kernel.currentTask.euid or kernel.currentTask.uid)) or kernel.uid
-    if _euid ~= 0 then error("EPERM") end
-    if not target then error("EINVAL") end
-    target = normalizeMountPoint(target)
-    local drive, path = resolvePath(target)
-    if not drive:directoryExists(path) then
-        drive:makeDirectory(path)
-    end
-    if drive:type(path) ~= "directory" then
-        error("EINVAL")
+function vfs.mount(target, diskOrId, bind, floating)
+    if not floating and target ~= "/" then
+        local _euid = (kernel.currentTask and (kernel.currentTask.euid or kernel.currentTask.uid)) or kernel.uid
+        if _euid ~= 0 then error("EPERM") end
+        if not target then error("EINVAL") end
+        target = normalizeMountPoint(target)
+        local drive, path = resolvePath(target)
+        if not drive:directoryExists(path) then
+            drive:makeDirectory(path)
+        end
+        if drive:type(path) ~= "directory" then
+            error("EINVAL")
+        end
     end
     local disk, id
     -- bind mount

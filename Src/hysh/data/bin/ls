@@ -91,8 +91,7 @@ local function humanSize(size)
     return math.floor(size) .. sizePrefixes[scale]
 end
 
-local screenSizeStr = syscall.devctl(1, "size")
-local sizeX = tonumber(screenSizeStr:match("^(%d+)")) or 80
+local sizeX = syscall.devctl(1, "size")
 
 local list = fs.list(dir)
 list[#list+1] = "."
