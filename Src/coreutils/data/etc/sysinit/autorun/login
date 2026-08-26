@@ -3,6 +3,7 @@ syscall.open("/dev/input/keyboard1", "r") --stdin  (fd 0)
 syscall.open("/dev/tty/1", "w") --stdout (fd 1)
 syscall.open("/dev/null", "w")    --stderr (fd 2)
 
+local fs=require("fs")
 
 local MAX_ATTEMPTS = 3
 
@@ -100,7 +101,9 @@ local function spawnShell(username, uid, shell, homedir)
         pcall(syscall.chdir, "/")
     end
 
-    local ok, err = pcall(syscall.execspawn, shell, username .. ":shell")
+    local shellfunc, err = load(fs.readAllText(shell))
+
+    local ok, err = pcall(syscall.spawn, shellfunc, username .. ":shell", nil,nil,nil,true)
     if not ok then
         syscall.write(1, "login: failed to launch shell: " .. tostring(err) .. "\n")
         sleep(2)
@@ -145,7 +148,7 @@ local function doLogin()
                 syscall.devctl(1, "sfgc", 0xFFFFFF)
                 sleep(0.3)
 
-                spawnShell(username, uid, shell, homedir)
+                pcall(spawnShell, username, uid, shell, homedir)
                 return -- back to login prompt
             else
                 attempts = attempts + 1

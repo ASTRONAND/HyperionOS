@@ -36,7 +36,7 @@ for i,v in ipairs(files) do
         kernel.log("Error loading startup script '" .. filepath .. "': " .. err, "ERROR", 0xFF0000)
     else
         syscall.spawn(function()
-            local status, err = pcall(startupFunc)
+            local status, err = xpcall(startupFunc, debug.traceback)
             if not status then
                 kernel.log("Error executing startup script '" .. filepath .. "': " .. err, "ERROR", 0xFF0000)
             else
@@ -45,6 +45,7 @@ for i,v in ipairs(files) do
         end, "startup:" .. v, nil,nil,nil,true)
     end
 end
+kernel.log("sysinit complete")
 kernel.saveLog()
 
 while true do

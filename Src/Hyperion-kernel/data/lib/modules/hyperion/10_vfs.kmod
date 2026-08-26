@@ -1068,8 +1068,9 @@ function vfs.chown(path, uid, gid)
     if kernel.unixSockets[namei(path)] then error("EINVAL") end
     local disk = resolveMount(path)
     if disk:isReadOnly() then error("ERDONLY") end
-    local _euid = (kernel.currentTask and (kernel.currentTask.euid or kernel.currentTask.uid)) or kernel.uid
-    if _euid ~= 0 then error("EPERM") end
+    local meta = getFileMeta(path)
+    local euid = (kernel.currentTask and (kernel.currentTask.euid or kernel.currentTask.uid)) or kernel.uid
+    if euid ~= 0 and euid ~= meta.owner then error("EPERM") end
     updateMeta(path, function(e) e.owner = uid; e.group = gid end)
 end
 

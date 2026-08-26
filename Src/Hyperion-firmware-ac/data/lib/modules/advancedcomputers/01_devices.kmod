@@ -1,0 +1,15 @@
+--:Minify:--
+local kernel=...
+kernel.oc={}
+kernel.oc.component=kernel.apis.component
+kernel.oc.computer=kernel.apis.computer
+
+kernel.log("Installed components:")
+for addr, typ in kernel.oc.component.list() do
+    local dev=kernel.oc.component.proxy(addr)
+    local tier=""
+    if dev.getTier then
+        tier=dev.getTier()
+    end
+    kernel.log("    "..addr.." : "..typ..tier)
+end

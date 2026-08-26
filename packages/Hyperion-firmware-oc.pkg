@@ -1,9 +1,13 @@
 {
     "id": "Hyperion-firmware-oc",
-    "description": "No description provided",
-    "authors": [],
+    "description": "firmware for Opencomputers mod",
+    "authors": [
+        "Hyperion",
+        "Astronand",
+        "Xtimhedae"
+    ],
     "dependencies": [],
-    "version": "0.0.0",
-    "hash": "4d47c5c61eecb18b7b7b754747fb1581",
+    "version": "1.0.0",
+    "hash": "f9351ff01bb846e57e0f93595dbe303a",
     "tarball": "https://git.astronand.dev/Hyperion/HyperionOS/raw/branch/main/packages/raw/Hyperion-firmware-oc.tar.gz"
 }
