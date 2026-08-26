@@ -139,6 +139,7 @@ end
 kernel.config = config
 
 local skip=false
+local mounted={}
 local root=false
 for i,v in ipairs(split(fstab,"\n")) do
     if v:sub(1,1)=="U" or v:sub(1,1)=="F" then
@@ -152,13 +153,42 @@ for i,v in ipairs(split(fstab,"\n")) do
         if not skip then
             local path=v:sub(#id+4)
             if path=="/" then root=true end
+            mounted[id]=true
             ifs.mount(id,path)
         else
             skip=false
         end
     end
 end
-if not root then kernel.panic("No disk mounted to /") end
+if not root then
+    kernel.log("No rootdisk found, prompting user...", "WARN", 0xFF8800)
+    screen:setTextColor(0xDDDDDD)
+    screen:print("Disk to mount to /:")
+    local idx=1
+    local canadates={}
+    for i,v in pairs(kernel.disks) do
+        if not mounted[i] then
+            screen:print("("..idx..") : "..i)
+            canadates[idx]=i
+            idx=idx+1
+        end
+    end
+    while true do
+        EFI:yield()
+        local event={EFI:getMachineEvent()}
+        if event[1]=="keyTyped" then
+            if tonumber(event[3]) then
+                if canadates[tonumber(event[3])] then
+                    ifs.writeAllText("/boot/fstab", "U "..canadates[tonumber(event[3])]..";/\n"..fstab)
+                    fstab="U "..canadates[tonumber(event[3])]..";/\n"..fstab
+                    ifs.mount(canadates[tonumber(event[3])], "/")
+                    break
+                end
+            end
+            screen:print(event[1], event[3])
+        end
+    end
+end
 kernel.log("Disks initialized")
 
 function kernel.saveLog()

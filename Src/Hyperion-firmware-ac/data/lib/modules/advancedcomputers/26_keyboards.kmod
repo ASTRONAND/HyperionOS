@@ -1,0 +1,113 @@
+--:Minify:--
+local kernel=...
+kernel.oc.keyboards={}
+local kbs=kernel.oc.keyboards
+
+local kbidx=0
+local keyboard = {}
+
+keyboard.keys = {
+  back            = 0x0E, -- backspace
+  delete          = 0xD3,
+  down            = 0xD0,
+  enter           = 0x1C,
+  home            = 0xC7,
+  lcontrol        = 0x1D,
+  left            = 0xCB,
+  lmenu           = 0x38, -- left Alt
+  lshift          = 0x2A,
+  pageDown        = 0xD1,
+  rcontrol        = 0x9D,
+  right           = 0xCD,
+  rmenu           = 0xB8, -- right Alt
+  rshift          = 0x36,
+  space           = 0x39,
+  tab             = 0x0F,
+  up              = 0xC8,
+  ["end"]         = 0xCF,
+  numpadenter     = 0x9C,
+}
+kernel.oc.keys=keyboard.keys
+
+for i=0, 255 do
+    kernel.oc.keys[string.char(i)]=i
+end
+
+-------------------------------------------------------------------------------
+
+function keyboard.isAltDown(addr)
+  return kbs[addr].pressedCodes[keyboard.keys.lmenu] or kbs[addr].pressedCodes[keyboard.keys.rmenu]
+end
+
+function keyboard.isControl(char)
+  return type(char) == "number" and (char < 0x20 or (char >= 0x7F and char <= 0x9F))
+end
+
+function keyboard.isControlDown(addr)
+  return kbs[addr].pressedCodes[keyboard.keys.lcontrol] or kbs[addr].pressedCodes[keyboard.keys.rcontrol]
+end
+
+function keyboard.isKeyDown(addr,charOrCode)
+  if type(charOrCode) == "string" then
+    return kbs[addr].pressedChars[utf8 and utf8.codepoint(charOrCode) or charOrCode:byte()]
+  elseif type(charOrCode) == "number" then
+    return kbs[addr].pressedCodes[charOrCode]
+  end
+end
+
+function keyboard.isShiftDown(addr)
+  return kbs[addr].pressedCodes[keyboard.keys.lshift] or kbs[addr].pressedCodes[keyboard.keys.rshift]
+end
+kernel.oc.keyboard=keyboard
+
+local function serializeBool(bool)
+    if bool then
+        return "T"
+    else
+        return "F"
+    end
+end
+
+for addr, typ in kernel.oc.component.list("keyboard") do
+    if typ=="keyboard" then
+        kbidx=kbidx+1
+        kbs[addr]={pressedChars = {}, pressedCodes = {}, events=kernel.newFifo()}
+        kernel.devfs.data["input"]["keyboard"..tostring(kbidx)]=function(op,mode)
+            if op=="type" then
+                return "Keyboard"
+            elseif op=="open" then
+                local h = {
+                    read=function(amount)
+                        local rv=""
+                        for i=1, amount or 1 do
+                            local event = {kernel.oc.keyboards[addr].events.pop()}
+                            if event[1] then
+                                rv=rv..event[1]
+                            end
+                        end
+                        if rv=="" then rv=nil end
+                        return rv
+                    end,
+                    write=function(content)
+                    end,
+                    gctrl=function()
+                        return serializeBool(keyboard.isControlDown(addr))..";"..serializeBool(keyboard.isAltDown(addr))
+                    end,
+                    isKeyDown=function(char)
+                        return keyboard.isKeyDown(addr,char)
+                    end
+                }
+                if mode=="rw" then
+                    return h
+                elseif mode=="r" then
+                    h["write"]=nil
+                    return h
+                elseif mode=="w" then
+                    h["read"]=nil
+                    return h
+                end
+            end
+        end
+    end
+end
+

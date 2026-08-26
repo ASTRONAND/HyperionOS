@@ -717,6 +717,14 @@ local spm = function(...)
                             w(src.." -> "..dest)
                             syscall.symlink(dest, src)
                         end
+                    elseif f=="setup.lua" then
+                        local func, err = load(c, "setupscript", "t", _G)
+                        if not func then
+                            w("Failed to load setup script for package "..i)
+                        else
+                            local ok, err = xpcall(func, debug.traceback)
+                            if not ok then w("Setup script for package "..i.." exited with error: "..err) end
+                        end
                     end
                 end
             end

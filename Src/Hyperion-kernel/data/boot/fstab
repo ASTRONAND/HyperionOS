@@ -1,4 +1,4 @@
-F $;/boot/
+U $;/boot/
 V devfs0000;/dev/
 V tmpfs0000;/tmp/
 V procfs0000;/proc/

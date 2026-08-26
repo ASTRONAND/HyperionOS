@@ -1,0 +1,99 @@
+--:Minify:--
+local kernel=...
+local keys=kernel.oc.keys
+
+kernel.processes.ocdaemon = function()
+
+    local timeout = false
+
+    kernel.log("OC daemon started")
+
+    local ctrlKeyMap = {
+        [keys.a]=1,  [keys.b]=2,  [keys.c]=3,
+        [keys.d]=4,  [keys.e]=5,  [keys.f]=6,
+        [keys.g]=7,  [keys.h]=8,  [keys.i]=9,
+        [keys.j]=10, [keys.k]=11, [keys.l]=12,
+        [keys.m]=13, [keys.n]=14, [keys.o]=15,
+        [keys.p]=16, [keys.q]=17, [keys.r]=18,
+        [keys.s]=19, [keys.t]=20, [keys.u]=21,
+        [keys.v]=22, [keys.w]=23, [keys.x]=24,
+        [keys.y]=25, [keys.z]=26,
+    }
+
+    local specialKeyMap = {
+        [keys.up]       = "\27[A",
+        [keys.down]     = "\27[B",
+        [keys.right]    = "\27[C",
+        [keys.left]     = "\27[D",
+        [keys.home]     = "\27[H",
+        [keys["end"]]   = "\27[F",
+        --[keys.pageUp]   = "\27[5~",
+        --[keys.pageDown] = "\27[6~",
+        [keys.delete]   = "\27[3~",
+        [keys.enter]    = "\n",
+        [keys.back]     = "\b",
+        [keys.tab]      = "\t",
+    }
+
+    while true do
+
+        local event = {kernel.EFI.getMachineEvent()}
+
+        if event[1] then
+
+            local eventType = event[1]
+            local addr = event[2]
+            local char = event[3]
+            local keyCode = event[4]
+
+            if eventType == "key_down" then
+
+                local keyboard = kernel.oc.keyboards[addr]
+
+                if keyboard.ctrl then
+
+                    local ctrlByte = ctrlKeyMap[keyCode]
+
+                    if ctrlByte then
+                        if ctrlByte == 3 then
+
+                            for _, task in ipairs(syscall.getTasks()) do
+                                syscall.sigsend(task, 1)
+                            end
+
+                        else
+                            keyboard.events.push(string.char(ctrlByte))
+                        end
+                    end
+
+                else
+
+                    local special = specialKeyMap[keyCode]
+
+                    if special then
+                        keyboard.events.push(special)
+
+                    elseif char and char > 0 then
+                        keyboard.events.push(kernel.apis.unicode.char(char))
+                    end
+
+                end
+
+            elseif eventType == "key_up" then
+
+            end
+
+            timeout = false
+
+        else
+            timeout = true
+        end
+
+        if timeout then
+            sleep(0.05)
+        end
+
+    end
+end
+
+kernel.log("OC daemon queued for execution")

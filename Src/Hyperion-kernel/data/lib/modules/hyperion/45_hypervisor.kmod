@@ -128,11 +128,12 @@ function sys.exec(path, args, envars)
     local task          = kernel.currentTask
     local func, euid, _ = loadExecutable(path, kernel._U)
 
-    if task.fd then
-        for fd, _ in pairs(task.fd) do
-            if fd > 2 then pcall(kernel.vfs.close, fd) end
-        end
-    end
+    -- no idea why this is here?
+    --if task.fd then
+    --    for fd, _ in pairs(task.fd) do
+    --        if fd > 2 then pcall(kernel.vfs.close, fd) end
+    --    end
+    --end
 
     task.euid   = euid
     task.args   = args or {}
