@@ -10,6 +10,7 @@ local lambda_var    = 0.02
 local k_min         = 0.5
 local k_max         = 0.5
 local B             = 0.01
+local nextyield=0
 
 function kernel.main()
     kernel.log("Starting main loop...")
